@@ -1,7 +1,7 @@
 # Product Vision
 
 ## Naziv projekta
-**Sistem za automatsku obradu računa i poslovnih dokumenata**
+**Sistem za AI asistirano prepoznavanje i obradu računa i ulaznih dokumenata**
 
 ## Problem koji sistem rješava
 
