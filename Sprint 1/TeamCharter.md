@@ -9,13 +9,13 @@ Softverski inženjering 2026 - Grupa 10
 
 | # | Ime i prezime | Broj indeksa | Kontakt |
 |---|--------------|--------------|---------|
-| 1 |Amar Breščić  |              | abrescic1@etf.unsa.ba        |
-| 2 |Emina Zubetljak              |              |   ezubetljak1@etf.unsa.ba      |
-| 3 |Muhamed Hatunić              |              |   mhatunic1@etf.unsa.ba      |
+| 1 |Amar Breščić  |      18837        | abrescic1@etf.unsa.ba        |
+| 2 |Emina Zubetljak              |      19676        |   ezubetljak1@etf.unsa.ba      |
+| 3 |Muhamed Hatunić              |     19596         |   mhatunic1@etf.unsa.ba      |
 | 4 |Irhad Žiga              |       19379       |    iziga1@etf.unsa.ba     |
-| 5 |Emina Mušinović              |              |    emusinovic1@etf.unsa.ba     |
-| 6 |Azra Kovač              |              |   akovac1@etf.unsa.ba      |
-| 7 |Mirza M. Halilović              |              |   mmhalilovi1@etf.unsa.ba      |  
+| 5 |Emina Mušinović              |      19330        |    emusinovic1@etf.unsa.ba     |
+| 6 |Azra Kovač              |      19343        |   akovac1@etf.unsa.ba      |
+| 7 |Mirza M. Halilović              |     19510         |   mmhalilovi1@etf.unsa.ba      |  
 
 
 ---
