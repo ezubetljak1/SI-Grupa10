@@ -48,7 +48,7 @@ Sistem prikazuje listu dokumenata sa statusima obrade:
 - Processed
 - Failed  
 
-Dokumenti se pohranjuju zajedno sa pripadajućim metapodacima.
+Dokumenti se pohranjuju u bazu podataka.
 
 ### 2. AI ekstrakcija podataka
 Sistem koristi OCR za ekstrakciju ključnih podataka iz dokumenata, uključujući:
@@ -68,8 +68,6 @@ Sistem vrši osnovnu validaciju:
 - provjera numeričkih vrijednosti  
 - provjera prisustva obaveznih polja  
 
-Ovaj korak predstavlja human-in-the-loop mehanizam za osiguranje tačnosti podataka.
-
 ### 4. Generisanje izlaza
 Na osnovu validiranih podataka sistem generiše standardizovani XML zapis.  
 Korisniku je omogućeno preuzimanje generisanog XML fajla.
@@ -77,14 +75,14 @@ Korisniku je omogućeno preuzimanje generisanog XML fajla.
 ### 5. Osnovna autentifikacija korisnika
 Sistem podržava:
 - registraciju korisnika  
-- prijavu (login)  
-- odjavu (logout)  
+- prijavu   
+- odjavu   
 
 Bez naprednih rola i permisija.
 
 ### 6. Osnovna klasifikacija dokumenata
 Sistem razlikuje dva tipa dokumenata:
-- račun (invoice)  
+- račun   
 - ostalo  
 
 ## Šta ne ulazi u MVP
