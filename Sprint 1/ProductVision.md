@@ -28,3 +28,36 @@ _Osobe kojima je važno da sistem funkcioniše pouzdano, sigurno i transparentno
 - **Direktori i menadžment**
 - **IT sektor kompanije**
 - **Interni i eksterni revizori**
+
+## Vrijednost sistema
+
+Sistem donosi vrijednost organizaciji kroz automatizaciju obrade ulaznih računa i poslovnih dokumenata, čime se smanjuje potreba za ručnim unosom podataka i ubrzava obrada dokumentacije. Automatskim izdvajanjem ključnih informacija, klasifikacijom dokumenata i podrškom za provjeru ispravnosti unosa, sistem korisnicima olakšava svakodnevni rad i smanjuje vjerovatnoću ljudskih grešaka.
+
+Pored operativnih koristi, sistem omogućava bolju preglednost nad statusom svakog dokumenta, jasnije praćenje odgovornosti u procesu i dosljedniju obradu podataka kroz standardizirane XML zapise. Na taj način organizacija dobija efikasniji, pouzdaniji i transparentniji proces upravljanja poslovnom dokumentacijom, uz bolju osnovu za dalju integraciju sa računovodstvenim i drugim poslovnim sistemima.
+
+## Scope MVP verzije
+
+> Ovaj dio će biti naknadno dopunjen.
+
+## Šta ne ulazi u MVP
+
+> Ovaj dio će biti naknadno dopunjen.
+
+## Ključna ograničenja i pretpostavke
+
+### Ograničenja
+
+- Kvalitet automatske obrade zavisi od kvaliteta ulaznih dokumenata, odnosno od čitljivosti skenova i PDF fajlova.
+- Tačnost izdvajanja podataka može varirati u zavisnosti od strukture i formata dokumenta.
+- Integracija sa postojećim računovodstvenim i ERP sistemima može biti otežana zbog različitih formata podataka i ograničenih integracijskih mogućnosti.
+- Sistem obrađuje osjetljive poslovne podatke, zbog čega su sigurnost, kontrola pristupa i usklađenost sa relevantnim pravilima i regulativom od posebnog značaja.
+- Dostupni budžet i tehnički resursi mogu ograničiti izbor AI alata, infrastrukture i naprednih funkcionalnosti.
+- Usvajanje sistema može biti otežano otporom korisnika prema promjeni postojećih poslovnih procesa.
+
+### Pretpostavke
+
+- Ulazni dokumenti će u većini slučajeva biti dovoljno kvalitetni za automatsku obradu.
+- Korisnici posjeduju osnovne digitalne vještine i mogu koristiti sistem uz minimalnu obuku, ukoliko je interfejs dovoljno intuitivan.
+- Kompanija je spremna prilagoditi dio postojećih procesa kako bi se sistem mogao efikasno koristiti.
+- U početnoj fazi rada bit će potrebna dodatna korisnička podrška i ručna provjera dijela automatski izdvojenih podataka.
+- AI model ili servis koji se koristi za izdvajanje podataka neće biti potpuno autonoman, već će rezultati zahtijevati korisničku potvrdu prije konačne obrade.
