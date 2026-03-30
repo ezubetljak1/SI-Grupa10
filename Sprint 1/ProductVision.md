@@ -37,11 +37,78 @@ Pored operativnih koristi, sistem omogućava bolju preglednost nad statusom svak
 
 ## Scope MVP verzije
 
-> Ovaj dio će biti naknadno dopunjen.
+MVP verzija sistema fokusirana je na implementaciju osnovnog end-to-end procesa obrade ulaznih dokumenata, od unosa do generisanja standardizovanog izlaza.
+
+### 1. Unos i upravljanje dokumentima
+Omogućen je upload PDF dokumenata i skeniranih dokumenata (JPG, PNG) putem web interfejsa.  
+Sistem prikazuje listu dokumenata sa statusima obrade:
+- Uploaded
+- Processed
+- Failed  
+
+Dokumenti se pohranjuju zajedno sa pripadajućim metapodacima.
+
+### 2. AI ekstrakcija podataka
+Sistem koristi OCR za ekstrakciju ključnih podataka iz dokumenata, uključujući:
+- dobavljač  
+- datum računa  
+- broj računa  
+- ukupan iznos  
+- iznos PDV-a  
+
+U slučaju da podaci nisu prepoznati ili imaju nizak nivo pouzdanosti, označavaju se kao nepotpuni i prosljeđuju na ručnu provjeru.
+
+### 3. Pregled, korekcija i validacija podataka
+Korisniku je omogućen pregled ekstraktovanih podataka kroz UI, uz mogućnost ručne korekcije.  
+
+Sistem vrši osnovnu validaciju:
+- provjera formata datuma  
+- provjera numeričkih vrijednosti  
+- provjera prisustva obaveznih polja  
+
+Ovaj korak predstavlja human-in-the-loop mehanizam za osiguranje tačnosti podataka.
+
+### 4. Generisanje izlaza
+Na osnovu validiranih podataka sistem generiše standardizovani XML zapis.  
+Korisniku je omogućeno preuzimanje generisanog XML fajla.
+
+### 5. Osnovna autentifikacija korisnika
+Sistem podržava:
+- registraciju korisnika  
+- prijavu (login)  
+- odjavu (logout)  
+
+Bez naprednih rola i permisija.
+
+### 6. Osnovna klasifikacija dokumenata
+Sistem razlikuje dva tipa dokumenata:
+- račun (invoice)  
+- ostalo  
 
 ## Šta ne ulazi u MVP
 
-> Ovaj dio će biti naknadno dopunjen.
+### 1. Napredna AI obrada
+- napredna semantička analiza dokumenata  
+- kompleksni modeli za visoku preciznost ekstrakcije  
+
+### 2. Podrška za više tipova dokumenata
+- ugovori  
+- bankovni izvodi  
+- narudžbenice i drugi poslovni dokumenti  
+
+### 3. Integracija sa eksternim sistemima
+- ERP sistemi  
+- računovodstveni softveri  
+
+### 4. Napredne funkcionalnosti i analitika
+- napredno filtriranje i pretraga  
+- sortiranje po kompleksnim kriterijima  
+- dashboardi i izvještaji  
+- batch obrada dokumenata  
+
+### 5. Napredni workflow i upravljanje korisnicima
+- kompleksne role i permisije  
+- automatizovano knjiženje  
 
 ## Ključna ograničenja i pretpostavke
 
