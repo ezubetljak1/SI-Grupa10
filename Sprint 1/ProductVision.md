@@ -27,7 +27,9 @@ _Osobe kojima je važno da sistem funkcioniše pouzdano, sigurno i transparentno
 - **Vlasnici kompanije**
 - **Direktori i menadžment**
 - **IT sektor kompanije**
-- **Interni i eksterni revizori**
+- **Interni i eksterni revizori** 
+
+Detaljniji pregled stakeholdera, njihovih uloga, interesa, očekivanja i nivoa uticaja prikazan je u dokumentu *Stakeholder Map*.
 
 ## Vrijednost sistema
 
