@@ -251,6 +251,462 @@ Sprintovi 1–4 fokusirani su na human-first fazu projekta i obuhvataju analizu 
 
 ---
 
+
+# Sprint 6
+
+## Sprint Goal
+
+| Sprint broj | Sprint cilj | Ključne stavke koje tim želi završiti | Rizici i zavisnosti |
+|---|---|---|---|
+| 6 | Omogućiti OCR obradu, osnovno AI izdvajanje i prikaz izdvojenih podataka. | OCR integracija, AI izdvajanje osnovnih polja, klasifikacija tipa dokumenta i prikaz rezultata obrade. | Izbor OCR/AI servisa, greške u integraciji eksternih servisa, neuspješna obrada dokumenata. |
+
+## Sprint Backlog
+
+| ID | Naziv zadatka ili storyja | Odgovorna osoba ili osobe | Status | Napomena |
+|---|---|---|---|---|
+| SB-6.1 | Integracija sa OCR servisom |  | Planned | Tekstualna obrada dokumenta |
+| SB-6.2 | Integracija sa AI servisom |  | Planned | Izdvajanje poslovnih podataka |
+| SB-6.3 | Mapping OCR/AI odgovora u interne modele |  | Planned | Potrebno za čuvanje rezultata |
+| SB-6.4 | Spremanje izdvojenih polja |  | Planned | Povezano sa prikazom podataka |
+| SB-6.5 | UI za prikaz izdvojenih podataka |  | Planned | Računovođa pregleda rezultate |
+| SB-6.6 | Osnovna klasifikacija dokumenta |  | Planned | Račun ili ostalo |
+| SB-6.7 | Error handling za eksterne servise |  | Planned | Važno za stabilnost |
+| SB-6.8 | Integracioni testovi za obradu dokumenata |  | Planned | Provjera cjelokupnog toka obrade |
+
+## User Stories
+
+### US-6.1 — Pokretanje OCR obrade nakon uploada
+
+| Polje | Sadržaj |
+|---|---|
+| ID storyja | US-6.1 |
+| Naziv storyja | Pokretanje OCR obrade nakon uploada |
+| Opis | Kao operater, želim da se nakon uploada pokrene OCR obrada dokumenta, kako bi tekst bio spreman za dalju analizu. |
+| Poslovna vrijednost | Omogućava prelazak sa obične pohrane dokumenta na automatsku obradu sadržaja. |
+| Prioritet | Visok |
+| Pretpostavke i otvorena pitanja | OCR servis i način integracije još trebaju biti finalno odabrani. |
+| Veze sa drugim storyjima ili zavisnostima | Sprint 5, posebno US-5.1 i US-5.4 |
+
+**Acceptance Criteria**
+- Kada je dokument uspješno uploadovan, tada sistem mora automatski pokrenuti OCR obradu bez dodatne akcije korisnika.
+- Kada se OCR obrada pokrene, tada sistem mora evidentirati status obrade.
+- Kada OCR obrada uspješno završi, tada sistem mora sačuvati izdvojeni tekst u bazi podataka.
+- Kada OCR servis nije dostupan ili dođe do greške, tada sistem mora obavijestiti korisnika da je OCR neuspješan.
+
+### US-6.2 — Prikaz automatski izdvojenih podataka
+
+| Polje | Sadržaj |
+|---|---|
+| ID storyja | US-6.2 |
+| Naziv storyja | Prikaz automatski izdvojenih podataka |
+| Opis | Kao računovođa, želim vidjeti automatski izdvojene podatke sa dokumenta, kako bih ih mogao provjeriti. |
+| Poslovna vrijednost | Omogućava korisniku da odmah procijeni kvalitet automatske obrade. |
+| Prioritet | Visok |
+| Pretpostavke i otvorena pitanja | Potrebno je definisati prikaz polja i redoslijed informacija u interfejsu. |
+| Veze sa drugim storyjima ili zavisnostima | US-6.1, US-6.3 |
+
+**Acceptance Criteria**
+- Kada je obrada dokumenta završena, tada sistem mora prikazati izdvojene podatke u UI-u.
+- Sistem mora omogućiti pregled osnovnih izdvojenih vrijednosti na jednom mjestu.
+- Korisnik treba dobiti jasan prikaz koji razlikuje originalni dokument od izdvojenih podataka.
+
+
+### US-6.3 — Izdvajanje osnovnih polja dokumenta
+
+| Polje | Sadržaj |
+|---|---|
+| ID storyja | US-6.3 |
+| Naziv storyja | Izdvajanje osnovnih polja dokumenta |
+| Opis | Kao računovođa, želim da sistem izdvoji osnovna polja kao što su dobavljač, datum, broj računa, ukupan iznos i PDV, kako bih izbjegao ručni unos. |
+| Poslovna vrijednost | Smanjuje količinu ručnog rada i ubrzava obradu dokumenata. |
+| Prioritet | Visok |
+| Pretpostavke i otvorena pitanja | Nije još definisano da li sistem obuhvata i dodatna polja poput valute ili broja stavki. |
+| Veze sa drugim storyjima ili zavisnostima | US-6.1 |
+
+**Acceptance Criteria**
+- Kada OCR/AI obrada uspješno završi, ako dokument sadrži tražena polja, tada sistem mora pokušati izdvojiti dobavljača, datum, broj računa, ukupan iznos i PDV.
+- Sistem mora omogućiti spremanje izdvojenih polja uz dokument.
+- Sistem treba prikazati praznu ili nepopunjenu vrijednost za polje koje nije moglo biti izdvojeno, umjesto proizvoljnog podatka.
+- Sistem mora omogućiti da svako polje ima status pouzdanosti (confidence score) ako je dostupan iz AI servisa.
+
+### US-6.4 — Osnovna klasifikacija tipa dokumenta
+
+| Polje | Sadržaj |
+|---|---|
+| ID storyja | US-6.4 |
+| Naziv storyja | Osnovna klasifikacija tipa dokumenta |
+| Opis | Kao računovođa, želim da sistem prepozna tip dokumenta kao račun ili ostalo, kako bih znao kako dalje postupati. |
+| Poslovna vrijednost | Omogućava razlikovanje osnovnih poslovnih tokova obrade dokumenata. |
+| Prioritet | Srednji |
+| Pretpostavke i otvorena pitanja | U sistemu je klasifikacija ograničena na račun i ostalo. |
+| Veze sa drugim storyjima ili zavisnostima | US-6.1 |
+
+**Acceptance Criteria**
+- Kada sistem obradi dokument, ako klasifikacija uspije, tada mora označiti dokument kao "račun" ili "ostalo".
+- Sistem mora omogućiti prikaz klasifikacije u detaljima dokumenta.
+- Sistem ne smije ostaviti korisnika bez informacije o tipu dokumenta ako je klasifikacija izvršena.
+- Kada klasifikacija nije sigurna, tada sistem mora označiti dokument kao “nepoznat tip”.
+
+### US-6.5 — Označavanje neuspjele obrade
+
+| Polje | Sadržaj |
+|---|---|
+| ID storyja | US-6.5 |
+| Naziv storyja | Označavanje neuspjele obrade |
+| Opis | Kao računovođa, želim da sistem jasno označi kada obrada dokumenta nije uspjela, kako bih znao da su potrebni dodatna provjera ili ponovni pokušaj obrade. |
+| Poslovna vrijednost | Omogućava korisniku da prepozna problem i reaguje bez gubitka vremena. |
+| Prioritet | Visok |
+| Pretpostavke i otvorena pitanja | Potrebno je definisati kako se u sistemu prikazuje status neuspjele obrade. |
+| Veze sa drugim storyjima ili zavisnostima | US-6.1, US-6.2, US-6.3 |
+
+**Acceptance Criteria**
+- Kada OCR ili AI obrada ne uspije, tada sistem mora jasno označiti dokument statusom “obrada neuspješna”.
+- Sistem mora omogućiti prikaz statusa neuspjele obrade u listi i detaljima dokumenta.
+- Korisnik treba dobiti jasnu informaciju da automatska obrada nije završena uspješno.
+- Sistem ne smije prikazivati djelimične ili nepouzdane podatke kao validne bez odgovarajuće oznake.
+
+---
+
+# Sprint 7
+
+## Sprint Goal
+
+| Sprint broj | Sprint cilj | Ključne stavke koje tim želi završiti | Rizici i zavisnosti |
+|---|---|---|---|
+| 7 | Omogućiti ručnu korekciju i validaciju izdvojenih podataka prije daljeg toka obrade. | Edit forma, validacije obaveznih i formatnih polja, matematička provjera iznosa i spremanje korigovanih podataka. | Neusklađena validaciona pravila, loše definisana editabilna polja, nedovoljno pouzdana provjera ispravnosti podataka. |
+
+## Sprint Backlog
+
+| ID | Naziv zadatka ili storyja | Odgovorna osoba ili osobe | Status | Napomena |
+|---|---|---|---|---|
+| SB-7.1 | Edit forma za izdvojena polja |  | Planned | Ručna korekcija podataka |
+| SB-7.2 | Server-side i client-side validacije |  | Planned | Potrebno za konzistentnost |
+| SB-7.3 | Validacija obaveznih polja |  | Planned | Sprječava nepotpun unos |
+| SB-7.4 | Validacija formata |  | Planned | Datum, brojčane vrijednosti |
+| SB-7.5 | Matematička provjera subtotal/PDV/ukupan iznos |  | Planned | Logička provjera podataka |
+| SB-7.6 | Spremanje pregledanih i korigovanih podataka |  | Planned | Priprema za naredne korake |
+| SB-7.7 | Test scenariji za validaciju i korekciju |  | Planned | Testabilnost izmjena |
+
+## User Stories
+
+### US-7.1 — Ručna korekcija izdvojenih polja
+
+| Polje | Sadržaj |
+|---|---|
+| ID storyja | US-7.1 |
+| Naziv storyja | Ručna korekcija izdvojenih polja |
+| Opis | Kao računovođa, želim moći ručno korigovati izdvojena polja, kako bih ispravio potencijalne greške automatske obrade. |
+| Poslovna vrijednost | Omogućava human-in-the-loop pristup i podiže pouzdanost podataka prije nastavka procesa. |
+| Prioritet | Visok |
+| Pretpostavke i otvorena pitanja | Potrebno je definisati koja polja su editabilna. |
+| Veze sa drugim storyjima ili zavisnostima | Sprint 6, posebno US-6.2 i US-6.3 |
+
+**Acceptance Criteria**
+- Kada računovođa otvori izdvojene podatke, ako odabere polje za izmjenu, tada sistem mora omogućiti ručnu korekciju.
+- Kada računovođa izmijeni vrijednost polja, tada sistem mora ažurirati prikaz nakon potvrde izmjene.
+- Kada se unese nevalidna vrijednost, tada sistem ne smije dozvoliti spremanje i mora prikazati validacionu poruku (npr. neispravan format datuma).
+- Korisnik treba dobiti potvrdu da su izmjene uspješno sačuvane.
+
+### US-7.2 — Validacija obaveznih polja
+
+| Polje | Sadržaj |
+|---|---|
+| ID storyja | US-7.2 |
+| Naziv storyja | Validacija obaveznih polja |
+| Opis | Kao računovođa, želim da sistem provjeri da li su obavezna polja popunjena, kako dokument ne bi ostao nepotpun. |
+| Poslovna vrijednost | Sprječava da dokument sa nepotpunim podacima uđe u naredne faze procesa. |
+| Prioritet | Visok |
+| Pretpostavke i otvorena pitanja | Potrebno je finalno usaglasiti skup obaveznih polja. |
+| Veze sa drugim storyjima ili zavisnostima | US-7.1 |
+
+**Acceptance Criteria**
+- Kada korisnik pokuša spremiti dokument, tada sistem mora provjeriti da li su sva obavezna polja popunjena.
+- Kada neko od obaveznih polja nije popunjeno, tada sistem ne smije dozvoliti spremanje i mora jasno označiti koja polja nedostaju.
+- Sistem ne smije dozvoliti prelazak dokumenta u naredni korak bez obaveznih podataka.
+
+### US-7.3 — Validacija formata podataka
+
+| Polje | Sadržaj |
+|---|---|
+| ID storyja | US-7.3 |
+| Naziv storyja | Validacija formata podataka |
+| Opis | Kao računovođa, želim da sistem validira format datuma i numeričkih vrijednosti, kako bih lakše uočio neispravan unos. |
+| Poslovna vrijednost | Smanjuje rizik od neispravnih podataka u daljem toku obrade. |
+| Prioritet | Visok |
+| Pretpostavke i otvorena pitanja | Potrebno je definisati očekivane formate datuma i brojčanih vrijednosti. |
+| Veze sa drugim storyjima ili zavisnostima | US-7.1, US-7.2 |
+
+**Acceptance Criteria**
+- Kada korisnik unese datum ili brojčanu vrijednost, ako format nije ispravan, tada sistem mora prikazati validacionu poruku.
+- Sistem mora omogućiti spremanje samo validno formatiranih podataka.
+- Korisnik treba dobiti informaciju koje polje ima neispravan format.
+
+### US-7.4 — Matematička provjera iznosa
+
+| Polje | Sadržaj |
+|---|---|
+| ID storyja | US-7.4 |
+| Naziv storyja | Matematička provjera iznosa |
+| Opis | Kao računovođa, želim da sistem provjeri osnovnu matematičku ispravnost iznosa, kako bih otkrio nelogičnosti. |
+| Poslovna vrijednost | Pomaže u otkrivanju grešaka u iznosima prije odobravanja i XML generisanja. |
+| Prioritet | Srednji |
+| Pretpostavke i otvorena pitanja | Nije još definisano da li se provjeravaju samo ukupan iznos i PDV ili i dodatna računanja. |
+| Veze sa drugim storyjima ili zavisnostima | US-7.1, US-7.2, US-7.3 |
+
+**Acceptance Criteria**
+- Kada se unesu relevantni iznosi, ako korisnik sačuva dokument, tada sistem mora izvršiti osnovnu matematičku provjeru.
+- Kada matematička provjera nije zadovoljena, tada sistem mora upozoriti korisnika i označiti problematična polja.
+- Kada su iznosi validni, tada sistem mora dozvoliti spremanje bez upozorenja.
+
+### US-7.5 — Spremanje potvrđenih podataka
+
+| Polje | Sadržaj |
+|---|---|
+| ID storyja | US-7.5 |
+| Naziv storyja | Spremanje potvrđenih podataka |
+| Opis | Kao računovođa, želim spremiti pregledane i eventualno korigovane podatke, kako bi dokument bio spreman za naredni korak. |
+| Poslovna vrijednost | Omogućava prelazak iz faze provjere u narednu fazu procesa. |
+| Prioritet | Visok |
+| Pretpostavke i otvorena pitanja | Potrebno je odlučiti da li sistem čuva i oznaku da su polja ručno mijenjana. |
+| Veze sa drugim storyjima ili zavisnostima | US-7.1, US-7.2, US-7.3 |
+
+**Acceptance Criteria**
+- Kada su sva validaciona pravila zadovoljena, ako računovođa sačuva podatke, tada sistem mora spremiti potvrđene vrijednosti.
+- Kada je spremanje uspješno, tada korisnik treba dobiti tekstualnu potvrdu.
+- Sistem mora omogućiti da dokument bude označen kao spreman za naredni korak.
+- Sistem ne smije izgubiti prethodno unesene korekcije nakon uspješnog spremanja.
+
+
+---
+
+# Sprint 8
+
+## Sprint Goal
+
+| Sprint broj | Sprint cilj | Ključne stavke koje tim želi završiti | Rizici i zavisnosti |
+|---|---|---|---|
+| 8 | Uvesti organizacioni model pristupa sistemu kroz registraciju firme, kreiranje administratorskog naloga i osnovnu autentifikaciju korisnika. | Registracija firme, prvi admin nalog, login/logout, izolacija podataka po organizaciji i osnovna sigurnost pristupa. | Nejasna pravila registracije, problemi sa autentifikacijom, nedovoljna izolacija organizacijskih podataka. |
+
+## Sprint Backlog
+
+| ID | Naziv zadatka ili storyja | Odgovorna osoba ili osobe | Status | Napomena |
+|---|---|---|---|---|
+| SB-8.1 | Model firme / organizacije |  | Planned | Multi-tenant osnova |
+| SB-8.2 | Model korisnika povezanog sa firmom |  | Planned | Veza korisnik-organizacija |
+| SB-8.3 | Registracija firme |  | Planned | Ulaz u sistem za organizaciju |
+| SB-8.4 | Kreiranje prvog administratorskog naloga |  | Planned | Upravljanje pristupom |
+| SB-8.5 | Login endpoint i UI |  | Planned | Prijava korisnika |
+| SB-8.6 | Logout |  | Planned | Zatvaranje sesije |
+| SB-8.7 | Session/token menadžment |  | Planned | Osnovna autentifikacija |
+| SB-8.8 | Zaštita ruta |  | Planned | Ograničenje pristupa |
+| SB-8.9 | Osnovno hashiranje lozinke |  | Planned | Sigurnost korisničkih naloga |
+| SB-8.10 | Testovi za auth i organizacioni model |  | Planned | Verifikacija pristupa |
+
+## User Stories
+
+### US-8.1 — Registracija firme u sistem
+
+| Polje | Sadržaj |
+|---|---|
+| ID storyja | US-8.1 |
+| Naziv storyja | Registracija firme u sistem |
+| Opis | Kao predstavnik firme, želim registrovati svoju firmu u sistem, kako bih mogao uspostaviti radno okruženje za svoju organizaciju. |
+| Poslovna vrijednost | Omogućava da sistem koristi više organizacija uz odvojene podatke i korisnike. |
+| Prioritet | Visok |
+| Pretpostavke i otvorena pitanja | Potrebno je definisati koja organizacijska polja su obavezna pri registraciji. |
+| Veze sa drugim storyjima ili zavisnostima | US-8.2 |
+
+**Acceptance Criteria**
+- Kada predstavnik firme unese validne podatke o firmi (npr. naziv, email), i potvrdi registraciju, tada sistem mora kreirati novu organizaciju u bazi.
+- Kada se pokuša registracija sa već postojećim emailom firme, tada sistem ne smije dozvoliti duplikat i mora prikazati poruku greške.
+- Sistem mora omogućiti jedinstvenu identifikaciju registrovane firme.
+- Korisnik treba dobiti potvrdu da je registracija firme uspješna.
+
+### US-8.2 — Kreiranje prvog administratorskog naloga firme
+
+| Polje | Sadržaj |
+|---|---|
+| ID storyja | US-8.2 |
+| Naziv storyja | Kreiranje prvog administratorskog naloga firme |
+| Opis | Kao predstavnik firme, želim kreirati prvi administratorski nalog firme prilikom registracije, kako bih mogao upravljati pristupom sistemu. |
+| Poslovna vrijednost | Omogućava da svaka firma odmah ima odgovornu osobu za korisnike i pristup. |
+| Prioritet | Visok |
+| Pretpostavke i otvorena pitanja | Potrebno je odlučiti da li sistem podržava samostalnu aktivaciju ili ručno potvrđivanje naloga. |
+| Veze sa drugim storyjima ili zavisnostima | US-8.1 |
+
+**Acceptance Criteria**
+- Kada se firma registruje, tada sistem mora omogućiti kreiranje prvog korisnika sa administratorskom ulogom.
+- Kada korisnik unese validne podatke, tada sistem mora kreirati administratorski nalog povezan sa firmom.
+- Sistem mora povezati administratorski nalog sa odgovarajućom firmom.
+- Sistem mora sigurno pohraniti lozinku koristeći heširanje.
+
+### US-8.3 — Prijava korisnika firme
+
+| Polje | Sadržaj |
+|---|---|
+| ID storyja | US-8.3 |
+| Naziv storyja | Prijava korisnika firme |
+| Opis | Kao korisnik firme, želim prijaviti se u sistem, kako bih mogao pristupiti funkcionalnostima koje su mi dostupne. |
+| Poslovna vrijednost | Omogućava siguran pristup sistemu i rad sa dokumentima. |
+| Prioritet | Visok |
+| Pretpostavke i otvorena pitanja | Potrebno je finalno definisati pristup sesijama ili tokenima. |
+| Veze sa drugim storyjima ili zavisnostima | US-8.2 |
+
+**Acceptance Criteria**
+- Kada korisnik unese validne pristupne podatke, tada sistem mora omogućiti pristup sistemu.
+- Sistem mora kreirati validnu sesiju ili token nakon uspješne prijave.
+- Sistem ne smije dozvoliti pristup za nevalidne pristupne podatke.
+- Sistem mora ograničiti broj uzastopnih neuspješnih pokušaja prijave
+
+### US-8.4 — Odjava korisnika iz sistema
+
+| Polje | Sadržaj |
+|---|---|
+| ID storyja | US-8.4 |
+| Naziv storyja | Odjava korisnika iz sistema |
+| Opis | Kao korisnik firme, želim odjaviti se iz sistema, kako bih zaštitio svoj nalog. |
+| Poslovna vrijednost | Smanjuje sigurnosni rizik pri radu u zajedničkim ili javnim okruženjima. |
+| Prioritet | Visok |
+| Pretpostavke i otvorena pitanja | Nema dodatnih otvorenih pitanja u ovoj fazi. |
+| Veze sa drugim storyjima ili zavisnostima | US-8.3 |
+
+**Acceptance Criteria**
+- Kada je korisnik prijavljen, ako odabere opciju odjave, tada sistem mora završiti aktivnu sesiju.
+- Sistem mora onemogućiti pristup zaštićenim dijelovima nakon odjave.
+- Korisnik treba dobiti povratnu informaciju da je uspješno odjavljen.
+
+### US-8.5 — Ograničenje pristupa na podatke vlastite organizacije
+
+| Polje | Sadržaj |
+|---|---|
+| ID storyja | US-8.5 |
+| Naziv storyja | Ograničenje pristupa na podatke vlastite organizacije |
+| Opis | Kao korisnik firme, želim da pristupam samo podacima svoje organizacije, kako bi podaci moje firme ostali odvojeni i sigurni. |
+| Poslovna vrijednost | Osigurava osnovnu izolaciju podataka između različitih organizacija. |
+| Prioritet | Visok |
+| Pretpostavke i otvorena pitanja | Potrebno je definisati pravila pristupa za administratorske i obične korisnike. |
+| Veze sa drugim storyjima ili zavisnostima | US-8.1, US-8.2, US-8.3 |
+
+**Acceptance Criteria**
+- Kada je korisnik prijavljen, ako pristupa dokumentima ili korisnicima, tada sistem mora prikazati samo podatke njegove organizacije.
+- Sistem ne smije dozvoliti pristup podacima druge organizacije.
+- Sistem mora provoditi provjeru organizacijske pripadnosti na nivou poslovne logike i pristupa podacima.
+
+### US-8.6 — Prikaz poruke pri neuspješnoj prijavi
+
+| Polje | Sadržaj |
+|---|---|
+| ID storyja | US-8.6 |
+| Naziv storyja | Prikaz poruke pri neuspješnoj prijavi |
+| Opis | Kao korisnik firme, želim vidjeti jasnu poruku pri neuspješnoj prijavi, kako bih znao šta je problem. |
+| Poslovna vrijednost | Pomaže korisnicima da razumiju zašto pristup nije odobren i smanjuje frustraciju pri korištenju sistema. |
+| Prioritet | Srednji |
+| Pretpostavke i otvorena pitanja | Potrebno je definisati nivo detalja u porukama kako se ne bi otkrivale osjetljive informacije. |
+| Veze sa drugim storyjima ili zavisnostima | US-8.3 |
+
+**Acceptance Criteria**
+- Kada korisnik unese neispravne pristupne podatke, tada sistem mora prikazati poruku o neuspješnoj prijavi.
+- Sistem ne smije prikazivati osjetljive sigurnosne detalje u poruci greške.
+- Korisnik treba dobiti mogućnost da ponovo pokuša prijavu, ako nije prekoračio dozvoljeni broj pokušaja prijave.
+- Kada korisnik prekorači dozvoljen broj pokušaja prijave, tada sistem mora privremeno blokirati pristup i prikazati odgovarajuću poruku.
+
+---
+
+# Sprint 9
+
+## Sprint Goal
+
+| Sprint broj | Sprint cilj | Ključne stavke koje tim želi završiti | Rizici i zavisnosti |
+|---|---|---|---|
+| 9 | Uspostaviti model upravljanja korisnicima i rolama unutar firme, te osigurati pristup funkcionalnostima prema odgovornostima korisnika. | Kreiranje korisničkih naloga, dodjela rola, pregled korisnika i ograničenje akcija prema ulozi. | Nejasna matrica rola i dozvola, preširoko postavljen administrativni scope, nedovoljno precizna pravila pristupa. |
+
+## Sprint Backlog
+
+| ID | Naziv zadatka ili storyja | Odgovorna osoba ili osobe | Status | Napomena |
+|---|---|---|---|---|
+| SB-9.1 | UI/API za kreiranje korisnika unutar firme |  | Planned | Administrativno upravljanje nalozima |
+| SB-9.2 | Dodjela rola korisnicima |  | Planned | Operater, računovođa, osoba za odobravanje |
+| SB-9.3 | Pregled i osnovno održavanje korisničkih naloga |  | Planned | Pregled aktivnih naloga firme |
+| SB-9.4 | Zaštita akcija po ulozi |  | Planned | Role-based access control |
+| SB-9.5 | Testovi za upravljanje korisnicima i role-based pristup |  | Planned | Verifikacija sigurnosti i pravilnog pristupa |
+
+## User Stories
+
+### US-9.1 — Kreiranje korisničkih naloga unutar firme
+
+| Polje | Sadržaj |
+|---|---|
+| ID storyja | US-9.1 |
+| Naziv storyja | Kreiranje korisničkih naloga unutar firme |
+| Opis | Kao administrator firme, želim kreirati korisničke naloge unutar svoje firme, kako bih omogućio pristup drugim članovima organizacije. |
+| Poslovna vrijednost | Omogućava uključivanje stvarnih poslovnih aktera u proces obrade dokumenata. |
+| Prioritet | Visok |
+| Pretpostavke i otvorena pitanja | Potrebno je definisati da li admin ručno kreira lozinke ili se koristi inicijalna aktivacija naloga. |
+| Veze sa drugim storyjima ili zavisnostima | Sprint 8 |
+
+**Acceptance Criteria**
+- Kada administrator unese validne podatke za novog korisnika (ime, email), tada sistem mora omogućiti kreiranje korisničkog naloga unutar iste firme.
+- Kada administrator pokuša kreirati korisnika sa već postojećim emailom unutar iste firme, tada sistem ne smije dozvoliti duplikat i mora prikazati poruku greške.
+- Sistem mora automatski povezati novog korisnika sa firmom administratora.
+- Sistem mora omogućiti pregled kreiranih korisnika firme.
+- Sistem ne smije dozvoliti kreiranje korisnika bez obaveznih podataka.
+
+### US-9.2 — Dodjela korisničkih rola
+
+| Polje | Sadržaj |
+|---|---|
+| ID storyja | US-9.2 |
+| Naziv storyja | Dodjela korisničkih rola |
+| Opis | Kao administrator firme, želim dodijeliti korisniku ulogu operatera, računovođe ili osobe za odobravanje, kako bi imao odgovarajuće odgovornosti u sistemu. |
+| Poslovna vrijednost | Omogućava pravilnu raspodjelu zadataka i odgovornosti unutar procesa obrade dokumenata. |
+| Prioritet | Visok |
+| Pretpostavke i otvorena pitanja | Potrebno je finalno potvrditi skup rola u sistemu. |
+| Veze sa drugim storyjima ili zavisnostima | US-9.1 |
+
+**Acceptance Criteria**
+- Kada administrator dodijeli korisniku rolu (operater, računovođa, odobravatelj), tada sistem mora sačuvati rolu povezanu sa korisnikom.
+- Kada korisnik nema dodijeljenu rolu, tada sistem ne smije dozvoliti pristup zaštićenim funkcionalnostima.
+- Kada administrator promijeni rolu korisnika, tada sistem mora odmah primijeniti nova prava pristupa.
+
+### US-9.3 — Ograničenje akcija prema ulozi
+
+| Polje | Sadržaj |
+|---|---|
+| ID storyja | US-9.3 |
+| Naziv storyja | Ograničenje akcija prema ulozi |
+| Opis | Kao administrator firme, želim da korisnici imaju pristup samo akcijama koje odgovaraju njihovoj ulozi, kako bi proces rada bio ispravan i siguran. |
+| Poslovna vrijednost | Sprječava neovlaštene radnje i čuva integritet procesa. |
+| Prioritet | Visok |
+| Pretpostavke i otvorena pitanja | Potrebno je usaglasiti matricu rola i dozvoljenih akcija. |
+| Veze sa drugim storyjima ili zavisnostima | US-9.2 |
+
+**Acceptance Criteria**
+- Kada korisnik pokuša izvršiti akciju, tada sistem mora provjeriti da li njegova rola ima dozvolu za tu akciju.
+- Kada korisnik nema odgovarajuću rolu, tada sistem ne smije dozvoliti izvršenje akcije i mora prikazati grešku.
+- Kada korisnik ima odgovarajuću rolu, tada sistem mora omogućiti izvršenje akcije bez dodatnih prepreka.
+- Sistem mora omogućiti pristup samo onim akcijama koje su dozvoljene toj ulozi.
+- Korisnik treba dobiti konzistentno ponašanje sistema u skladu sa svojom rolom.
+
+### US-9.4 — Pregled korisnika firme
+
+| Polje | Sadržaj |
+|---|---|
+| ID storyja | US-9.4 |
+| Naziv storyja | Pregled korisnika firme |
+| Opis | Kao administrator firme, želim vidjeti listu korisnika svoje firme, kako bih mogao upravljati postojećim nalozima. |
+| Poslovna vrijednost | Omogućava administrativni pregled i lakše održavanje organizacijskog modela. |
+| Prioritet | Srednji |
+| Pretpostavke i otvorena pitanja | Potrebno je definisati koji podaci o korisnicima se prikazuju u listi. |
+| Veze sa drugim storyjima ili zavisnostima | US-9.1, US-9.2 |
+
+**Acceptance Criteria**
+- Kada administrator otvori listu korisnika, tada sistem mora prikazati sve korisnike povezane sa njegovom firmom.
+- Kada nema korisnika osim administratora, tada sistem treba prikazati odgovarajuću poruku
+- Sistem mora omogućiti pregled osnovnih podataka i role korisnika.
+- Sistem ne smije prikazivati korisnike drugih organizacija.
+
+---
+
 # Sprint 10
 
 ## Sprint Goal
