@@ -1,4 +1,3 @@
-TestStrategy_v3.md
 # Test Strategy
 
 ## Naziv projekta
