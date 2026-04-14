@@ -34,11 +34,11 @@
 | S6 | Acceptance Criteria | Definisanje mjerljivih kriterija prihvata za svaki user story | D | P1 | M | DONE | 2 |
 | S7 | Prioritizacija backloga | Rangiranje backlog stavki prema poslovnoj vrijednosti i važnosti za MVP | R | P1 | S | DONE | 2 |
 | S8 | NFR lista | Definisanje nefunkcionalnih zahtjeva (performanse, sigurnost, pouzdanost) | D | P2 | S | DONE | 2 |
-| S9 | Risk Register | Identifikacija potencijalnih rizika projekta i definisanje strategija mitigacije | D | P1 | M | TODO | 3 |
-| S10 | Domain Model | Modeliranje ključnih entiteta sistema (dokument, korisnik, firma, status) i njihovih relacija | R | P1 | M | TODO | 3 |
-| S11 | Use Case Model | Definisanje glavnih scenarija korištenja sistema kroz use case dijagrame | D | P1 | M | TODO | 3 |
-| S12 | Architecture Overview | Definisanje arhitekture sistema, komponenti i međusobne komunikacije | T | P1 | L | TODO | 3 |
-| S13 | Test Strategy | Definisanje pristupa testiranju (unit, integraciono, sistemsko testiranje) | D | P1 | M | TODO | 3 |
+| S9 | Risk Register | Identifikacija potencijalnih rizika projekta i definisanje strategija mitigacije | D | P1 | M | DONE | 3 |
+| S10 | Domain Model | Modeliranje ključnih entiteta sistema (dokument, korisnik, firma, status) i njihovih relacija | R | P1 | M | DONE | 3 |
+| S11 | Use Case Model | Definisanje glavnih scenarija korištenja sistema kroz use case dijagrame | D | P1 | M | DONE | 3 |
+| S12 | Architecture Overview | Definisanje arhitekture sistema, komponenti i međusobne komunikacije | T | P1 | L | DONE | 3 |
+| S13 | Test Strategy | Definisanje pristupa testiranju (unit, integraciono, sistemsko testiranje) | D | P1 | M | DONE | 3 |
 | S14 | Definition of Done | Definisanje kriterija kada se zadatak smatra završenim i spremnim za isporuku | D | P3 | S | TODO | 4 |
 | S15 | Initial Release Plan | Planiranje inkremenata i raspodjela funkcionalnosti po sprintovima | D | P1 | M | TODO | 4 |
 | S16 | Backend skeleton | Postavljanje osnovne strukture backend aplikacije i API sloja | T | P1 | L | TODO | 4 |

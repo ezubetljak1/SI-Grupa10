@@ -85,13 +85,13 @@ Sprintovi 1–4 fokusirani su na human-first fazu projekta i obuhvataju analizu 
 
 | ID | Naziv zadatka ili storyja | Odgovorna osoba ili osobe | Status | Napomena |
 |---|---|---|---|---|
-| SB-3.1 | Identifikacija glavnih domenskih entiteta |  | Planned | Temelj za model sistema |
-| SB-3.2 | Modelovanje relacija među entitetima |  | Planned | Važno za bazu i poslovnu logiku |
-| SB-3.3 | Definisanje glavnih use caseova sistema |  | Planned | Pokriva glavne tokove rada |
-| SB-3.4 | Izrada Architecture Overview dokumenta |  | Planned | Arhitektonski pravac sistema |
-| SB-3.5 | Izrada Risk Register dokumenta |  | Planned | Evidencija ključnih rizika |
-| SB-3.6 | Definisanje Test Strategy dokumenta |  | Planned | Osnova za kasnije testove |
-| SB-3.7 | Povezivanje acceptance criteria sa pristupom testiranju |  | Planned | Veza zahtjeva i verifikacije |
+| SB-3.1 | Identifikacija glavnih domenskih entiteta | Emina Zubetljak, Mirza M. Halilović | Done | Temelj za model sistema |
+| SB-3.2 | Modelovanje relacija među entitetima | Emina Zubetljak, Mirza M. Halilović | Done | Važno za bazu i poslovnu logiku |
+| SB-3.3 | Definisanje glavnih use caseova sistema | Emina Zubetljak, Mirza M. Halilović | Done | Pokriva glavne tokove rada |
+| SB-3.4 | Izrada Architecture Overview dokumenta | Emina Mušinović, Azra Kovač | Done | Arhitektonski pravac sistema |
+| SB-3.5 | Izrada Risk Register dokumenta | Irhad Žiga, Muhamed Hatunić | Done | Evidencija ključnih rizika |
+| SB-3.6 | Definisanje Test Strategy dokumenta | Amar Breščić | Done | Osnova za kasnije testove |
+| SB-3.7 | Povezivanje acceptance criteria sa pristupom testiranju | Amar Breščić | Done | Veza zahtjeva i verifikacije |
 
 ---
 
