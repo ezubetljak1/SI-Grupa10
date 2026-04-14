@@ -1,7 +1,5 @@
 # Architecture Overview
 
-**Naziv projekta**
-
 **Sistem za AI asistirano prepoznavanje i obradu računa i ulaznih dokumenata**
 
 ---
