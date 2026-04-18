@@ -1,0 +1,70 @@
+# -----------------------------
+# OS files
+# -----------------------------
+.DS_Store
+Thumbs.db
+
+# -----------------------------
+# IDE / Editors
+# -----------------------------
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+.project
+.classpath
+.factorypath
+.settings/
+.c9/
+*.launch
+.history/
+.springBeans
+.sts4-cache
+
+# -----------------------------
+# Logs
+# -----------------------------
+*.log
+npm-debug.log*
+yarn-error.log
+testem.log
+libpeerconnection.log
+chrome-profiler-events*.json
+
+# -----------------------------
+# Frontend (Angular)
+# -----------------------------
+Project/frontend/node_modules/
+Project/frontend/dist/
+Project/frontend/tmp/
+Project/frontend/out-tsc/
+Project/frontend/.angular/
+Project/frontend/coverage/
+Project/frontend/.sass-cache/
+Project/frontend/connect.lock
+Project/frontend/typings/
+Project/frontend/bazel-out/
+
+# -----------------------------
+# Backend (Spring Boot / Maven / Gradle)
+# -----------------------------
+Project/backend/target/
+Project/backend/build/
+Project/backend/.gradle/
+*.class
+application.pid
+local.*.db
+*.trace.db
+application*-override.*
+
+# Keep Maven wrapper jar if used
+!Project/backend/.mvn/wrapper/maven-wrapper.jar
+
+# -----------------------------
+# Optional local env/config
+# -----------------------------
+.env
+.env.*
+application-local.properties
+application-local.yml
