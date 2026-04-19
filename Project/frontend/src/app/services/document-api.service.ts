@@ -2,6 +2,14 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 
+import { ApiResponse, PagedResponse } from '../models/api.models';
+import {
+  Document,
+  DocumentCreateRequest,
+  DocumentUpdateRequest,
+  DocumentFilterRequest
+} from '../documents/models/document.models';
+
 @Injectable({
   providedIn: 'root'
 })
@@ -9,36 +17,29 @@ export class DocumentApiService {
   private http = inject(HttpClient);
   private readonly baseUrl = '/api/documents';
 
-  getAll(): Observable<any> {
-    return this.http.get(this.baseUrl);
+  getAll(): Observable<PagedResponse<Document>> {
+    return this.http.get<PagedResponse<Document>>(this.baseUrl);
   }
 
-  getById(id: number): Observable<any> {
-    return this.http.get(`${this.baseUrl}/${id}`);
+  getById(id: number): Observable<ApiResponse<Document>> {
+    return this.http.get<ApiResponse<Document>>(`${this.baseUrl}/${id}`);
   }
 
-  create(payload: any): Observable<any> {
-    return this.http.post(this.baseUrl, payload);
+  create(payload: DocumentCreateRequest): Observable<ApiResponse<Document>> {
+    return this.http.post<ApiResponse<Document>>(this.baseUrl, payload);
   }
 
-  update(id: number, payload: any): Observable<any> {
-    return this.http.put(`${this.baseUrl}/${id}`, payload);
+  update(id: number, payload: DocumentUpdateRequest): Observable<ApiResponse<Document>> {
+    return this.http.put<ApiResponse<Document>>(`${this.baseUrl}/${id}`, payload);
   }
 
-  delete(id: number): Observable<any> {
-    return this.http.delete(`${this.baseUrl}/${id}`);
+  delete(id: number): Observable<ApiResponse<string>> {
+    return this.http.delete<ApiResponse<string>>(`${this.baseUrl}/${id}`);
   }
 
-  filter(params: {
-    name?: string;
-    documentType?: string;
-    documentStatus?: string;
-    companyId?: number;
-    page?: number;
-    size?: number;
-    sortBy?: string;
-    sortDirection?: string;
-  }): Observable<any> {
-    return this.http.get(this.baseUrl, { params: params as any });
+  filter(params: DocumentFilterRequest): Observable<PagedResponse<Document>> {
+    return this.http.get<PagedResponse<Document>>(this.baseUrl, {
+      params: params as any
+    });
   }
 }
