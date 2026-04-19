@@ -7,6 +7,7 @@ import ba.unsa.si.docflow.dto.document.DocumentUpdateRequest;
 import ba.unsa.si.docflow.response.ApiResponse;
 import ba.unsa.si.docflow.response.PagedResponse;
 import ba.unsa.si.docflow.service.document.DocumentService;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.AllArgsConstructor;
 import org.springdoc.core.annotations.ParameterObject;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/documents")
 @AllArgsConstructor
+@Tag(name = "Document API", description = "CRUD endpoints for Document entity")
 public class DocumentController {
 
     private final DocumentService documentService;
