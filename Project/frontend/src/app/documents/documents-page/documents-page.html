@@ -1,0 +1,13 @@
+<h1>Documents API Test</h1>
+
+<div>
+  <button (click)="loadAll()">Load all documents</button>
+</div>
+
+<hr />
+
+<h2>Result</h2>
+<pre>{{ result | json }}</pre>
+
+<h2 *ngIf="error">Error</h2>
+<pre *ngIf="error">{{ error | json }}</pre>
