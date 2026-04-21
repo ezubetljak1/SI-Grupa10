@@ -39,11 +39,11 @@
 | S11 | Use Case Model | Definisanje glavnih scenarija korištenja sistema kroz use case dijagrame | D | P1 | M | DONE | 3 |
 | S12 | Architecture Overview | Definisanje arhitekture sistema, komponenti i međusobne komunikacije | T | P1 | L | DONE | 3 |
 | S13 | Test Strategy | Definisanje pristupa testiranju (unit, integraciono, sistemsko testiranje) | D | P1 | M | DONE | 3 |
-| S14 | Definition of Done | Definisanje kriterija kada se zadatak smatra završenim i spremnim za isporuku | D | P3 | S | TODO | 4 |
-| S15 | Initial Release Plan | Planiranje inkremenata i raspodjela funkcionalnosti po sprintovima | D | P1 | M | TODO | 4 |
-| S16 | Backend skeleton | Postavljanje osnovne strukture backend aplikacije i API sloja | T | P1 | L | TODO | 4 |
-| S17 | Frontend skeleton | Postavljanje osnovne strukture frontend aplikacije i UI komponenti | T | P1 | M | TODO | 4 |
-| S18 | Repo setup | Postavljanje repozitorija, branch strategije i osnovnih razvojnih pravila | T | P2 | S | TODO | 4 |
+| S14 | Definition of Done | Definisanje kriterija kada se zadatak smatra završenim i spremnim za isporuku | D | P3 | S | DONE | 4 |
+| S15 | Initial Release Plan | Planiranje inkremenata i raspodjela funkcionalnosti po sprintovima | D | P1 | M | DONE | 4 |
+| S16 | Backend skeleton | Postavljanje osnovne strukture backend aplikacije i API sloja | T | P1 | L | DONE | 4 |
+| S17 | Frontend skeleton | Postavljanje osnovne strukture frontend aplikacije i UI komponenti | T | P1 | M | DONE | 4 |
+| S18 | Repo setup | Postavljanje repozitorija, branch strategije i osnovnih razvojnih pravila | T | P2 | S | DONE | 4 |
 | S19 | Upload dokumenta | Implementacija funkcionalnosti za upload PDF i slikovnih dokumenata putem UI-a | F | P1 | M | TODO | 5 |
 | S20 | Validacija fajla | Provjera tipa, veličine i ispravnosti dokumenta prije prihvatanja | T | P1 | S | TODO | 5 |
 | S21 | Pohrana dokumenta | Spremanje dokumenta i metapodataka u sistem za dalju obradu | T | P1 | M | TODO | 5 |

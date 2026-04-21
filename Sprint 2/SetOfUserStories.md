@@ -107,14 +107,13 @@ Sprintovi 1–4 fokusirani su na human-first fazu projekta i obuhvataju analizu 
 
 | ID | Naziv zadatka ili storyja | Odgovorna osoba ili osobe | Status | Napomena |
 |---|---|---|---|---|
-| SB-4.1 | Izrada Definition of Done |  | Planned | Jasni kriteriji završetka rada |
-| SB-4.2 | Izrada Initial Release Plan dokumenta |  | Planned | Planiranje isporuke |
-| SB-4.3 | Postavljanje frontend skeletona |  | Planned | Osnova za UI razvoj |
-| SB-4.4 | Postavljanje backend skeletona |  | Planned | Osnova za API i poslovnu logiku |
-| SB-4.5 | Osnovni tehnički setup projekta |  | Planned | Alati, okruženje, konfiguracija |
-| SB-4.6 | Definisanje strukture repozitorija |  | Planned | Pregledna organizacija koda |
-| SB-4.7 | Dogovor oko branch strategije i code review pristupa |  | Planned | Pravila timskog rada |
-| SB-4.8 | Priprema strukture za Decision Log i AI Usage Log |  | Planned | Praćenje odluka i upotrebe AI alata |
+| SB-4.1 | Izrada Definition of Done | Azra Kovač, Emina Mušinović, Irhad Žiga | Done | Jasni kriteriji završetka rada |
+| SB-4.2 | Izrada Initial Release Plan dokumenta | Mirza M. Halilović, Amar Breščić, Muhamed Hatunić | Done | Planiranje isporuke |
+| SB-4.3 | Postavljanje frontend skeletona | Emina Zubetljak | Done | Osnova za UI razvoj |
+| SB-4.4 | Postavljanje backend skeletona | Emina Zubetljak | Done | Osnova za API i poslovnu logiku |
+| SB-4.5 | Osnovni tehnički setup projekta | Emina Zubetljak | Done | Alati, okruženje, konfiguracija |
+| SB-4.6 | Definisanje strukture repozitorija | Cijeli tim | Done | Pregledna organizacija koda |
+| SB-4.7 | Dogovor oko branch strategije i code review pristupa | Cijeli tim | Done | Pravila timskog rada |
 
 ---
 
