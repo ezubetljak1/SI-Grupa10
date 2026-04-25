@@ -1,13 +1,173 @@
-<h1>Documents API Test</h1>
+<section class="documents-page">
+  <header class="page-header">
+    <h1>Documents Upload Test</h1>
+    <p>
+      Basic page for testing the backend document upload flow.
+    </p>
+  </header>
 
-<div>
-  <button (click)="loadAll()">Load all documents</button>
-</div>
+  <section class="card">
+    <h2>Upload document</h2>
 
-<hr />
+    <form class="upload-form" (ngSubmit)="uploadDocument()">
+      <div class="form-row">
+        <label for="file">File</label>
+        <input
+          id="file"
+          type="file"
+          accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+          (change)="onFileSelected($event)"
+        />
+        <small>Allowed types: PDF, JPG, JPEG, PNG. Maximum size: 10 MB.</small>
+      </div>
 
-<h2>Result</h2>
-<pre>{{ result | json }}</pre>
+      <div class="form-row">
+        <label for="name">Document name optional</label>
+        <input
+          id="name"
+          type="text"
+          name="name"
+          [(ngModel)]="name"
+          placeholder="If empty, backend uses original file name"
+        />
+      </div>
 
-<h2 *ngIf="error">Error</h2>
-<pre *ngIf="error">{{ error | json }}</pre>
+      <div class="form-grid">
+        <div class="form-row">
+          <label for="companyId">Company ID</label>
+          <input
+            id="companyId"
+            type="number"
+            name="companyId"
+            [(ngModel)]="companyId"
+          />
+        </div>
+
+        <div class="form-row">
+          <label for="createdByUserId">Created By User ID</label>
+          <input
+            id="createdByUserId"
+            type="number"
+            name="createdByUserId"
+            [(ngModel)]="createdByUserId"
+          />
+        </div>
+
+        <div class="form-row">
+          <label for="documentType">Document type</label>
+          <select
+            id="documentType"
+            name="documentType"
+            [(ngModel)]="documentType"
+          >
+            <option value="INVOICE">INVOICE</option>
+            <option value="OTHER">OTHER</option>
+            <option value="CONTRACT">CONTRACT invalid test</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="selected-file" *ngIf="selectedFile">
+        Selected file:
+        <strong>{{ selectedFile.name }}</strong>
+        —
+        {{ formatFileSize(selectedFile.size) }}
+        —
+        {{ selectedFile.type || 'unknown type' }}
+      </div>
+
+      <div class="actions">
+        <button type="submit" [disabled]="loading">
+          {{ loading ? 'Uploading...' : 'Upload document' }}
+        </button>
+
+        <button type="button" (click)="resetForm()" [disabled]="loading">
+          Reset form
+        </button>
+
+        <button type="button" (click)="loadDocuments()" [disabled]="listLoading">
+          {{ listLoading ? 'Loading...' : 'Reload documents' }}
+        </button>
+      </div>
+    </form>
+  </section>
+
+  <section class="error-box" *ngIf="errors.length">
+    <h2>Errors</h2>
+
+    <ul>
+      <li *ngFor="let error of errors">
+        {{ error }}
+      </li>
+    </ul>
+  </section>
+
+  <section class="success-box" *ngIf="uploadedDocument">
+    <h2>Last uploaded document</h2>
+
+    <div class="document-summary">
+      <p><strong>ID:</strong> {{ uploadedDocument.id }}</p>
+      <p><strong>Name:</strong> {{ uploadedDocument.name }}</p>
+      <p><strong>Status:</strong> {{ uploadedDocument.documentStatus }}</p>
+      <p><strong>Storage path:</strong> {{ uploadedDocument.storagePath }}</p>
+      <p><strong>File type:</strong> {{ uploadedDocument.fileType }}</p>
+      <p><strong>File size:</strong> {{ uploadedDocument.fileSize }} bytes</p>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Documents from backend</h2>
+
+    <p *ngIf="!documents.length && !listLoading">
+      No documents loaded.
+    </p>
+
+    <table *ngIf="documents.length">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Name</th>
+          <th>Company</th>
+          <th>Type</th>
+          <th>Status</th>
+          <th>File type</th>
+          <th>Size</th>
+          <th>Storage path</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr *ngFor="let document of documents">
+          <td>{{ document.id }}</td>
+          <td>{{ document.name }}</td>
+          <td>{{ document.companyId }}</td>
+          <td>{{ document.documentType }}</td>
+          <td>{{ document.documentStatus }}</td>
+          <td>{{ document.fileType }}</td>
+          <td>{{ document.fileSize }}</td>
+          <td class="path-cell">{{ document.storagePath }}</td>
+          <td class="table-actions">
+            <button type="button" (click)="loadDocumentById(document.id)">
+              Details
+            </button>
+
+            <button type="button" (click)="downloadDocument(document)">
+              Download
+            </button>
+
+            <button type="button" class="danger" (click)="deleteDocument(document)">
+              Delete
+            </button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="card">
+    <h2>Raw result/debug output</h2>
+
+    <pre>{{ result | json }}</pre>
+  </section>
+</section>
