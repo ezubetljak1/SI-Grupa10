@@ -1,7 +1,9 @@
 package ba.unsa.si.docflow.dto.document;
 
 import ba.unsa.si.docflow.dto.BaseFilterRequest;
+
 import io.swagger.v3.oas.annotations.media.Schema;
+
 import lombok.Data;
 
 @Data
