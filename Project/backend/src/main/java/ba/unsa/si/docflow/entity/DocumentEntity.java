@@ -2,7 +2,9 @@ package ba.unsa.si.docflow.entity;
 
 import ba.unsa.si.docflow.entity.enums.DocumentStatus;
 import ba.unsa.si.docflow.entity.enums.DocumentType;
+
 import jakarta.persistence.*;
+
 import lombok.Getter;
 import lombok.Setter;
 

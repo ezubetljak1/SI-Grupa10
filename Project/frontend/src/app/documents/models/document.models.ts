@@ -1,4 +1,4 @@
-export interface Document {
+export interface DocflowDocument {
   id: number;
   companyId: number;
   createdBy: number;
@@ -19,6 +19,14 @@ export interface DocumentCreateRequest {
   documentType: string;
   storagePath: string;
   fileSize: number;
+}
+
+export interface DocumentUploadRequest {
+  file: File;
+  companyId: number;
+  createdByUserId: number;
+  documentType: string;
+  name?: string;
 }
 
 export interface DocumentUpdateRequest {

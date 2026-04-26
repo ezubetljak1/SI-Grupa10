@@ -1,1 +1,304 @@
-/* You can add global styles to this file, and also import other style files */
+@import 'ngx-toastr/toastr';
+
+:root {
+  --primary: #4f46e5;
+  --primary-hover: #4338ca;
+  --primary-soft: #eef2ff;
+  --primary-border: #c7d2fe;
+
+  --accent-violet: #8b5cf6;
+  --accent-soft: #f3e8ff;
+
+  --background: #f8fafc;
+  --surface: #ffffff;
+  --section: #f1f5f9;
+
+  --sidebar: #0f172a;
+  --sidebar-active: #1e293b;
+  --sidebar-muted: #94a3b8;
+  --sidebar-text: #cbd5e1;
+
+  --text-main: #0f172a;
+  --text-muted: #64748b;
+  --border: #e2e8f0;
+
+  --success: #047857;
+  --success-soft: #ecfdf5;
+  --success-border: #a7f3d0;
+
+  --warning: #b45309;
+  --warning-soft: #fffbeb;
+  --warning-border: #fde68a;
+
+  --error: #b91c1c;
+  --error-soft: #fef2f2;
+  --error-border: #fecaca;
+
+  --info: #1d4ed8;
+  --info-soft: #eff6ff;
+  --info-border: #bfdbfe;
+
+  --processing: #4c1d95;
+  --processing-soft: #f3e8ff;
+  --processing-border: #ddd6fe;
+
+  --shadow-sm: 0 8px 22px rgba(15, 23, 42, 0.05);
+  --shadow-md: 0 18px 42px rgba(15, 23, 42, 0.08);
+  --shadow-lg: 0 30px 80px rgba(15, 23, 42, 0.16);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: Inter, Arial, sans-serif;
+  background: var(--background);
+  color: var(--text-main);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+/* Buttons */
+
+.btn {
+  min-height: 42px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  padding: 0 18px;
+  font-size: 14px;
+  font-weight: 750;
+  line-height: 1;
+  white-space: nowrap;
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease,
+    color 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.18s ease;
+}
+
+.btn:hover {
+  transform: translateY(-1px);
+}
+
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+  transform: none;
+}
+
+.btn-primary {
+  background: var(--primary);
+  color: white;
+  box-shadow: 0 8px 18px rgba(79, 70, 229, 0.18);
+}
+
+.btn-primary:hover {
+  background: var(--primary-hover);
+  box-shadow: 0 10px 22px rgba(79, 70, 229, 0.22);
+}
+
+.btn-secondary {
+  background: var(--surface);
+  color: var(--primary);
+  border-color: var(--primary-border);
+}
+
+.btn-secondary:hover {
+  background: var(--primary-soft);
+}
+
+.btn-muted {
+  background: var(--surface);
+  color: var(--text-muted);
+  border-color: var(--border);
+}
+
+.btn-muted:hover {
+  background: var(--section);
+  color: var(--text-main);
+}
+
+.btn-danger {
+  background: var(--surface);
+  color: var(--error);
+  border-color: var(--error-border);
+}
+
+.btn-danger:hover {
+  background: var(--error-soft);
+}
+
+/* Forms */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.field label {
+  color: var(--text-main);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.input,
+.select,
+.textarea {
+  width: 100%;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-main);
+  border-radius: 14px;
+  min-height: 46px;
+  padding: 0 14px;
+  outline: none;
+}
+
+.textarea {
+  padding: 14px;
+  min-height: 104px;
+  resize: vertical;
+}
+
+.input:focus,
+.select:focus,
+.textarea:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px var(--primary-soft);
+}
+
+.helper {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+/* Icon buttons */
+
+.icon-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-muted);
+  display: grid;
+  place-items: center;
+  font-weight: 900;
+  cursor: pointer;
+  transition:
+    background 0.18s ease,
+    color 0.18s ease,
+    border-color 0.18s ease;
+}
+
+.icon-btn:hover {
+  background: var(--section);
+  color: var(--text-main);
+}
+
+/* Toastr override */
+
+.toast-container .ngx-toastr {
+  width: 360px !important;
+  min-height: unset !important;
+  padding: 16px 18px !important;
+  border-radius: 18px !important;
+  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.12) !important;
+  border: 1px solid var(--border) !important;
+  background-image: none !important;
+  color: var(--text-main) !important;
+}
+
+.toast-container .ngx-toastr:hover {
+  box-shadow: 0 22px 52px rgba(15, 23, 42, 0.16) !important;
+}
+
+.toast-container .toast-title {
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.3;
+  margin-bottom: 4px;
+  color: inherit;
+}
+
+.toast-container .toast-message {
+  font-size: 14px;
+  line-height: 1.45;
+  color: inherit;
+}
+
+.toast-container .toast-close-button {
+  color: inherit !important;
+  opacity: 0.6;
+  text-shadow: none !important;
+  font-weight: 700;
+}
+
+.toast-container .toast-close-button:hover {
+  opacity: 1;
+}
+
+.toast-container .toast-progress {
+  opacity: 1 !important;
+  height: 4px !important;
+  border-radius: 999px;
+}
+
+.toast-container .toast-success {
+  background: var(--success-soft) !important;
+  border-color: var(--success-border) !important;
+  color: var(--success) !important;
+}
+
+.toast-container .toast-success .toast-progress {
+  background: var(--success) !important;
+}
+
+.toast-container .toast-error {
+  background: var(--error-soft) !important;
+  border-color: var(--error-border) !important;
+  color: var(--error) !important;
+}
+
+.toast-container .toast-error .toast-progress {
+  background: var(--error) !important;
+}
+
+.toast-container .toast-warning {
+  background: var(--warning-soft) !important;
+  border-color: var(--warning-border) !important;
+  color: var(--warning) !important;
+}
+
+.toast-container .toast-warning .toast-progress {
+  background: var(--warning) !important;
+}
+
+.toast-container .toast-info {
+  background: var(--info-soft) !important;
+  border-color: var(--info-border) !important;
+  color: var(--info) !important;
+}
+
+.toast-container .toast-info .toast-progress {
+  background: var(--info) !important;
+}
