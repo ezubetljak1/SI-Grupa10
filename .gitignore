@@ -64,7 +64,10 @@ application*-override.*
 # -----------------------------
 # Optional local env/config
 # -----------------------------
-.env
-.env.*
 application-local.properties
 application-local.yml
+
+# Environment files with real secrets
+.env
+.env.*
+!.env.example
