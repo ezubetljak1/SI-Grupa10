@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 import { DocumentsPageComponent } from './documents/documents-page/documents-page';
+import { UiPreviewPageComponent } from './shared/layout/ui-preview-page/ui-preview-page';
 
 export const routes: Routes = [
     {
@@ -10,5 +11,9 @@ export const routes: Routes = [
     {
         path: 'documents',
         component: DocumentsPageComponent
+    },
+    {
+        path: 'ui-preview',
+        component: UiPreviewPageComponent
     }
 ];
