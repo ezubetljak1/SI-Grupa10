@@ -4,7 +4,7 @@
     title="Documents"
     description="Browse uploaded files, inspect individual responses, download stored content, and remove documents from the archive.">
     <div page-actions>
-      <a routerLink="/documents/upload" class="btn btn-primary">Upload document</a>
+      <button type="button" routerLink="/documents/upload" class="btn btn-primary">Upload document</button>
       <button type="button" class="btn btn-muted" (click)="loadDocuments()" [disabled]="listLoading">
         {{ listLoading ? 'Loading...' : 'Reload documents' }}
       </button>
@@ -41,53 +41,80 @@
       <div class="table-wrapper">
         <table class="documents-table">
           <thead>
-            <tr>
-              <th>Document</th>
-              <th>Company</th>
-              <th>Type</th>
-              <th>Status</th>
-              <th>Size</th>
-              <th>Storage path</th>
-              <th class="actions-column">Actions</th>
-            </tr>
+          <tr>
+            <th>Document</th>
+            <th>Company</th>
+            <th>Type</th>
+            <th>Status</th>
+            <th>Size</th>
+            <th>Storage path</th>
+            <th class="actions-column">Actions</th>
+          </tr>
           </thead>
 
           <tbody>
-            <tr *ngFor="let document of documents">
-              <td>
-                <div class="document-cell">
-                  <app-file-type-icon
-                    [fileName]="document.name"
-                    [mimeType]="document.fileType">
-                  </app-file-type-icon>
+          <tr *ngFor="let document of documents">
+            <td>
+              <div class="document-cell">
+                <app-file-type-icon
+                  [fileName]="document.name"
+                  [mimeType]="document.fileType">
+                </app-file-type-icon>
 
-                  <div class="document-cell__content">
-                    <strong>{{ document.name }}</strong>
-                    <span>#{{ document.id }} | {{ document.fileType }}</span>
-                  </div>
+                <div class="document-cell__content">
+                  <strong>{{ document.name }}</strong>
+                  <span>#{{ document.id }} | {{ document.fileType }}</span>
                 </div>
-              </td>
-              <td>{{ document.companyId }}</td>
-              <td>{{ document.documentType }}</td>
-              <td>
-                <app-status-badge [status]="document.documentStatus"></app-status-badge>
-              </td>
-              <td>{{ formatFileSize(document.fileSize) }}</td>
-              <td class="path-cell">{{ document.storagePath }}</td>
-              <td>
-                <div class="table-actions">
+              </div>
+            </td>
+            <td>{{ document.companyId }}</td>
+            <td>{{ document.documentType }}</td>
+            <td>
+              <app-status-badge [status]="document.documentStatus"></app-status-badge>
+            </td>
+            <td>{{ formatFileSize(document.fileSize) }}</td>
+            <td class="path-cell">{{ document.storagePath }}</td>
+            <td>
+              <div class="table-actions">
+
+                <ng-container *ngIf="confirmingDeleteId !== document.id; else confirmDeleteTpl">
                   <button type="button" class="btn btn-secondary" (click)="loadDocumentById(document.id)">
                     Details
                   </button>
+
                   <button type="button" class="btn btn-muted" (click)="downloadDocument(document)">
                     Download
                   </button>
-                  <button type="button" class="btn btn-danger" (click)="deleteDocument(document)">
+
+                  <button
+                    type="button"
+                    class="btn btn-danger"
+                    (click)="confirmingDeleteId = document.id">
                     Delete
                   </button>
-                </div>
-              </td>
-            </tr>
+                </ng-container>
+
+                <ng-template #confirmDeleteTpl>
+                  <span class="confirm-text">Delete?</span>
+
+                  <button
+                    type="button"
+                    class="btn btn-danger"
+                    (click)="deleteDocumentConfirmed(document)">
+                    Yes
+                  </button>
+
+                  <button
+                    type="button"
+                    class="btn btn-muted"
+                    (click)="confirmingDeleteId = null">
+                    Cancel
+                  </button>
+                </ng-template>
+
+              </div>
+            </td>
+          </tr>
           </tbody>
         </table>
       </div>

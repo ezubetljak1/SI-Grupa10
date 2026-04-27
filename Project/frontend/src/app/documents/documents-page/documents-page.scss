@@ -95,9 +95,21 @@
 }
 
 .path-cell {
-  max-width: 260px;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.documents-table th:nth-child(6),
+.documents-table td:nth-child(6) {
+  max-width: 220px;
+}
+
+.confirm-text {
+  font-size: 13px;
   color: var(--text-muted);
-  overflow-wrap: anywhere;
+  margin-right: 4px;
 }
 
 .actions-column {
@@ -107,8 +119,13 @@
 .table-actions {
   display: flex;
   justify-content: flex-end;
-  flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
+  flex-wrap: nowrap;
+}
+
+.table-actions .btn {
+  white-space: nowrap;
 }
 
 pre {

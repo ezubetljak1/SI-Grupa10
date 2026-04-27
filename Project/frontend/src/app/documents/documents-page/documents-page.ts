@@ -1,6 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, inject, OnInit } from '@angular/core';
 import { RouterLink } from '@angular/router';
 
 import { ValidationError } from '../../models/api.models';
@@ -10,7 +10,7 @@ import {
   FileTypeIconComponent,
   PageHeaderComponent,
   StatusBadgeComponent,
-  UiCardComponent,
+  UiCardComponent
 } from '../../shared/components';
 import { DocflowDocument } from '../models/document.models';
 
@@ -36,6 +36,8 @@ export class DocumentsPageComponent implements OnInit {
   result: unknown = null;
   errors: string[] = [];
   listLoading = false;
+
+  confirmingDeleteId: number | null = null;
 
   ngOnInit(): void {
     this.loadDocuments();
@@ -90,12 +92,28 @@ export class DocumentsPageComponent implements OnInit {
     });
   }
 
-  deleteDocument(document: DocflowDocument): void {
+  /*deleteDocument(document: DocflowDocument): void {
     const confirmed = window.confirm(`Delete document "${document.name}"?`);
 
     if (!confirmed) {
       return;
     }
+
+    this.clearMessages();
+
+    this.documentApiService.delete(document.id).subscribe({
+      next: (response) => {
+        this.result = response;
+        this.loadDocuments();
+      },
+      error: (error: HttpErrorResponse) => {
+        this.handleError(error);
+      },
+    });
+  }*/
+
+  deleteDocumentConfirmed(document: DocflowDocument): void {
+    this.confirmingDeleteId = null;
 
     this.clearMessages();
 
