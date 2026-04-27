@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 import { DocumentsPageComponent } from './documents/documents-page/documents-page';
+import { DocumentUploadPageComponent } from './documents/document-upload-page/document-upload-page';
 import { UiPreviewPageComponent } from './shared/layout/ui-preview-page/ui-preview-page';
 
 export const routes: Routes = [
@@ -7,6 +8,10 @@ export const routes: Routes = [
         path: '',
         redirectTo: 'documents',
         pathMatch: 'full'
+    },
+    {
+        path: 'documents/upload',
+        component: DocumentUploadPageComponent
     },
     {
         path: 'documents',

@@ -1,173 +1,102 @@
 <section class="documents-page">
-  <header class="page-header">
-    <h1>Documents Upload Test</h1>
-    <p>
-      Basic page for testing the backend document upload flow.
-    </p>
-  </header>
-
-  <section class="card">
-    <h2>Upload document</h2>
-
-    <form class="upload-form" (ngSubmit)="uploadDocument()">
-      <div class="form-row">
-        <label for="file">File</label>
-        <input
-          id="file"
-          type="file"
-          accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
-          (change)="onFileSelected($event)"
-        />
-        <small>Allowed types: PDF, JPG, JPEG, PNG. Maximum size: 10 MB.</small>
-      </div>
-
-      <div class="form-row">
-        <label for="name">Document name optional</label>
-        <input
-          id="name"
-          type="text"
-          name="name"
-          [(ngModel)]="name"
-          placeholder="If empty, backend uses original file name"
-        />
-      </div>
-
-      <div class="form-grid">
-        <div class="form-row">
-          <label for="companyId">Company ID</label>
-          <input
-            id="companyId"
-            type="number"
-            name="companyId"
-            [(ngModel)]="companyId"
-          />
-        </div>
-
-        <div class="form-row">
-          <label for="createdByUserId">Created By User ID</label>
-          <input
-            id="createdByUserId"
-            type="number"
-            name="createdByUserId"
-            [(ngModel)]="createdByUserId"
-          />
-        </div>
-
-        <div class="form-row">
-          <label for="documentType">Document type</label>
-          <select
-            id="documentType"
-            name="documentType"
-            [(ngModel)]="documentType"
-          >
-            <option value="INVOICE">INVOICE</option>
-            <option value="OTHER">OTHER</option>
-            <option value="CONTRACT">CONTRACT invalid test</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="selected-file" *ngIf="selectedFile">
-        Selected file:
-        <strong>{{ selectedFile.name }}</strong>
-        —
-        {{ formatFileSize(selectedFile.size) }}
-        —
-        {{ selectedFile.type || 'unknown type' }}
-      </div>
-
-      <div class="actions">
-        <button type="submit" [disabled]="loading">
-          {{ loading ? 'Uploading...' : 'Upload document' }}
-        </button>
-
-        <button type="button" (click)="resetForm()" [disabled]="loading">
-          Reset form
-        </button>
-
-        <button type="button" (click)="loadDocuments()" [disabled]="listLoading">
-          {{ listLoading ? 'Loading...' : 'Reload documents' }}
-        </button>
-      </div>
-    </form>
-  </section>
-
-  <section class="error-box" *ngIf="errors.length">
-    <h2>Errors</h2>
-
-    <ul>
-      <li *ngFor="let error of errors">
-        {{ error }}
-      </li>
-    </ul>
-  </section>
-
-  <section class="success-box" *ngIf="uploadedDocument">
-    <h2>Last uploaded document</h2>
-
-    <div class="document-summary">
-      <p><strong>ID:</strong> {{ uploadedDocument.id }}</p>
-      <p><strong>Name:</strong> {{ uploadedDocument.name }}</p>
-      <p><strong>Status:</strong> {{ uploadedDocument.documentStatus }}</p>
-      <p><strong>Storage path:</strong> {{ uploadedDocument.storagePath }}</p>
-      <p><strong>File type:</strong> {{ uploadedDocument.fileType }}</p>
-      <p><strong>File size:</strong> {{ uploadedDocument.fileSize }} bytes</p>
+  <app-page-header
+    eyebrow="Archive"
+    title="Documents"
+    description="Browse uploaded files, inspect individual responses, download stored content, and remove documents from the archive.">
+    <div page-actions>
+      <a routerLink="/documents/upload" class="btn btn-primary">Upload document</a>
+      <button type="button" class="btn btn-muted" (click)="loadDocuments()" [disabled]="listLoading">
+        {{ listLoading ? 'Loading...' : 'Reload documents' }}
+      </button>
     </div>
-  </section>
+  </app-page-header>
 
-  <section class="card">
-    <h2>Documents from backend</h2>
+  @if (errors.length) {
+    <div class="message-card">
+      <strong>Request failed</strong>
+      <ul>
+        <li *ngFor="let error of errors">{{ error }}</li>
+      </ul>
+    </div>
+  }
 
-    <p *ngIf="!documents.length && !listLoading">
-      No documents loaded.
-    </p>
+  <app-ui-card
+    title="Stored documents"
+    subtitle="Latest backend results sorted by newest document first."
+    [badgeText]="documents.length.toString()"
+    badgeVariant="info"
+    [noPadding]="true">
+    @if (!documents.length && !listLoading) {
+      <div class="empty-wrapper">
+        <app-empty-state
+          icon="[]"
+          title="No documents found"
+          description="Uploaded documents will appear here after they are stored by the backend.">
+          <div empty-actions>
+            <a routerLink="/documents/upload" class="btn btn-primary">Upload document</a>
+          </div>
+        </app-empty-state>
+      </div>
+    } @else {
+      <div class="table-wrapper">
+        <table class="documents-table">
+          <thead>
+            <tr>
+              <th>Document</th>
+              <th>Company</th>
+              <th>Type</th>
+              <th>Status</th>
+              <th>Size</th>
+              <th>Storage path</th>
+              <th class="actions-column">Actions</th>
+            </tr>
+          </thead>
 
-    <table *ngIf="documents.length">
-      <thead>
-        <tr>
-          <th>ID</th>
-          <th>Name</th>
-          <th>Company</th>
-          <th>Type</th>
-          <th>Status</th>
-          <th>File type</th>
-          <th>Size</th>
-          <th>Storage path</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
+          <tbody>
+            <tr *ngFor="let document of documents">
+              <td>
+                <div class="document-cell">
+                  <app-file-type-icon
+                    [fileName]="document.name"
+                    [mimeType]="document.fileType">
+                  </app-file-type-icon>
 
-      <tbody>
-        <tr *ngFor="let document of documents">
-          <td>{{ document.id }}</td>
-          <td>{{ document.name }}</td>
-          <td>{{ document.companyId }}</td>
-          <td>{{ document.documentType }}</td>
-          <td>{{ document.documentStatus }}</td>
-          <td>{{ document.fileType }}</td>
-          <td>{{ document.fileSize }}</td>
-          <td class="path-cell">{{ document.storagePath }}</td>
-          <td class="table-actions">
-            <button type="button" (click)="loadDocumentById(document.id)">
-              Details
-            </button>
+                  <div class="document-cell__content">
+                    <strong>{{ document.name }}</strong>
+                    <span>#{{ document.id }} | {{ document.fileType }}</span>
+                  </div>
+                </div>
+              </td>
+              <td>{{ document.companyId }}</td>
+              <td>{{ document.documentType }}</td>
+              <td>
+                <app-status-badge [status]="document.documentStatus"></app-status-badge>
+              </td>
+              <td>{{ formatFileSize(document.fileSize) }}</td>
+              <td class="path-cell">{{ document.storagePath }}</td>
+              <td>
+                <div class="table-actions">
+                  <button type="button" class="btn btn-secondary" (click)="loadDocumentById(document.id)">
+                    Details
+                  </button>
+                  <button type="button" class="btn btn-muted" (click)="downloadDocument(document)">
+                    Download
+                  </button>
+                  <button type="button" class="btn btn-danger" (click)="deleteDocument(document)">
+                    Delete
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    }
+  </app-ui-card>
 
-            <button type="button" (click)="downloadDocument(document)">
-              Download
-            </button>
-
-            <button type="button" class="danger" (click)="deleteDocument(document)">
-              Delete
-            </button>
-          </td>
-        </tr>
-      </tbody>
-    </table>
-  </section>
-
-  <section class="card">
-    <h2>Raw result/debug output</h2>
-
+  <app-ui-card
+    title="Last response"
+    subtitle="Useful while wiring the backend and verifying returned payloads.">
     <pre>{{ result | json }}</pre>
-  </section>
+  </app-ui-card>
 </section>
