@@ -92,26 +92,6 @@ export class DocumentsPageComponent implements OnInit {
     });
   }
 
-  /*deleteDocument(document: DocflowDocument): void {
-    const confirmed = window.confirm(`Delete document "${document.name}"?`);
-
-    if (!confirmed) {
-      return;
-    }
-
-    this.clearMessages();
-
-    this.documentApiService.delete(document.id).subscribe({
-      next: (response) => {
-        this.result = response;
-        this.loadDocuments();
-      },
-      error: (error: HttpErrorResponse) => {
-        this.handleError(error);
-      },
-    });
-  }*/
-
   deleteDocumentConfirmed(document: DocflowDocument): void {
     this.confirmingDeleteId = null;
 
