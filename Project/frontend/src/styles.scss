@@ -77,6 +77,9 @@ button {
 /* Buttons */
 
 .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-height: 42px;
   border: 1px solid transparent;
   border-radius: 12px;
@@ -85,12 +88,11 @@ button {
   font-weight: 750;
   line-height: 1;
   white-space: nowrap;
-  transition:
-    background 0.18s ease,
-    border-color 0.18s ease,
-    color 0.18s ease,
-    box-shadow 0.18s ease,
-    transform 0.18s ease;
+  transition: background 0.18s ease,
+  border-color 0.18s ease,
+  color 0.18s ease,
+  box-shadow 0.18s ease,
+  transform 0.18s ease;
 }
 
 .btn:hover {
@@ -126,13 +128,17 @@ button {
 
 .btn-muted {
   background: var(--surface);
-  color: var(--text-muted);
-  border-color: var(--border);
+  color: var(--text-main);
+  border: 1px solid var(--border);
+  font-weight: 600;
+
+  box-shadow: var(--shadow-sm);
 }
 
 .btn-muted:hover {
-  background: var(--section);
-  color: var(--text-main);
+  background: var(--primary-soft);
+  border-color: var(--primary-border);
+  color: var(--primary);
 }
 
 .btn-danger {
@@ -204,10 +210,9 @@ button {
   place-items: center;
   font-weight: 900;
   cursor: pointer;
-  transition:
-    background 0.18s ease,
-    color 0.18s ease,
-    border-color 0.18s ease;
+  transition: background 0.18s ease,
+  color 0.18s ease,
+  border-color 0.18s ease;
 }
 
 .icon-btn:hover {

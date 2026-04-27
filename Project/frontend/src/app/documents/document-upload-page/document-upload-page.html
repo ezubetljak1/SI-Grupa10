@@ -1,0 +1,186 @@
+<section class="upload-page">
+  <app-page-header
+    eyebrow="Document intake"
+    title="Upload Document"
+    description="Send one PDF or image file to the backend and keep the document metadata together in a dedicated upload flow.">
+    <div page-actions>
+      <button type="button" routerLink="/documents" class="btn btn-muted">View documents</button>
+    </div>
+  </app-page-header>
+
+  <div class="upload-layout" [class.upload-layout--with-result]="uploadedDocument">
+    <app-ui-card
+      title="Upload form"
+      subtitle="Choose a file, confirm metadata, and send it to the backend upload endpoint."
+      badgeText="Forms"
+      badgeVariant="neutral">
+      <form class="upload-form" (ngSubmit)="uploadDocument()">
+        <div class="field">
+          <label for="file">Document file</label>
+          <label class="dropzone" [class.dropzone--active]="selectedFile" for="file">
+            <input
+              #fileInput
+              id="file"
+              type="file"
+              [accept]="acceptedFileTypes"
+              (change)="onFileSelected($event)"
+            />
+
+            @if (selectedFile) {
+              <div class="selected-file-card">
+                <app-file-type-icon
+                  [fileName]="selectedFile.name"
+                  [mimeType]="selectedFile.type">
+                </app-file-type-icon>
+
+                <div class="selected-file-card__content">
+                  <strong>{{ selectedFile.name }}</strong>
+                  <span>
+                    {{ formatFileSize(selectedFile.size) }} | {{ selectedFile.type || 'Unknown type' }} | ready for upload
+                  </span>
+                </div>
+
+                <button type="button" class="icon-btn" (click)="clearSelectedFile(); $event.preventDefault()">
+                  x
+                </button>
+              </div>
+            } @else {
+              <div class="dropzone__empty">
+                <div class="dropzone__icon">+</div>
+                <h2>Upload your document here</h2>
+                <span>Supported formats: PDF, JPG, JPEG and PNG. Maximum size: 10 MB.</span>
+              </div>
+            }
+          </label>
+        </div>
+
+        <div class="field">
+          <label for="name">Document name</label>
+          <input
+            id="name"
+            class="input"
+            type="text"
+            name="name"
+            [(ngModel)]="name"
+            placeholder="Optional custom document name"
+          />
+          <span class="helper">If empty, the backend will use the original file name.</span>
+        </div>
+
+        <div class="form-grid">
+          <div class="field">
+            <label for="companyId">Company ID</label>
+            <input
+              id="companyId"
+              class="input"
+              type="number"
+              name="companyId"
+              [(ngModel)]="companyId"
+            />
+          </div>
+
+          <div class="field">
+            <label for="createdByUserId">Created By User ID</label>
+            <input
+              id="createdByUserId"
+              class="input"
+              type="number"
+              name="createdByUserId"
+              [(ngModel)]="createdByUserId"
+            />
+          </div>
+
+          <div class="field">
+            <label for="documentType">Document type</label>
+            <select
+              id="documentType"
+              class="select"
+              name="documentType"
+              [(ngModel)]="documentType">
+              @for (type of documentTypes; track type) {
+                <option [value]="type">{{ type }}</option>
+              }
+            </select>
+          </div>
+        </div>
+
+        @if (message.type) {
+          <div class="message-card"
+               [ngClass]="{
+         'message-card--error': message.type === 'error',
+         'message-card--warning': message.type === 'warning',
+         'message-card--success': message.type === 'success'
+       }">
+
+            <div class="message-card__icon">
+              {{ message.type === 'success' ? '✓' : '!' }}
+            </div>
+
+            <div>
+              <strong>
+                {{
+                  message.type === 'success' ? 'Success' :
+                    message.type === 'warning' ? 'Warning' :
+                      'Error'
+                }}
+              </strong>
+              <span>{{ message.text }}</span>
+            </div>
+          </div>
+        }
+
+        <div class="actions">
+          <button type="submit" class="btn btn-primary btn-lg" [disabled]="loading">
+            {{ loading ? 'Uploading...' : 'Upload document' }}
+          </button>
+          <button type="button" class="btn btn-secondary btn-lg" (click)="resetForm()" [disabled]="loading">
+            Reset form
+          </button>
+        </div>
+      </form>
+    </app-ui-card>
+
+    <div class="side-stack">
+      @if (uploadedDocument) {
+        <app-ui-card
+          title="Last uploaded document"
+          subtitle="Backend response mapped into a quick summary."
+          badgeText="Success"
+          badgeVariant="success">
+          <div class="uploaded-document">
+            <div class="uploaded-document__header">
+              <app-file-type-icon
+                [fileName]="uploadedDocument.name"
+                [mimeType]="uploadedDocument.fileType">
+              </app-file-type-icon>
+
+              <div>
+                <strong>{{ uploadedDocument.name }}</strong>
+                <span>{{ uploadedDocument.documentStatus }} | {{ uploadedDocument.documentType }}</span>
+              </div>
+            </div>
+
+            <div class="meta-grid">
+              <div class="meta-card">
+                <span>ID</span>
+                <strong>{{ uploadedDocument.id }}</strong>
+              </div>
+              <div class="meta-card">
+                <span>Company</span>
+                <strong>{{ uploadedDocument.companyId }}</strong>
+              </div>
+              <div class="meta-card">
+                <span>File type</span>
+                <strong>{{ uploadedDocument.fileType }}</strong>
+              </div>
+              <div class="meta-card">
+                <span>File size</span>
+                <strong>{{ formatFileSize(uploadedDocument.fileSize) }}</strong>
+              </div>
+            </div>
+          </div>
+        </app-ui-card>
+      }
+    </div>
+  </div>
+</section>

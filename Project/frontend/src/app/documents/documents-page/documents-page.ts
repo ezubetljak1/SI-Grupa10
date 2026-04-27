@@ -1,87 +1,46 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit, inject } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
-import { FormsModule } from '@angular/forms';
+import { Component, inject, OnInit } from '@angular/core';
+import { RouterLink } from '@angular/router';
 
-import { DocumentApiService } from '../../services/document-api.service';
-import { DocflowDocument } from '../models/document.models';
 import { ValidationError } from '../../models/api.models';
+import { DocumentApiService } from '../../services/document-api.service';
+import {
+  EmptyStateComponent,
+  FileTypeIconComponent,
+  PageHeaderComponent,
+  StatusBadgeComponent,
+  UiCardComponent
+} from '../../shared/components';
+import { DocflowDocument } from '../models/document.models';
 
 @Component({
   selector: 'app-documents-page',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [
+    CommonModule,
+    RouterLink,
+    EmptyStateComponent,
+    FileTypeIconComponent,
+    PageHeaderComponent,
+    StatusBadgeComponent,
+    UiCardComponent,
+  ],
   templateUrl: './documents-page.html',
   styleUrl: './documents-page.scss',
 })
 export class DocumentsPageComponent implements OnInit {
   private readonly documentApiService = inject(DocumentApiService);
 
-  readonly maxFileSizeBytes = 10 * 1024 * 1024;
-
-  selectedFile: File | null = null;
-
-  companyId = 1;
-  createdByUserId = 1;
-  documentType = 'INVOICE';
-  name = '';
-
   documents: DocflowDocument[] = [];
-  uploadedDocument: DocflowDocument | null = null;
-
   result: unknown = null;
   errors: string[] = [];
-
-  loading = false;
   listLoading = false;
+
+  confirmingDeleteId: number | null = null;
 
   ngOnInit(): void {
     this.loadDocuments();
-  }
-
-  onFileSelected(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    this.selectedFile = input.files?.[0] ?? null;
-    this.errors = [];
-  }
-
-  uploadDocument(): void {
-    this.clearMessages();
-
-    if (!this.selectedFile) {
-      this.errors = ['You must select a file before uploading.'];
-      return;
-    }
-
-    if (this.selectedFile.size > this.maxFileSizeBytes){
-      this.errors = [
-        `DOCUMENT_FILE_SIZE_EXCEEDED: File size exceeds the allowed limit. Maximum file size is ${this.formatFileSize(this.maxFileSizeBytes)}. Selected file size is ${this.formatFileSize(this.selectedFile.size)}.`,
-      ];
-      return;
-    }
-
-    this.loading = true;
-
-    this.documentApiService
-      .upload({
-        file: this.selectedFile,
-        companyId: this.companyId,
-        createdByUserId: this.createdByUserId,
-        documentType: this.documentType,
-        name: this.name,
-      })
-      .subscribe({
-        next: (response) => {
-          this.loading = false;
-          this.result = response;
-          this.uploadedDocument = response.payload;
-          this.loadDocuments();
-        },
-        error: (error: HttpErrorResponse) => {
-          this.loading = false;
-          this.handleError(error);
-        },
-      });
   }
 
   loadDocuments(): void {
@@ -133,12 +92,8 @@ export class DocumentsPageComponent implements OnInit {
     });
   }
 
-  deleteDocument(document: DocflowDocument): void {
-    const confirmed = window.confirm(`Delete document "${document.name}"?`);
-
-    if (!confirmed) {
-      return;
-    }
+  deleteDocumentConfirmed(document: DocflowDocument): void {
+    this.confirmingDeleteId = null;
 
     this.clearMessages();
 
@@ -153,13 +108,20 @@ export class DocumentsPageComponent implements OnInit {
     });
   }
 
-  resetForm(): void {
-    this.selectedFile = null;
-    this.companyId = 1;
-    this.createdByUserId = 1;
-    this.documentType = 'INVOICE';
-    this.name = '';
-    this.clearMessages();
+  formatFileSize(sizeInBytes: number): string {
+    if (sizeInBytes < 1024) {
+      return `${sizeInBytes} B`;
+    }
+
+    const sizeInKb = sizeInBytes / 1024;
+
+    if (sizeInKb < 1024) {
+      return `${sizeInKb.toFixed(2)} KB`;
+    }
+
+    const sizeInMb = sizeInKb / 1024;
+
+    return `${sizeInMb.toFixed(2)} MB`;
   }
 
   private clearMessages(): void {
@@ -246,20 +208,4 @@ export class DocumentsPageComponent implements OnInit {
 
     return '';
   }
-
-  formatFileSize(sizeInBytes: number): string {
-  if (sizeInBytes < 1024) {
-    return `${sizeInBytes} B`;
-  }
-
-  const sizeInKb = sizeInBytes / 1024;
-
-  if (sizeInKb < 1024) {
-    return `${sizeInKb.toFixed(2)} KB`;
-  }
-
-  const sizeInMb = sizeInKb / 1024;
-
-  return `${sizeInMb.toFixed(2)} MB`;
-}
 }
