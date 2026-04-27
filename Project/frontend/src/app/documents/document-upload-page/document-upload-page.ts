@@ -1,6 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, ElementRef, ViewChild, inject } from '@angular/core';
+import { Component, ElementRef, inject, ViewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { ToastrService } from 'ngx-toastr';
@@ -33,11 +33,17 @@ export class DocumentUploadPageComponent {
   readonly maxFileSizeBytes = 10 * 1024 * 1024;
   readonly acceptedFileTypes = '.pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png';
   readonly allowedExtensions = ['pdf', 'jpg', 'jpeg', 'png'];
-  readonly documentTypes = ['INVOICE', 'OTHER', 'CONTRACT'];
+  readonly documentTypes = ['INVOICE', 'OTHER'];
 
   selectedFile: File | null = null;
   uploadedDocument: DocflowDocument | null = null;
-  errors: string[] = [];
+  message: {
+    type: 'success' | 'warning' | 'error' | null;
+    text: string;
+  } = {
+    type: null,
+    text: '',
+  };
 
   companyId = 1;
   createdByUserId = 1;
@@ -46,10 +52,9 @@ export class DocumentUploadPageComponent {
   loading = false;
 
   onFileSelected(event: Event): void {
+    this.message = { type: null, text: '' };
     const input = event.target as HTMLInputElement;
     const nextFile = input.files?.[0] ?? null;
-
-    this.errors = [];
 
     if (!nextFile) {
       this.selectedFile = null;
@@ -61,8 +66,12 @@ export class DocumentUploadPageComponent {
     if (validationError) {
       this.selectedFile = null;
       input.value = '';
-      this.errors = [validationError];
-      this.toastr.error(validationError, 'Upload failed');
+
+      this.message = {
+        type: 'error',
+        text: validationError,
+      };
+
       return;
     }
 
@@ -70,12 +79,13 @@ export class DocumentUploadPageComponent {
   }
 
   uploadDocument(): void {
-    this.errors = [];
+    this.message = { type: null, text: '' };
 
     if (!this.selectedFile) {
-      const message = 'Please select a file before uploading.';
-      this.errors = [message];
-      this.toastr.warning(message, 'Missing file');
+      this.message = {
+        type: 'warning',
+        text: 'Please select a file before uploading.',
+      };
       return;
     }
 
@@ -93,7 +103,9 @@ export class DocumentUploadPageComponent {
         next: (response) => {
           this.loading = false;
           this.uploadedDocument = response.payload;
+
           this.toastr.success('Document uploaded successfully.', 'Success');
+
           this.resetForm(false);
         },
         error: (error: HttpErrorResponse) => {
@@ -117,7 +129,7 @@ export class DocumentUploadPageComponent {
     this.createdByUserId = 1;
     this.documentType = 'INVOICE';
     this.name = '';
-    this.errors = [];
+    this.message = { type: null, text: '' };
 
     if (clearUploadedDocument) {
       this.uploadedDocument = null;
@@ -157,8 +169,12 @@ export class DocumentUploadPageComponent {
   }
 
   private handleError(error: HttpErrorResponse): void {
-    this.errors = this.extractErrorMessages(error.error);
-    this.toastr.error(this.errors[0] ?? 'Upload failed.', 'Upload failed');
+    const errors = this.extractErrorMessages(error.error);
+
+    this.message = {
+      type: 'error',
+      text: errors[0] ?? 'Upload failed.',
+    };
   }
 
   private extractErrorMessages(errorBody: unknown): string[] {

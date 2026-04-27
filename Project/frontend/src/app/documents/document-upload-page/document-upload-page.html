@@ -8,12 +8,12 @@
     </div>
   </app-page-header>
 
-  <div class="upload-layout">
+  <div class="upload-layout" [class.upload-layout--with-result]="uploadedDocument">
     <app-ui-card
       title="Upload form"
       subtitle="Choose a file, confirm metadata, and send it to the backend upload endpoint."
-      badgeText="Live"
-      badgeVariant="processing">
+      badgeText="Forms"
+      badgeVariant="neutral">
       <form class="upload-form" (ngSubmit)="uploadDocument()">
         <div class="field">
           <label for="file">Document file</label>
@@ -47,9 +47,8 @@
             } @else {
               <div class="dropzone__empty">
                 <div class="dropzone__icon">+</div>
-                <h2>Drop your document here</h2>
+                <h2>Upload your document here</h2>
                 <span>Supported formats: PDF, JPG, JPEG and PNG. Maximum size: 10 MB.</span>
-                <span class="dropzone__action btn btn-primary">Choose file</span>
               </div>
             }
           </label>
@@ -105,23 +104,36 @@
           </div>
         </div>
 
-        @if (errors.length) {
-          <div class="message-card message-card--error">
-            <div class="message-card__icon">!</div>
+        @if (message.type) {
+          <div class="message-card"
+               [ngClass]="{
+         'message-card--error': message.type === 'error',
+         'message-card--warning': message.type === 'warning',
+         'message-card--success': message.type === 'success'
+       }">
+
+            <div class="message-card__icon">
+              {{ message.type === 'success' ? '✓' : '!' }}
+            </div>
+
             <div>
-              <strong>Upload blocked</strong>
-              <span *ngFor="let error of errors; let last = last">
-                {{ error }}<br *ngIf="!last" />
-              </span>
+              <strong>
+                {{
+                  message.type === 'success' ? 'Success' :
+                    message.type === 'warning' ? 'Warning' :
+                      'Error'
+                }}
+              </strong>
+              <span>{{ message.text }}</span>
             </div>
           </div>
         }
 
         <div class="actions">
-          <button type="submit" class="btn btn-primary" [disabled]="loading">
+          <button type="submit" class="btn btn-primary btn-lg" [disabled]="loading">
             {{ loading ? 'Uploading...' : 'Upload document' }}
           </button>
-          <button type="button" class="btn btn-secondary" (click)="resetForm()" [disabled]="loading">
+          <button type="button" class="btn btn-secondary btn-lg" (click)="resetForm()" [disabled]="loading">
             Reset form
           </button>
         </div>
@@ -129,19 +141,6 @@
     </app-ui-card>
 
     <div class="side-stack">
-      <app-ui-card
-        title="Upload rules"
-        subtitle="The current backend contract this page follows."
-        badgeText="Info"
-        badgeVariant="info">
-        <ul class="facts-list">
-          <li>Exactly one file is uploaded per request.</li>
-          <li>`companyId`, `createdByUserId`, and `documentType` are sent with the file.</li>
-          <li>The optional `name` field overrides the original file name.</li>
-          <li>The page accepts PDF, JPG, JPEG, and PNG files up to 10 MB.</li>
-        </ul>
-      </app-ui-card>
-
       @if (uploadedDocument) {
         <app-ui-card
           title="Last uploaded document"

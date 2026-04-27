@@ -6,16 +6,23 @@
 
 .upload-layout {
   display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
+  grid-template-columns: 1fr;
   gap: 18px;
-  align-items: start;
 }
 
-.upload-form,
+.upload-layout--with-result {
+  grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr);
+}
+
 .side-stack {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
+  opacity: 0;
+  transform: translateX(10px);
+  transition: all 0.25s ease;
+}
+
+.upload-layout--with-result .side-stack {
+  opacity: 1;
+  transform: translateX(0);
 }
 
 .form-grid {
@@ -26,18 +33,16 @@
 
 .dropzone {
   display: block;
-  min-height: 300px;
+  min-height: 100px;
   border: 2px dashed var(--primary-border);
   border-radius: 24px;
-  background:
-    radial-gradient(circle at top right, rgba(139, 92, 246, 0.12), transparent 38%),
-    var(--primary-soft);
+  background: radial-gradient(circle at top right, rgba(139, 92, 246, 0.12), transparent 38%),
+  var(--primary-soft);
   padding: 24px;
-  transition:
-    border-color 0.18s ease,
-    background 0.18s ease,
-    box-shadow 0.18s ease,
-    transform 0.18s ease;
+  transition: border-color 0.18s ease,
+  background 0.18s ease,
+  box-shadow 0.18s ease,
+  transform 0.18s ease;
 }
 
 .dropzone:hover {
@@ -47,10 +52,10 @@
 }
 
 .dropzone--active {
-  border-style: dashed;
-  background:
-    radial-gradient(circle at top right, rgba(139, 92, 246, 0.08), transparent 38%),
-    rgba(255, 255, 255, 0.92);
+  min-height: auto;
+  padding: 14px;
+  display: flex;
+  align-items: flex-start;
 }
 
 .dropzone input {
@@ -107,7 +112,7 @@
   padding: 14px;
   border-radius: 18px;
   border: 1px solid var(--primary-border);
-  background: var(--primary-soft);
+  background: var(--surface);
 }
 
 .selected-file-card__content {
@@ -135,6 +140,7 @@
   padding: 14px;
   border-radius: 18px;
   border: 1px solid transparent;
+  margin-top: 8px;
 }
 
 .message-card__icon {
@@ -165,10 +171,17 @@
   color: var(--error);
 }
 
+.message-card--warning {
+  background: var(--warning-soft);
+  border-color: var(--warning-border);
+  color: var(--warning);
+}
+
 .actions {
   display: flex;
   gap: 12px;
   flex-wrap: wrap;
+  margin-top: 18px;
 }
 
 .facts-list {
