@@ -78,7 +78,7 @@
               <div class="table-actions">
 
                 <ng-container *ngIf="confirmingDeleteId !== document.id; else confirmDeleteTpl">
-                  <button type="button" class="btn btn-secondary" (click)="loadDocumentById(document.id)">
+                  <button type="button" class="btn btn-secondary" [routerLink]="['/documents', document.id]">
                     Details
                   </button>
 
