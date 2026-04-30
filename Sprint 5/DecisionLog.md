@@ -3,7 +3,7 @@
 ---
 
 ### DL-001 – Odabir frontend frameworka
-**Datum:** 29.04.2026  
+**Datum:** 21.04.2026  
 **Opis problema:** Trebalo je odabrati frontend framework za razvoj web aplikacije DocFlow.  
 **Razmatrane opcije:**
 1. Angular
@@ -18,7 +18,7 @@
 ---
 
 ### DL-002 – Odabir backend frameworka
-**Datum:** 29.04.2026  
+**Datum:** 21.04.2026  
 **Opis problema:** Trebalo je odabrati backend tehnologiju za REST API i upravljanje dokumentima.  
 **Razmatrane opcije:**
 1. Spring Boot (Java)
@@ -33,7 +33,7 @@
 ---
 
 ### DL-003 – Odabir baze podataka
-**Datum:** 29.04.2026  
+**Datum:** 21.04.2026  
 **Opis problema:** Trebalo je odabrati sistem za upravljanje bazom podataka za pohranu metapodataka dokumenata.  
 **Razmatrane opcije:**
 1. PostgreSQL
@@ -48,7 +48,7 @@
 ---
 
 ### DL-004 – Pohrana fajlova – lokalni filesystem
-**Datum:** 29.04.2026  
+**Datum:** 25.04.2026  
 **Opis problema:** Trebalo je odlučiti gdje fizički pohranjivati uploadovane dokumente (PDF, slike).  
 **Razmatrane opcije:**
 1. Lokalni filesystem
@@ -63,7 +63,7 @@
 ---
 
 ### DL-005 – Strategija validacije dokumenata
-**Datum:** 29.04.2026  
+**Datum:** 25.04.2026  
 **Opis problema:** Trebalo je odlučiti gdje i kako validirati uploadovane fajlove (tip, veličina, ekstenzija).  
 **Razmatrane opcije:**
 1. Validacija samo na frontendu
@@ -78,7 +78,7 @@
 ---
 
 ### DL-006 – API dokumentacija – SpringDoc/Swagger
-**Datum:** 29.04.2026  
+**Datum:** 25.04.2026  
 **Opis problema:** Trebalo je odlučiti kako dokumentovati REST API za lakšu komunikaciju između frontend i backend članova tima.  
 **Razmatrane opcije:**
 1. SpringDoc OpenAPI (Swagger UI)
@@ -93,7 +93,7 @@
 ---
 
 ### DL-007 – Brisanje fizičkog fajla ako upload transakcija ne uspije
-**Datum:** 30.04.2026  
+**Datum:** 26.04.2026  
 **Opis problema:** Kod upload procesa može se desiti da se fajl uspješno snimi na filesystem, ali da upis metapodataka u bazu ne uspije. U tom slučaju nastao bi fajl bez odgovarajućeg zapisa u bazi.  
 **Razmatrane opcije:**
 1. Ne raditi cleanup i ostaviti fajl na disku
@@ -112,7 +112,7 @@
 ---
 
 ### DL-008 – Brisanje dokumenta uklanja i bazni zapis i fizički fajl
-**Datum:** 30.04.2026  
+**Datum:** 26.04.2026  
 **Opis problema:** Dokument se sastoji od metapodataka u bazi i originalnog fajla na filesystemu. Potrebno je odlučiti šta znači brisanje dokumenta.  
 **Razmatrane opcije:**
 1. Brisati samo zapis iz baze
@@ -131,7 +131,7 @@
 ---
 
 ### DL-009 – API/integration testovi za document module
-**Datum:** 30.04.2026  
+**Datum:** 27.04.2026  
 **Opis problema:** Document module uključuje više slojeva: REST controller, validaciju, bazu, storage na filesystemu i response format. Samo unit testovi ne bi dovoljno potvrdili da cijeli tok radi ispravno.  
 **Razmatrane opcije:**
 1. Pisati samo unit testove za validaciju
