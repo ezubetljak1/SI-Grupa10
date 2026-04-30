@@ -12,6 +12,7 @@ import {
 } from '../../shared/components';
 import {DocflowDocument} from '../models/document.models';
 import {DomSanitizer, SafeResourceUrl} from '@angular/platform-browser';
+import { ToastrService } from 'ngx-toastr';
 
 @Component({
   selector: 'app-document-detail-page',
@@ -30,10 +31,10 @@ import {DomSanitizer, SafeResourceUrl} from '@angular/platform-browser';
 export class DocumentDetailPageComponent implements OnInit {
   private readonly documentApiService = inject(DocumentApiService);
   private readonly route = inject(ActivatedRoute);
+  private readonly toastr = inject(ToastrService);
 
   document: DocflowDocument | null = null;
   loading = false;
-  error: string | null = null;
   downloading = false;
 
   private readonly sanitizer = inject(DomSanitizer);
@@ -45,14 +46,17 @@ export class DocumentDetailPageComponent implements OnInit {
 
   ngOnInit(): void {
     const id = Number(this.route.snapshot.paramMap.get('id'));
-    if (id) {
-      this.loadDocument(id);
+    
+    if (!Number.isFinite(id) || id <= 0){
+      this.toastr.error('Invalid document id.', 'Error');
+      return;
     }
+
+    this.loadDocument(id);
   }
 
   loadDocument(id: number): void {
     this.loading = true;
-    this.error = null;
 
     this.documentApiService.getById(id).subscribe({
       next: (response) => {
@@ -67,7 +71,12 @@ export class DocumentDetailPageComponent implements OnInit {
       },
       error: (err: HttpErrorResponse) => {
         this.loading = false;
-        this.error = err.error?.message ?? err.error?.payload ?? 'Failed to load document.';
+        const message = this.extractErrorMessage(err.error) ?? 'Failed to load document.';
+        this.document = null;
+        this.fileUrl = null;
+        this.isPdf = false;
+        this.isImage = false;
+        this.toastr.error(message, 'Error');
       },
     });
   }
@@ -87,9 +96,10 @@ export class DocumentDetailPageComponent implements OnInit {
         anchor.click();
         window.URL.revokeObjectURL(objectUrl);
       },
-      error: () => {
+      error: (err: HttpErrorResponse) => {
         this.downloading = false;
-        this.error = 'Failed to download file.';
+        const message = this.extractErrorMessage(err.error) ?? 'Failed to download file.';
+        this.toastr.error(message, 'Error');
       },
     });
   }
@@ -124,5 +134,37 @@ export class DocumentDetailPageComponent implements OnInit {
     if (doc.fileType === 'image/png') return 'png';
     if (doc.fileType === 'image/jpeg') return 'jpg';
     return '';
+  }
+
+  private extractErrorMessage(errorBody: unknown): string | null {
+    if (Array.isArray(errorBody)) {
+      const firstError = errorBody[0];
+
+      if (firstError?.message) {
+        return firstError.message;
+      }
+
+      if (firstError?.payload) {
+        return firstError.payload;
+      }
+
+      if (firstError?.code) {
+        return firstError.code;
+      }
+
+      return null;
+    }
+
+    if (typeof errorBody === 'string') {
+      return errorBody;
+    }
+
+    if (errorBody && typeof errorBody === 'object') {
+      const body = errorBody as { message?: string; payload?: string; code?: string };
+
+      return body.message ?? body.payload ?? body.code ?? null;
+    }
+
+    return null;
   }
 }

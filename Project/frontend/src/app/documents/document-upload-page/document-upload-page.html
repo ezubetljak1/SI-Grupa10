@@ -17,14 +17,21 @@
       <form class="upload-form" (ngSubmit)="uploadDocument()">
         <div class="field">
           <label for="file">Document file</label>
-          <label class="dropzone" [class.dropzone--active]="selectedFile" for="file">
-            <input
-              #fileInput
-              id="file"
-              type="file"
-              [accept]="acceptedFileTypes"
-              (change)="onFileSelected($event)"
-            />
+          <label 
+            class="dropzone" 
+            [class.dropzone--active]="selectedFile" 
+            [class.dropzone--dragover]="dropzoneActive" 
+            for="file"
+            (dragover)="onDragOver($event)"
+            (dragleave)="onDragLeave($event)"
+            (drop)="onFileDropped($event)">
+              <input
+                #fileInput
+                id="file"
+                type="file"
+                [accept]="acceptedFileTypes"
+                (change)="onFileSelected($event)"
+              />
 
             @if (selectedFile) {
               <div class="selected-file-card">
@@ -36,7 +43,7 @@
                 <div class="selected-file-card__content">
                   <strong>{{ selectedFile.name }}</strong>
                   <span>
-                    {{ formatFileSize(selectedFile.size) }} | {{ selectedFile.type || 'Unknown type' }} | ready for upload
+                    {{ formatFileSize(selectedFile.size) }} | ready for upload
                   </span>
                 </div>
 
@@ -68,27 +75,6 @@
         </div>
 
         <div class="form-grid">
-          <div class="field">
-            <label for="companyId">Company ID</label>
-            <input
-              id="companyId"
-              class="input"
-              type="number"
-              name="companyId"
-              [(ngModel)]="companyId"
-            />
-          </div>
-
-          <div class="field">
-            <label for="createdByUserId">Created By User ID</label>
-            <input
-              id="createdByUserId"
-              class="input"
-              type="number"
-              name="createdByUserId"
-              [(ngModel)]="createdByUserId"
-            />
-          </div>
 
           <div class="field">
             <label for="documentType">Document type</label>
@@ -161,22 +147,20 @@
             </div>
 
             <div class="meta-grid">
-              <div class="meta-card">
-                <span>ID</span>
-                <strong>{{ uploadedDocument.id }}</strong>
-              </div>
-              <div class="meta-card">
-                <span>Company</span>
-                <strong>{{ uploadedDocument.companyId }}</strong>
-              </div>
-              <div class="meta-card">
-                <span>File type</span>
-                <strong>{{ uploadedDocument.fileType }}</strong>
-              </div>
-              <div class="meta-card">
-                <span>File size</span>
-                <strong>{{ formatFileSize(uploadedDocument.fileSize) }}</strong>
-              </div>
+                <div class="meta-card">
+                    <span>Status</span>
+                    <strong>{{ uploadedDocument.documentStatus }}</strong>
+                  </div>
+
+                  <div class="meta-card">
+                    <span>Document type</span>
+                    <strong>{{ uploadedDocument.documentType }}</strong>
+                  </div>
+
+                  <div class="meta-card">
+                    <span>File size</span>
+                    <strong>{{ formatFileSize(uploadedDocument.fileSize) }}</strong>
+                  </div>
             </div>
           </div>
         </app-ui-card>

@@ -33,7 +33,6 @@ export class DocumentsPageComponent implements OnInit {
   private readonly documentApiService = inject(DocumentApiService);
 
   documents: DocflowDocument[] = [];
-  result: unknown = null;
   errors: string[] = [];
   listLoading = false;
 
@@ -57,7 +56,6 @@ export class DocumentsPageComponent implements OnInit {
         next: (response) => {
           this.listLoading = false;
           this.documents = response.payload ?? [];
-          this.result = response;
         },
         error: (error: HttpErrorResponse) => {
           this.listLoading = false;
@@ -71,7 +69,6 @@ export class DocumentsPageComponent implements OnInit {
 
     this.documentApiService.getById(id).subscribe({
       next: (response) => {
-        this.result = response;
       },
       error: (error: HttpErrorResponse) => {
         this.handleError(error);
@@ -99,7 +96,6 @@ export class DocumentsPageComponent implements OnInit {
 
     this.documentApiService.delete(document.id).subscribe({
       next: (response) => {
-        this.result = response;
         this.loadDocuments();
       },
       error: (error: HttpErrorResponse) => {
@@ -126,11 +122,9 @@ export class DocumentsPageComponent implements OnInit {
 
   private clearMessages(): void {
     this.errors = [];
-    this.result = null;
   }
 
   private handleError(error: HttpErrorResponse): void {
-    this.result = error;
     this.errors = this.extractErrorMessages(error.error);
   }
 

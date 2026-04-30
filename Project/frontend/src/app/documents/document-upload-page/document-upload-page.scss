@@ -58,6 +58,13 @@
   align-items: flex-start;
 }
 
+.dropzone--dragover {
+  border-color: var(--primary);
+  background: rgba(79, 70, 229, 0.08);
+  box-shadow: var(--shadow-sm);
+  transform: translateY(-1px);
+}
+
 .dropzone input {
   display: none;
 }
