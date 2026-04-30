@@ -68,6 +68,18 @@ public class DocumentController {
                 .body(fileResponse.getResource());
     }
 
+    @GetMapping("/{id}/preview")
+    public ResponseEntity<Resource> previewFile(@PathVariable Long id) {
+        DocumentFileResponse fileResponse = documentService.downloadFile(id);
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(fileResponse.getContentType()))
+                .header(
+                        HttpHeaders.CONTENT_DISPOSITION,
+                        "inline; filename=\"" + fileResponse.getFileName() + "\"")
+                .body(fileResponse.getResource());
+    }
+
     @PutMapping("/{id}")
     public ApiResponse<Document> update(
             @PathVariable Long id, @Valid @RequestBody DocumentUpdateRequest request) {

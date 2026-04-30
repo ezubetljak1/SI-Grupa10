@@ -1,16 +1,17 @@
-import { CommonModule } from '@angular/common';
-import { HttpErrorResponse } from '@angular/common/http';
-import { Component, inject, OnInit } from '@angular/core';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import {CommonModule} from '@angular/common';
+import {HttpErrorResponse} from '@angular/common/http';
+import {Component, inject, OnInit} from '@angular/core';
+import {ActivatedRoute, RouterLink} from '@angular/router';
 
-import { DocumentApiService } from '../../services/document-api.service';
+import {DocumentApiService} from '../../services/document-api.service';
 import {
   FileTypeIconComponent,
   PageHeaderComponent,
   StatusBadgeComponent,
   UiCardComponent,
 } from '../../shared/components';
-import { DocflowDocument } from '../models/document.models';
+import {DocflowDocument} from '../models/document.models';
+import {DomSanitizer, SafeResourceUrl} from '@angular/platform-browser';
 
 @Component({
   selector: 'app-document-detail-page',
@@ -35,6 +36,13 @@ export class DocumentDetailPageComponent implements OnInit {
   error: string | null = null;
   downloading = false;
 
+  private readonly sanitizer = inject(DomSanitizer);
+
+  fileUrl: SafeResourceUrl | null = null;
+
+  isPdf = false;
+  isImage = false;
+
   ngOnInit(): void {
     const id = Number(this.route.snapshot.paramMap.get('id'));
     if (id) {
@@ -50,6 +58,12 @@ export class DocumentDetailPageComponent implements OnInit {
       next: (response) => {
         this.loading = false;
         this.document = response.payload;
+
+        const rawUrl = `/api/documents/${this.document.id}/preview`;
+        this.fileUrl = this.sanitizer.bypassSecurityTrustResourceUrl(rawUrl);
+
+        this.isPdf = this.document.fileType === 'application/pdf';
+        this.isImage = this.document.fileType?.startsWith('image/');
       },
       error: (err: HttpErrorResponse) => {
         this.loading = false;
@@ -90,8 +104,11 @@ export class DocumentDetailPageComponent implements OnInit {
   formatDate(dateStr: string): string {
     if (!dateStr) return '—';
     return new Date(dateStr).toLocaleString('en-GB', {
-      day: '2-digit', month: 'short', year: 'numeric',
-      hour: '2-digit', minute: '2-digit',
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
     });
   }
 
