@@ -1,0 +1,35 @@
+# Local development Docker Compose file.
+# This file starts only the PostgreSQL database.
+# Backend and frontend are run locally from the IDE / Angular CLI.
+#
+# Run from Project/backend:
+# docker compose -f docker-compose.local.yml up -d
+
+services:
+  docflow-db:
+    image: postgres:16
+    container_name: docflow-local-db
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_DB: docflow
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+
+    # Exposes PostgreSQL to the host machine so the locally running backend
+    # can connect using jdbc:postgresql://localhost:5432/docflow
+    ports:
+      - "5432:5432"
+
+    # Persists local database data between container restarts.
+    volumes:
+      - docflow_local_postgres_data:/var/lib/postgresql/data
+
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres -d docflow" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  docflow_local_postgres_data:

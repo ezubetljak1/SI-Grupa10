@@ -1,111 +1,208 @@
-import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { HttpErrorResponse } from '@angular/common/http';
+import { Component, inject, OnInit } from '@angular/core';
+import { RouterLink } from '@angular/router';
+
+import { ValidationError } from '../../models/api.models';
 import { DocumentApiService } from '../../services/document-api.service';
+import {
+  EmptyStateComponent,
+  FileTypeIconComponent,
+  PageHeaderComponent,
+  StatusBadgeComponent,
+  UiCardComponent
+} from '../../shared/components';
+import { DocflowDocument } from '../models/document.models';
+import { ToastrService } from 'ngx-toastr';
 
 @Component({
   selector: 'app-documents-page',
   standalone: true,
-  imports: [CommonModule],
+  imports: [
+    CommonModule,
+    RouterLink,
+    EmptyStateComponent,
+    FileTypeIconComponent,
+    PageHeaderComponent,
+    StatusBadgeComponent,
+    UiCardComponent,
+  ],
   templateUrl: './documents-page.html',
-  styleUrl: './documents-page.scss'
+  styleUrl: './documents-page.scss',
 })
-export class DocumentsPageComponent {
-  private documentApiService = inject(DocumentApiService);
+export class DocumentsPageComponent implements OnInit {
+  private readonly documentApiService = inject(DocumentApiService);
+  private readonly toastr = inject(ToastrService);
 
-  result: any = null;
-  error: any = null;
+  documents: DocflowDocument[] = [];
+  errors: string[] = [];
+  listLoading = false;
 
-  loadAll(): void {
-    this.error = null;
-    this.documentApiService.getAll().subscribe({
+  confirmingDeleteId: number | null = null;
+
+  ngOnInit(): void {
+    this.loadDocuments();
+  }
+
+  loadDocuments(): void {
+    this.listLoading = true;
+
+    this.documentApiService
+      .getAll({
+        page: 0,
+        size: 20,
+        sortBy: 'id',
+        sortDirection: 'desc',
+      })
+      .subscribe({
+        next: (response) => {
+          this.listLoading = false;
+          this.documents = response.payload ?? [];
+        },
+        error: (error: HttpErrorResponse) => {
+          this.listLoading = false;
+          this.handleError(error);
+        },
+      });
+  }
+
+  loadDocumentById(id: number): void {
+    this.clearMessages();
+
+    this.documentApiService.getById(id).subscribe({
       next: (response) => {
-        this.result = response;
       },
-      error: (err) => {
-        this.error = err;
-      }
+      error: (error: HttpErrorResponse) => {
+        this.handleError(error);
+      },
     });
   }
 
-  loadById(): void {
-    this.error = null;
-    this.documentApiService.getById(1).subscribe({
-      next: (response) => {
-        this.result = response;
+  downloadDocument(document: DocflowDocument): void {
+    this.clearMessages();
+
+    this.documentApiService.downloadFile(document.id).subscribe({
+      next: (blob) => {
+        this.downloadBlob(blob, this.resolveDownloadFileName(document));
       },
-      error: (err) => {
-        this.error = err;
-      }
+      error: (error: HttpErrorResponse) => {
+        this.handleError(error);
+      },
     });
   }
 
-  createDocument(): void {
-    this.error = null;
-    const payload = {
-      companyId: 1,
-      createdByUserId: 101,
-      name: 'Frontend Test Document',
-      fileType: 'pdf',
-      documentType: 'OTHER',
-      storagePath: 'docs/frontend-test.pdf',
-      fileSize: 123456
-    };
+  deleteDocumentConfirmed(document: DocflowDocument): void {
+    this.confirmingDeleteId = null;
 
-    this.documentApiService.create(payload).subscribe({
+    this.clearMessages();
+
+    this.documentApiService.delete(document.id).subscribe({
       next: (response) => {
-        this.result = response;
+        this.toastr.success("Document deleted successfully!", "Success");
+        this.loadDocuments();
       },
-      error: (err) => {
-        this.error = err;
-      }
+      error: (error: HttpErrorResponse) => {
+        this.handleError(error);
+      },
     });
   }
 
-  updateDocument(): void {
-    this.error = null;
-    const payload = {
-      name: 'Frontend Updated Document',
-      documentStatus: 'APPROVED',
-      documentType: 'OTHER'
-    };
+  formatFileSize(sizeInBytes: number): string {
+    if (sizeInBytes < 1024) {
+      return `${sizeInBytes} B`;
+    }
 
-    this.documentApiService.update(1, payload).subscribe({
-      next: (response) => {
-        this.result = response;
-      },
-      error: (err) => {
-        this.error = err;
-      }
-    });
+    const sizeInKb = sizeInBytes / 1024;
+
+    if (sizeInKb < 1024) {
+      return `${sizeInKb.toFixed(2)} KB`;
+    }
+
+    const sizeInMb = sizeInKb / 1024;
+
+    return `${sizeInMb.toFixed(2)} MB`;
   }
 
-  deleteDocument(): void {
-    this.error = null;
-    this.documentApiService.delete(1).subscribe({
-      next: (response) => {
-        this.result = response;
-      },
-      error: (err) => {
-        this.error = err;
-      }
-    });
+  private clearMessages(): void {
+    this.errors = [];
   }
 
-  filterDocuments(): void {
-    this.error = null;
-    this.documentApiService.filter({
-      name: 'invoice',
-      page: 0,
-      size: 5,
-      sortBy: 'id',
-      sortDirection: 'desc'
-    }).subscribe({
-      next: (response) => {
-        this.result = response;
-      },
-      error: (err) => {
-        this.error = err;
+  private handleError(error: HttpErrorResponse): void {
+    this.errors = this.extractErrorMessages(error.error);
+  }
+
+  private extractErrorMessages(errorBody: unknown): string[] {
+    if (Array.isArray(errorBody)) {
+      return errorBody.map((error: ValidationError) => {
+        if (error.message && error.code) {
+          return `${error.code}: ${error.message}`;
+        }
+
+        return error.message || error.code || JSON.stringify(error);
+      });
+    }
+
+    if (typeof errorBody === 'string') {
+      return [errorBody];
+    }
+
+    if (errorBody && typeof errorBody === 'object') {
+      const body = errorBody as { message?: string; payload?: string; code?: string };
+
+      if (body.message) {
+        return [body.message];
       }
-    });
+
+      if (body.payload) {
+        return [body.payload];
+      }
+
+      if (body.code) {
+        return [body.code];
+      }
+    }
+
+    return ['Request failed. Check the backend logs or browser Network tab.'];
+  }
+
+  private downloadBlob(blob: Blob, fileName: string): void {
+    const objectUrl = window.URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+
+    anchor.href = objectUrl;
+    anchor.download = fileName;
+    anchor.click();
+
+    window.URL.revokeObjectURL(objectUrl);
+  }
+
+  private resolveDownloadFileName(document: DocflowDocument): string {
+    if (document.name.includes('.')) {
+      return document.name;
+    }
+
+    const extension = this.resolveExtension(document);
+
+    return extension ? `${document.name}.${extension}` : document.name;
+  }
+
+  private resolveExtension(document: DocflowDocument): string {
+    if (document.storagePath?.includes('.')) {
+      return document.storagePath.split('.').pop() ?? '';
+    }
+
+    if (document.fileType === 'application/pdf') {
+      return 'pdf';
+    }
+
+    if (document.fileType === 'image/png') {
+      return 'png';
+    }
+
+    if (document.fileType === 'image/jpeg') {
+      return 'jpg';
+    }
+
+    return '';
   }
 }

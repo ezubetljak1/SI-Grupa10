@@ -1,0 +1,309 @@
+<app-page-header
+  eyebrow="UI preview"
+  title="Docflow UI Components"
+  description="Temporary preview page for Sprint 5 shared layout, cards, badges, file indicators, form elements and empty states.">
+  <div page-actions>
+    <button class="btn btn-muted">Secondary action</button>
+    <button class="btn btn-primary">Primary action</button>
+  </div>
+</app-page-header>
+
+<div class="preview-grid">
+  <app-ui-card
+  title="Buttons style / Toastr notifications"
+  subtitle="Click to see standard feedback messages."
+  badgeText="Feedback"
+  badgeVariant="info">
+  <div class="button-row">
+    <button class="btn btn-primary" type="button" (click)="showSuccessToast()">
+      Success toast
+    </button>
+
+    <button class="btn btn-danger" type="button" (click)="showErrorToast()">
+      Error toast
+    </button>
+
+    <button class="btn btn-secondary" type="button" (click)="showWarningToast()">
+      Warning toast
+    </button>
+
+    <button class="btn btn-muted" type="button" (click)="showInfoToast()">
+      Info toast
+    </button>
+  </div>
+</app-ui-card>
+
+  <app-ui-card
+    title="Status badges"
+    subtitle="Document status indicators."
+    badgeText="Reusable"
+    badgeVariant="success">
+    <div class="badge-row">
+      <app-status-badge status="UPLOADED"></app-status-badge>
+      <app-status-badge status="STORED"></app-status-badge>
+      <app-status-badge status="PROCESSING"></app-status-badge>
+      <app-status-badge status="PENDING"></app-status-badge>
+      <app-status-badge status="FAILED"></app-status-badge>
+      <app-status-badge status="UNKNOWN"></app-status-badge>
+    </div>
+  </app-ui-card>
+
+  <app-ui-card
+    title="File type icons"
+    subtitle="Visual file markers for upload, list and details pages."
+    badgeText="Files"
+    badgeVariant="processing">
+    <div class="file-icon-row">
+      <div class="file-icon-preview">
+        <app-file-type-icon fileName="invoice-april.pdf" mimeType="application/pdf"></app-file-type-icon>
+        <div>
+          <strong>PDF document</strong>
+          <span>application/pdf</span>
+        </div>
+      </div>
+
+      <div class="file-icon-preview">
+        <app-file-type-icon fileName="receipt.jpg" mimeType="image/jpeg"></app-file-type-icon>
+        <div>
+          <strong>JPG image</strong>
+          <span>image/jpeg</span>
+        </div>
+      </div>
+
+      <div class="file-icon-preview">
+        <app-file-type-icon fileName="scan.png" mimeType="image/png"></app-file-type-icon>
+        <div>
+          <strong>PNG image</strong>
+          <span>image/png</span>
+        </div>
+      </div>
+
+      <div class="file-icon-preview">
+        <app-file-type-icon fileName="unknown.docx" mimeType="application/octet-stream"></app-file-type-icon>
+        <div>
+          <strong>Unknown file</strong>
+          <span>fallback style</span>
+        </div>
+      </div>
+    </div>
+  </app-ui-card>
+
+  <app-ui-card
+    title="Form elements"
+    subtitle="Basic input, select and textarea styles."
+    badgeText="Forms"
+    badgeVariant="neutral">
+    <div class="form-grid">
+      <div class="field">
+        <label>Document name</label>
+        <input class="input" value="Invoice April 2026" />
+        <span class="helper">Optional. If empty, original file name can be used.</span>
+      </div>
+
+      <div class="field">
+        <label>Document type</label>
+        <select class="select">
+          <option>Invoice</option>
+          <option>Receipt</option>
+          <option>Other</option>
+        </select>
+        <span class="helper">Basic classification for the uploaded file.</span>
+      </div>
+
+      <div class="field field--full">
+        <label>Internal note</label>
+        <textarea class="textarea" placeholder="Add an optional note for this upload."></textarea>
+        <span class="helper">This field is optional and can be removed if not needed.</span>
+      </div>
+    </div>
+  </app-ui-card>
+
+  <app-ui-card
+    title="Selected file card"
+    subtitle="Example state after a user selects a valid file."
+    badgeText="Ready"
+    badgeVariant="success">
+    <div class="selected-file-card">
+      <app-file-type-icon fileName="invoice-april-2026.pdf" mimeType="application/pdf"></app-file-type-icon>
+
+      <div class="selected-file-card__content">
+        <strong>invoice-april-2026.pdf</strong>
+        <span>2.4 MB · application/pdf · ready for upload</span>
+      </div>
+
+      <button class="icon-btn">×</button>
+    </div>
+  </app-ui-card>
+
+  <app-ui-card
+    title="Validation messages"
+    subtitle="Inline helper states. Backend validation messages should still be shown with toastr."
+    badgeText="States"
+    badgeVariant="warning">
+    <div class="message-stack">
+      <div class="message-card message-card--success">
+        <div class="message-card__icon">✓</div>
+        <div>
+          <strong>Ready to upload</strong>
+          <span>File format and size look valid.</span>
+        </div>
+      </div>
+
+      <div class="message-card message-card--error">
+        <div class="message-card__icon">!</div>
+        <div>
+          <strong>Invalid file</strong>
+          <span>Only PDF, JPG, JPEG and PNG files are supported.</span>
+        </div>
+      </div>
+
+      <div class="message-card message-card--warning">
+        <div class="message-card__icon">!</div>
+        <div>
+          <strong>Missing file</strong>
+          <span>Please select a file before uploading.</span>
+        </div>
+      </div>
+    </div>
+  </app-ui-card>
+
+  <app-ui-card
+    class="preview-card--wide"
+    title="Document table"
+    subtitle="Basic list preview for received documents."
+    badgeText="List"
+    badgeVariant="info">
+    <div class="table-wrapper">
+      <table class="documents-table">
+        <thead>
+          <tr>
+            <th>Document</th>
+            <th>Type</th>
+            <th>Status</th>
+            <th>Uploaded by</th>
+            <th>Size</th>
+            <th>Uploaded</th>
+            <th class="table-actions-heading">Actions</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          <tr>
+            <td>
+              <div class="document-cell">
+                <app-file-type-icon fileName="invoice-april-2026.pdf" mimeType="application/pdf"></app-file-type-icon>
+                <div>
+                  <strong>Invoice April 2026</strong>
+                  <span>invoice-april-2026.pdf</span>
+                </div>
+              </div>
+            </td>
+            <td>Invoice</td>
+            <td><app-status-badge status="UPLOADED"></app-status-badge></td>
+            <td class="muted">Emina Z.</td>
+            <td class="muted">2.4 MB</td>
+            <td class="muted">Today, 10:24</td>
+            <td>
+              <div class="table-actions">
+                <button class="icon-btn">↗</button>
+                <button class="icon-btn">↓</button>
+              </div>
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              <div class="document-cell">
+                <app-file-type-icon fileName="receipt-photo.jpg" mimeType="image/jpeg"></app-file-type-icon>
+                <div>
+                  <strong>Receipt Photo</strong>
+                  <span>receipt-photo.jpg</span>
+                </div>
+              </div>
+            </td>
+            <td>Other</td>
+            <td><app-status-badge status="UPLOADED"></app-status-badge></td>
+            <td class="muted">Amina H.</td>
+            <td class="muted">842 KB</td>
+            <td class="muted">Yesterday</td>
+            <td>
+              <div class="table-actions">
+                <button class="icon-btn">↗</button>
+                <button class="icon-btn">↓</button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </app-ui-card>
+
+  <app-ui-card
+    title="Metadata cards"
+    subtitle="Small detail blocks for document details page."
+    badgeText="Details"
+    badgeVariant="neutral">
+    <div class="meta-grid">
+      <div class="meta-card">
+        <span>Document ID</span>
+        <strong>42</strong>
+      </div>
+
+      <div class="meta-card">
+        <span>Status</span>
+        <strong>Uploaded</strong>
+      </div>
+
+      <div class="meta-card">
+        <span>Document type</span>
+        <strong>Invoice</strong>
+      </div>
+
+      <div class="meta-card">
+        <span>File type</span>
+        <strong>application/pdf</strong>
+      </div>
+
+      <div class="meta-card">
+        <span>File size</span>
+        <strong>2.4 MB</strong>
+      </div>
+
+      <div class="meta-card">
+        <span>Uploaded by</span>
+        <strong>Emina Z.</strong>
+      </div>
+    </div>
+  </app-ui-card>
+
+  <app-ui-card
+    title="Empty state"
+    subtitle="Used when there are no uploaded documents or no filtered results."
+    badgeText="Empty"
+    badgeVariant="neutral">
+    <app-empty-state
+      icon="◰"
+      title="No documents found"
+      description="Uploaded documents will appear here after they are successfully stored.">
+      <div empty-actions>
+        <button class="btn btn-primary">Upload document</button>
+      </div>
+    </app-empty-state>
+  </app-ui-card>
+
+  <app-ui-card
+    class="preview-card--wide"
+    title="Upload dropzone preview"
+    subtitle="Static preview of the upload area style."
+    badgeText="Upload"
+    badgeVariant="processing">
+    <div class="dropzone-preview">
+      <div class="dropzone-preview__icon">↑</div>
+      <h2>Drop your document here</h2>
+      <p>
+        Upload one PDF or image file. Supported formats are PDF, JPG, JPEG and PNG.
+      </p>
+      <button class="btn btn-primary">Choose file</button>
+    </div>
+  </app-ui-card>
+</div>

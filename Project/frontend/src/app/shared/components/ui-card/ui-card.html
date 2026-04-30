@@ -1,0 +1,29 @@
+<section class="ui-card" [class.ui-card--no-padding]="noPadding">
+  @if (title || subtitle || badgeText) {
+    <header class="ui-card__header">
+      <div class="ui-card__heading">
+        @if (title) {
+          <h2 class="ui-card__title">
+            {{ title }}
+          </h2>
+        }
+
+        @if (subtitle) {
+          <p class="ui-card__subtitle">
+            {{ subtitle }}
+          </p>
+        }
+      </div>
+
+      @if (badgeText) {
+        <span class="ui-card__badge" [class]="'ui-card__badge ui-card__badge--' + badgeVariant">
+          {{ badgeText }}
+        </span>
+      }
+    </header>
+  }
+
+  <div class="ui-card__body">
+    <ng-content></ng-content>
+  </div>
+</section>

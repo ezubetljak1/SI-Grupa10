@@ -1,13 +1,144 @@
-<h1>Documents API Test</h1>
+<section class="documents-page">
+  <app-page-header
+    eyebrow="Archive"
+    title="Documents"
+    description="Browse uploaded files, view document details, download stored content, and remove documents from the archive.">
+    <div page-actions class="page-actions">
+      <button type="button" routerLink="/documents/upload" class="btn btn-primary">
+        Upload document
+      </button>
 
-<div>
-  <button (click)="loadAll()">Load all documents</button>
-</div>
+      <button
+        type="button"
+        class="btn btn-muted"
+        (click)="loadDocuments()"
+        [disabled]="listLoading">
+        {{ listLoading ? 'Loading...' : 'Reload documents' }}
+      </button>
+    </div>
+  </app-page-header>
 
-<hr />
+  @if (errors.length) {
+    <div class="message-card">
+      <strong>Request failed</strong>
 
-<h2>Result</h2>
-<pre>{{ result | json }}</pre>
+      <ul>
+        <li *ngFor="let error of errors">{{ error }}</li>
+      </ul>
+    </div>
+  }
 
-<h2 *ngIf="error">Error</h2>
-<pre *ngIf="error">{{ error | json }}</pre>
+  <app-ui-card
+    title="Stored documents"
+    subtitle="Uploaded files sorted by newest document first."
+    [badgeText]="documents.length.toString()"
+    badgeVariant="info"
+    [noPadding]="true">
+
+    @if (!documents.length && !listLoading) {
+      <div class="empty-wrapper">
+        <app-empty-state
+          icon="[]"
+          title="No documents found"
+          description="Uploaded documents will appear here after they are saved.">
+          <div empty-actions>
+            <button type="button" routerLink="/documents/upload" class="btn btn-primary">
+              Upload document
+            </button>
+          </div>
+        </app-empty-state>
+      </div>
+    } @else {
+      <div class="table-wrapper">
+        <table class="documents-table">
+          <thead>
+            <tr>
+              <th>Document</th>
+              <th>Type</th>
+              <th>Status</th>
+              <th>Size</th>
+              <th class="actions-column">Actions</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr *ngFor="let document of documents">
+              <td>
+                <div class="document-cell">
+                  <app-file-type-icon
+                    [fileName]="document.name"
+                    [mimeType]="document.fileType">
+                  </app-file-type-icon>
+
+                  <div class="document-cell__content">
+                    <strong [title]="document.name">{{ document.name }}</strong>
+                    <span>{{ document.fileType }}</span>
+                  </div>
+                </div>
+              </td>
+
+              <td>{{ document.documentType }}</td>
+
+              <td>
+                <app-status-badge [status]="document.documentStatus"></app-status-badge>
+              </td>
+
+              <td>{{ formatFileSize(document.fileSize) }}</td>
+
+              <td class="actions-cell">
+                <div class="table-actions" [class.table-actions--confirm]="confirmingDeleteId === document.id">
+                  <ng-container *ngIf="confirmingDeleteId !== document.id; else confirmDeleteTpl">
+                    <button
+                      type="button"
+                      class="table-action table-action--details"
+                      [routerLink]="['/documents', document.id]"
+                      title="View details"
+                      aria-label="View document details">
+                      <i class="fa-solid fa-file-lines"></i>
+                    </button>
+
+                    <button
+                      type="button"
+                      class="table-action table-action--download"
+                      (click)="downloadDocument(document)"
+                      title="Download"
+                      aria-label="Download document">
+                      <i class="fa-solid fa-download"></i>
+                    </button>
+
+                    <button
+                      type="button"
+                      class="table-action table-action--delete"
+                      (click)="confirmingDeleteId = document.id"
+                      title="Delete"
+                      aria-label="Delete document">
+                      <i class="fa-solid fa-trash-can"></i>
+                    </button>
+                  </ng-container>
+
+                  <ng-template #confirmDeleteTpl>
+                    <span class="confirm-text">Delete?</span>
+
+                    <button
+                      type="button"
+                      class="confirm-action confirm-action--danger"
+                      (click)="deleteDocumentConfirmed(document)">
+                      Yes
+                    </button>
+
+                    <button
+                      type="button"
+                      class="confirm-action"
+                      (click)="confirmingDeleteId = null">
+                      Cancel
+                    </button>
+                  </ng-template>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    }
+  </app-ui-card>
+</section>

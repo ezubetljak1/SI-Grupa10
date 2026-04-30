@@ -11,3 +11,8 @@ export interface PagedResponse<T> {
   totalElements: number;
   totalPages: number;
 }
+
+export interface ValidationError {
+  code: string;
+  message: string;
+}
