@@ -4,6 +4,19 @@
   gap: 24px;
 }
 
+.detail-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.detail-actions .btn {
+  min-height: 46px;
+  padding-inline: 22px;
+}
+
 .loading-state {
   display: flex;
   align-items: center;

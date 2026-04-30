@@ -3,10 +3,11 @@
     eyebrow="Documents"
     [title]="document ? document.name : 'Document Details'"
     [description]="document ? 'Uploaded on ' + formatDate(document.uploadDate) : 'Loading document information...'">
-    <div page-actions>
+    <div page-actions class="detail-actions">
       <button type="button" routerLink="/documents" class="btn btn-muted">
         ← Back to documents
       </button>
+
       @if (document) {
         <button
           type="button"
@@ -26,79 +27,54 @@
     </div>
   }
 
-  @if (error) {
-    <div class="message-card message-card--error">
-      <div class="message-card__icon">!</div>
-      <div>
-        <strong>Error</strong>
-        <span>{{ error }}</span>
-      </div>
-    </div>
-  }
-
   @if (document && !loading) {
     <div class="detail-layout">
-
       <app-ui-card
-        title="Document info"
-        subtitle="Core metadata returned by the backend.">
+        title="Document information"
+        subtitle="Key details about this uploaded document.">
         <div class="doc-header">
           <app-file-type-icon
             [fileName]="document.name"
             [mimeType]="document.fileType">
           </app-file-type-icon>
+
           <div class="doc-header__text">
             <h2>{{ document.name }}</h2>
+
             <div class="doc-header__meta">
               <app-status-badge [status]="document.documentStatus"></app-status-badge>
               <span class="meta-chip">{{ document.documentType }}</span>
-              <span class="meta-chip meta-chip--muted">#{{ document.id }}</span>
             </div>
           </div>
         </div>
 
         <div class="meta-grid">
           <div class="meta-item">
-            <span class="meta-item__label">Document ID</span>
-            <strong class="meta-item__value">{{ document.id }}</strong>
-          </div>
-          <div class="meta-item">
             <span class="meta-item__label">Status</span>
             <strong class="meta-item__value">{{ document.documentStatus }}</strong>
           </div>
+
           <div class="meta-item">
             <span class="meta-item__label">Document type</span>
             <strong class="meta-item__value">{{ document.documentType }}</strong>
           </div>
-          <div class="meta-item">
-            <span class="meta-item__label">File type</span>
-            <strong class="meta-item__value">{{ document.fileType }}</strong>
-          </div>
+
           <div class="meta-item">
             <span class="meta-item__label">File size</span>
             <strong class="meta-item__value">{{ formatFileSize(document.fileSize) }}</strong>
           </div>
+
           <div class="meta-item">
             <span class="meta-item__label">Upload date</span>
             <strong class="meta-item__value">{{ formatDate(document.uploadDate) }}</strong>
-          </div>
-          <div class="meta-item">
-            <span class="meta-item__label">Company ID</span>
-            <strong class="meta-item__value">{{ document.companyId }}</strong>
-          </div>
-          <div class="meta-item">
-            <span class="meta-item__label">Created by (user ID)</span>
-            <strong class="meta-item__value">{{ document.createdBy }}</strong>
           </div>
         </div>
       </app-ui-card>
 
       <app-ui-card
         title="Document preview"
-        subtitle="Read-only preview of the uploaded file.">
-
+        subtitle="Preview the uploaded file before downloading it.">
         <div class="document-preview">
-
           @if (isPdf && fileUrl) {
             <iframe
               [src]="fileUrl"
@@ -111,28 +87,18 @@
           @if (isImage && fileUrl) {
             <img
               [src]="fileUrl"
-              alt="Document image"
-              style="max-width: 100%; border-radius: 8px;"/>
+              alt="Document preview"
+              style="max-width: 100%; border-radius: 8px;"
+            />
           }
 
           @if (!isPdf && !isImage) {
             <div class="message-card">
-              <span>Preview not available for this file type.</span>
+              <span>Preview is not available for this file type.</span>
             </div>
           }
-
         </div>
       </app-ui-card>
-
-      <app-ui-card
-        title="Storage"
-        subtitle="Where the file is stored on the backend filesystem.">
-        <div class="storage-path">
-          <span class="storage-path__label">Storage path</span>
-          <code class="storage-path__value">{{ document.storagePath }}</code>
-        </div>
-      </app-ui-card>
-
     </div>
   }
 </section>

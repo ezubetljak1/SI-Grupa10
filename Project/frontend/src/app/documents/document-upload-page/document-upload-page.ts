@@ -45,14 +45,16 @@ export class DocumentUploadPageComponent {
     text: '',
   };
 
-  companyId = 1;
-  createdByUserId = 1;
+  // izmijeniti kasnije nakon sto se implementiraju firme i users
+  readonly companyId = 1;
+  readonly createdByUserId = 1;
+  // ***
   documentType = 'INVOICE';
   name = '';
   loading = false;
+  dropzoneActive = false;
 
   onFileSelected(event: Event): void {
-    this.message = { type: null, text: '' };
     const input = event.target as HTMLInputElement;
     const nextFile = input.files?.[0] ?? null;
 
@@ -61,21 +63,33 @@ export class DocumentUploadPageComponent {
       return;
     }
 
-    const validationError = this.validateFile(nextFile);
+    this.setSelectedFile(nextFile, input);
+  }
 
-    if (validationError) {
-      this.selectedFile = null;
-      input.value = '';
+  onDragOver(event: DragEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.dropzoneActive = true;
+  }
 
-      this.message = {
-        type: 'error',
-        text: validationError,
-      };
+  onDragLeave(event: DragEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.dropzoneActive = false;
+  }
 
+  onFileDropped(event: DragEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.dropzoneActive = false;
+
+    const droppedFile = event.dataTransfer?.files?.[0] ?? null;
+
+    if(!droppedFile){
       return;
     }
 
-    this.selectedFile = nextFile;
+    this.setSelectedFile(droppedFile);
   }
 
   uploadDocument(): void {
@@ -125,8 +139,6 @@ export class DocumentUploadPageComponent {
 
   resetForm(clearUploadedDocument = true): void {
     this.clearSelectedFile();
-    this.companyId = 1;
-    this.createdByUserId = 1;
     this.documentType = 'INVOICE';
     this.name = '';
     this.message = { type: null, text: '' };
@@ -181,7 +193,7 @@ export class DocumentUploadPageComponent {
     if (Array.isArray(errorBody)) {
       return errorBody.map((error: ValidationError) => {
         if (error.message && error.code) {
-          return `${error.code}: ${error.message}`;
+          return error.message || error.code || JSON.stringify(error);
         }
 
         return error.message || error.code || JSON.stringify(error);
@@ -209,5 +221,28 @@ export class DocumentUploadPageComponent {
     }
 
     return ['Request failed. Check the backend logs or browser Network tab.'];
+  }
+
+  private setSelectedFile(file: File, input?: HTMLInputElement): void {
+    this.message = { type: null, text: '' };
+    
+    const validationError = this.validateFile(file);
+
+    if (validationError) {
+      this.selectedFile = null;
+
+      if (input) {
+        input.value = '';
+      }
+
+      this.message = {
+        type: 'error',
+        text: validationError,
+      };
+
+      return;
+    }
+
+    this.selectedFile = file;
   }
 }
