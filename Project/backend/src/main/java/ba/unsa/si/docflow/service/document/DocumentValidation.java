@@ -24,6 +24,8 @@ import java.util.Locale;
 @AllArgsConstructor
 public class DocumentValidation {
 
+    private static final int MAX_DOC_NAME_LENGTH = 255;
+
     private final DocumentDAO documentDAO;
 
     private final MessageSource messageSource;
@@ -33,9 +35,7 @@ public class DocumentValidation {
     public void validateCreate(DocumentCreateRequest request) {
         ValidationErrors errors = new ValidationErrors();
 
-        if (documentDAO.existsByNameInCompany(request.getName(), request.getCompanyId(), null)) {
-            addError(errors, "DOCUMENT_NAME_EXISTS", "document.validation.name.exists");
-        }
+        validateName(errors, request.getName(), request.getCompanyId(), null);
 
         if (!isValidDocumentType(request.getDocumentType())) {
             addError(errors, "DOCUMENT_TYPE_INVALID", "document.validation.type.invalid");
@@ -66,6 +66,10 @@ public class DocumentValidation {
             String documentName) {
         ValidationErrors errors = new ValidationErrors();
 
+        if (documentName != null && documentName.length() > MAX_DOC_NAME_LENGTH) {
+            addError(errors, "DOCUMENT_NAME_TOO_LONG", "document.validation.name.max_length");
+        }
+
         validateRequiredUploadFields(
                 errors, file, companyId, createdByUserId, documentType, documentName);
 
@@ -94,12 +98,9 @@ public class DocumentValidation {
     public void validateUpdate(DocumentUpdateRequest request, DocumentEntity entity) {
         ValidationErrors errors = new ValidationErrors();
 
-        String nameToCheck = request.getName() != null ? request.getName() : entity.getName();
         Long companyIdToCheck = entity.getCompanyId();
 
-        if (documentDAO.existsByNameInCompany(nameToCheck, companyIdToCheck, entity.getId())) {
-            addError(errors, "DOCUMENT_NAME_EXISTS", "document.validation.name.exists");
-        }
+        validateName(errors, request.getName(), companyIdToCheck, entity.getId());
 
         if (StringUtils.hasText(request.getDocumentType())
                 && !isValidDocumentType(request.getDocumentType())) {
@@ -118,6 +119,9 @@ public class DocumentValidation {
 
     public void validateDelete(DocumentEntity entity) {
         ValidationErrors errors = new ValidationErrors();
+
+        // nema posebnog pravila za brisanje dokumenata zasad
+        // bitno samo da postoji; rijesi se kroz validateExists u servis sloju
 
         if (errors.hasErrors()) {
             throw new ApiValidationException(errors);
@@ -265,5 +269,26 @@ public class DocumentValidation {
 
     private void addError(ValidationErrors errors, String code, String messageKey) {
         errors.add(code, messageSource.getMessage(messageKey, null, Locale.getDefault()));
+    }
+
+    private void validateName(
+            ValidationErrors errors, String fileName, Long companyId, Long existingId) {
+        if (fileName == null || fileName.isBlank()) {
+            errors.add(
+                    "DOCUMENT_NAME_REQUIRED",
+                    messageSource.getMessage(
+                            "document.validation.name.required", null, Locale.getDefault()));
+        }
+
+        if (fileName != null && fileName.length() > MAX_DOC_NAME_LENGTH) {
+            errors.add(
+                    "DOCUMENT_NAME_TOO_LONG",
+                    messageSource.getMessage(
+                            "document.validation.name.max_length", null, Locale.getDefault()));
+        }
+
+        if (documentDAO.existsByNameInCompany(fileName, companyId, existingId)) {
+            addError(errors, "DOCUMENT_NAME_EXISTS", "document.validation.name.exists");
+        }
     }
 }

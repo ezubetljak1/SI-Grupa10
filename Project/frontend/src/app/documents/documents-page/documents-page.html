@@ -86,7 +86,7 @@
               <td>{{ formatFileSize(document.fileSize) }}</td>
 
               <td class="actions-cell">
-                <div class="table-actions">
+                <div class="table-actions" [class.table-actions--confirm]="confirmingDeleteId === document.id">
                   <ng-container *ngIf="confirmingDeleteId !== document.id; else confirmDeleteTpl">
                     <button
                       type="button"

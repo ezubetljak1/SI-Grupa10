@@ -13,6 +13,7 @@ import {
   UiCardComponent
 } from '../../shared/components';
 import { DocflowDocument } from '../models/document.models';
+import { ToastrService } from 'ngx-toastr';
 
 @Component({
   selector: 'app-documents-page',
@@ -31,6 +32,7 @@ import { DocflowDocument } from '../models/document.models';
 })
 export class DocumentsPageComponent implements OnInit {
   private readonly documentApiService = inject(DocumentApiService);
+  private readonly toastr = inject(ToastrService);
 
   documents: DocflowDocument[] = [];
   errors: string[] = [];
@@ -96,6 +98,7 @@ export class DocumentsPageComponent implements OnInit {
 
     this.documentApiService.delete(document.id).subscribe({
       next: (response) => {
+        this.toastr.success("Document deleted successfully!", "Success");
         this.loadDocuments();
       },
       error: (error: HttpErrorResponse) => {
