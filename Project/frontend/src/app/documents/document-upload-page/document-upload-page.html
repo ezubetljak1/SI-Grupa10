@@ -2,36 +2,41 @@
   <app-page-header
     eyebrow="Document intake"
     title="Upload Document"
-    description="Send one PDF or image file to the backend and keep the document metadata together in a dedicated upload flow.">
-    <div page-actions>
-      <button type="button" routerLink="/documents" class="btn btn-muted">View documents</button>
+    description="Upload a PDF or image file and organize it with a document type.">
+    <div page-actions class="page-actions">
+      <button type="button" routerLink="/documents" class="btn btn-muted">
+        View documents
+      </button>
     </div>
   </app-page-header>
 
   <div class="upload-layout" [class.upload-layout--with-result]="uploadedDocument">
     <app-ui-card
       title="Upload form"
-      subtitle="Choose a file, confirm metadata, and send it to the backend upload endpoint."
-      badgeText="Forms"
+      subtitle="Choose a file, add basic document information, and save it to the archive."
+      badgeText="Form"
       badgeVariant="neutral">
+
       <form class="upload-form" (ngSubmit)="uploadDocument()">
-        <div class="field">
+        <div class="field field--file">
           <label for="file">Document file</label>
-          <label 
-            class="dropzone" 
-            [class.dropzone--active]="selectedFile" 
-            [class.dropzone--dragover]="dropzoneActive" 
+
+          <label
+            class="dropzone"
+            [class.dropzone--active]="selectedFile"
+            [class.dropzone--dragover]="dropzoneActive"
             for="file"
             (dragover)="onDragOver($event)"
             (dragleave)="onDragLeave($event)"
             (drop)="onFileDropped($event)">
-              <input
-                #fileInput
-                id="file"
-                type="file"
-                [accept]="acceptedFileTypes"
-                (change)="onFileSelected($event)"
-              />
+
+            <input
+              #fileInput
+              id="file"
+              type="file"
+              [accept]="acceptedFileTypes"
+              (change)="onFileSelected($event)"
+            />
 
             @if (selectedFile) {
               <div class="selected-file-card">
@@ -47,37 +52,46 @@
                   </span>
                 </div>
 
-                <button type="button" class="icon-btn" (click)="clearSelectedFile(); $event.preventDefault()">
+                <button
+                  type="button"
+                  class="icon-btn"
+                  (click)="clearSelectedFile(); $event.preventDefault()">
                   x
                 </button>
               </div>
             } @else {
               <div class="dropzone__empty">
                 <div class="dropzone__icon">+</div>
+
                 <h2>Upload your document here</h2>
-                <span>Supported formats: PDF, JPG, JPEG and PNG. Maximum size: 10 MB.</span>
+
+                <span>
+                  Supported formats: PDF, JPG, JPEG and PNG. Maximum size: 10 MB.
+                </span>
               </div>
             }
           </label>
         </div>
 
-        <div class="field">
-          <label for="name">Document name</label>
-          <input
-            id="name"
-            class="input"
-            type="text"
-            name="name"
-            [(ngModel)]="name"
-            placeholder="Optional custom document name"
-          />
-          <span class="helper">If empty, the backend will use the original file name.</span>
-        </div>
-
         <div class="form-grid">
+          <div class="field">
+            <label for="name">Document name</label>
+
+            <input
+              id="name"
+              class="input"
+              type="text"
+              name="name"
+              [(ngModel)]="name"
+              placeholder="Optional custom document name"
+            />
+
+            <span class="helper">Leave empty to use the original file name.</span>
+          </div>
 
           <div class="field">
             <label for="documentType">Document type</label>
+
             <select
               id="documentType"
               class="select"
@@ -91,12 +105,13 @@
         </div>
 
         @if (message.type) {
-          <div class="message-card"
-               [ngClass]="{
-         'message-card--error': message.type === 'error',
-         'message-card--warning': message.type === 'warning',
-         'message-card--success': message.type === 'success'
-       }">
+          <div
+            class="message-card"
+            [ngClass]="{
+              'message-card--error': message.type === 'error',
+              'message-card--warning': message.type === 'warning',
+              'message-card--success': message.type === 'success'
+            }">
 
             <div class="message-card__icon">
               {{ message.type === 'success' ? '✓' : '!' }}
@@ -106,10 +121,11 @@
               <strong>
                 {{
                   message.type === 'success' ? 'Success' :
-                    message.type === 'warning' ? 'Warning' :
-                      'Error'
+                  message.type === 'warning' ? 'Warning' :
+                  'Error'
                 }}
               </strong>
+
               <span>{{ message.text }}</span>
             </div>
           </div>
@@ -119,7 +135,12 @@
           <button type="submit" class="btn btn-primary btn-lg" [disabled]="loading">
             {{ loading ? 'Uploading...' : 'Upload document' }}
           </button>
-          <button type="button" class="btn btn-secondary btn-lg" (click)="resetForm()" [disabled]="loading">
+
+          <button
+            type="button"
+            class="btn btn-secondary btn-lg"
+            (click)="resetForm()"
+            [disabled]="loading">
             Reset form
           </button>
         </div>
@@ -130,9 +151,10 @@
       @if (uploadedDocument) {
         <app-ui-card
           title="Last uploaded document"
-          subtitle="Backend response mapped into a quick summary."
+          subtitle="A quick summary of the document that was just uploaded."
           badgeText="Success"
           badgeVariant="success">
+
           <div class="uploaded-document">
             <div class="uploaded-document__header">
               <app-file-type-icon
@@ -147,20 +169,20 @@
             </div>
 
             <div class="meta-grid">
-                <div class="meta-card">
-                    <span>Status</span>
-                    <strong>{{ uploadedDocument.documentStatus }}</strong>
-                  </div>
+              <div class="meta-card">
+                <span>Status</span>
+                <strong>{{ uploadedDocument.documentStatus }}</strong>
+              </div>
 
-                  <div class="meta-card">
-                    <span>Document type</span>
-                    <strong>{{ uploadedDocument.documentType }}</strong>
-                  </div>
+              <div class="meta-card">
+                <span>Document type</span>
+                <strong>{{ uploadedDocument.documentType }}</strong>
+              </div>
 
-                  <div class="meta-card">
-                    <span>File size</span>
-                    <strong>{{ formatFileSize(uploadedDocument.fileSize) }}</strong>
-                  </div>
+              <div class="meta-card">
+                <span>File size</span>
+                <strong>{{ formatFileSize(uploadedDocument.fileSize) }}</strong>
+              </div>
             </div>
           </div>
         </app-ui-card>

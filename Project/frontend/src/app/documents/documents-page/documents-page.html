@@ -2,8 +2,8 @@
   <app-page-header
     eyebrow="Archive"
     title="Documents"
-    description="Browse uploaded files, inspect document details, download stored content, and remove documents from the archive.">
-    <div page-actions>
+    description="Browse uploaded files, view document details, download stored content, and remove documents from the archive.">
+    <div page-actions class="page-actions">
       <button type="button" routerLink="/documents/upload" class="btn btn-primary">
         Upload document
       </button>
@@ -30,7 +30,7 @@
 
   <app-ui-card
     title="Stored documents"
-    subtitle="Latest backend results sorted by newest document first."
+    subtitle="Uploaded files sorted by newest document first."
     [badgeText]="documents.length.toString()"
     badgeVariant="info"
     [noPadding]="true">
@@ -40,7 +40,7 @@
         <app-empty-state
           icon="[]"
           title="No documents found"
-          description="Uploaded documents will appear here after they are stored by the backend.">
+          description="Uploaded documents will appear here after they are saved.">
           <div empty-actions>
             <button type="button" routerLink="/documents/upload" class="btn btn-primary">
               Upload document
