@@ -40,3 +40,19 @@ Napomena: Ovaj AI Usage Log je živi dokument i ažurira se kroz sprintove.
 | Ko je koristio alat                        | Mirza M. Halilović                                                                                                                                                                             |
 
 ---
+
+## Unos #3
+
+| Polje | Detalji |
+|---|---|
+| Datum | 28.04.2026 |
+| Sprint broj | Sprint 5 |
+| Alat koji je korišten | Claude Sonnet 4.6 |
+| Svrha korištenja | Pomoć pri implementaciji stranice za prikaz detalja dokumenta. |
+| Kratak opis zadatka ili upita | Korišten AI za kreiranje nove Angular komponente `document-detail-page` koja prikazuje sve metapodatke pojedinog dokumenta, sa mogućnošću preuzimanja fajla i navigacije nazad na listu dokumenata. |
+| Šta je AI predložio ili generisao | AI je predložio početnu strukturu rješenja i smjer implementacije, te davao prijedloge tokom razvoja. |
+| Šta je tim prihvatio | Prihvaćen je opći koncept i smjer rješenja koji je AI predložio. |
+| Šta je tim izmijenio | AI prijedlozi su služili kao polazna osnova koja je u određenoj mjeri prilagođena, dorađena i ispravljena prema stvarnim potrebama projekta i ponašanju istog. |
+| Šta je tim odbacio | Odbačeni su neki od inicijalnih prijedloga koji nisu davali željene rezultate, a tim je samostalno pronalazio alternativna rješenja za konzistentan prikaz podataka. |
+| Rizici, problemi ili greške koje su uočene | AI je u pojedinim dijelovima predložio kod koji nije bio usklađen s postojećim shared komponentama i globalnim stilovima, što je zahtijevalo ručne izmjene. Dodatno su se pojavili problemi s lokalnim razvojnim okruženjem. |
+| Ko je koristio alat | Emina Mušinović |
