@@ -94,6 +94,37 @@
       </app-ui-card>
 
       <app-ui-card
+        title="Document preview"
+        subtitle="Read-only preview of the uploaded file.">
+
+        <div class="document-preview">
+
+          @if (isPdf && fileUrl) {
+            <iframe
+              [src]="fileUrl"
+              width="100%"
+              height="600px"
+              style="border: none;">
+            </iframe>
+          }
+
+          @if (isImage && fileUrl) {
+            <img
+              [src]="fileUrl"
+              alt="Document image"
+              style="max-width: 100%; border-radius: 8px;"/>
+          }
+
+          @if (!isPdf && !isImage) {
+            <div class="message-card">
+              <span>Preview not available for this file type.</span>
+            </div>
+          }
+
+        </div>
+      </app-ui-card>
+
+      <app-ui-card
         title="Storage"
         subtitle="Where the file is stored on the backend filesystem.">
         <div class="storage-path">
