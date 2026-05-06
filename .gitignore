@@ -71,3 +71,7 @@ application-local.yml
 .env
 .env.*
 !.env.example
+
+# Local deployment secrets
+Project/secrets/
+google-document-ai.json
