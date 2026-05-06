@@ -116,6 +116,8 @@ export class DocumentDetailPageComponent implements OnInit {
   runExtraction(): void {
     if (!this.document) return;
 
+    const documentId = this.document.id;
+
     this.extractionRunning = true;
     this.extractionError = null;
 
@@ -129,15 +131,20 @@ export class DocumentDetailPageComponent implements OnInit {
       },
       error: (err: HttpErrorResponse) => {
         this.extractionRunning = false;
-        const message = this.extractErrorMessage(err.error) ?? 'Extraction failed.';
+        const message = this.extractExtractionErrorMessage(err.error, 'Extraction failed.');
         this.extractionError = message;
+        this.extractionFields = [];
         this.toastr.error(message, 'Error');
+
+        this.loadDocument(documentId);
       },
     });
   }
 
   retryExtraction(): void {
     if (!this.document) return;
+
+    const documentId = this.document.id;
 
     this.extractionRunning = true;
     this.extractionError = null;
@@ -152,9 +159,12 @@ export class DocumentDetailPageComponent implements OnInit {
       },
       error: (err: HttpErrorResponse) => {
         this.extractionRunning = false;
-        const message = this.extractErrorMessage(err.error) ?? 'Retry extraction failed.';
+        const message = this.extractExtractionErrorMessage(err.error, 'Retry extraction failed.');
         this.extractionError = message;
+        this.extractionFields = [];
         this.toastr.error(message, 'Error');
+
+        this.loadDocument(documentId);
       },
     });
   }
@@ -251,5 +261,27 @@ export class DocumentDetailPageComponent implements OnInit {
     }
 
     return null;
+  }
+
+  private extractErrorCode(errorBody: unknown): string | null {
+    if (errorBody && typeof errorBody === 'object') {
+      const body = errorBody as { code?: string };
+
+      if (typeof body.code === 'string') {
+        return body.code;
+      }
+    }
+
+    return null;
+  }
+
+  private extractExtractionErrorMessage(errorBody: unknown, fallback: string): string {
+    const code = this.extractErrorCode(errorBody);
+
+    if (code === 'EXTRACTION_FAILED') {
+      return 'Document extraction could not be completed. Please check OCR/AI setup or try again later.';
+    }
+
+    return this.extractErrorMessage(errorBody) ?? fallback;
   }
 }

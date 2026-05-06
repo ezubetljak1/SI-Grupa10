@@ -10,6 +10,7 @@ import ba.unsa.si.docflow.entity.ExtractionFieldEntity;
 import ba.unsa.si.docflow.entity.enums.DocumentStatus;
 import ba.unsa.si.docflow.entity.enums.DocumentType;
 import ba.unsa.si.docflow.exception.ApiNotFoundException;
+import ba.unsa.si.docflow.exception.ExtractionException;
 import ba.unsa.si.docflow.mapper.ExtractionMapper;
 import ba.unsa.si.docflow.response.ApiResponse;
 import ba.unsa.si.docflow.service.document.DocumentValidation;
@@ -37,7 +38,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
-@Transactional
+@Transactional(noRollbackFor = ExtractionException.class)
 @AllArgsConstructor
 public class ExtractionServiceImpl implements ExtractionService {
 
@@ -73,8 +74,8 @@ public class ExtractionServiceImpl implements ExtractionService {
             document.setDocumentStatus(DocumentStatus.PROCESSING_FAILED);
             documentDAO.merge(document);
 
-            return new ApiResponse<>(
-                    "EXTRACTION_FAILED", "Document extraction failed: " + exception.getMessage());
+            throw new ExtractionException(
+                    "Document extraction failed: " + exception.getMessage(), exception);
         }
     }
 

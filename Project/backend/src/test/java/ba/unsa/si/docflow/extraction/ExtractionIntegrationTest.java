@@ -308,7 +308,7 @@ class ExtractionIntegrationTest {
                 .thenThrow(new IllegalStateException("OCR provider unavailable"));
 
         mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
-                .andExpect(status().isOk())
+                .andExpect(status().isInternalServerError())
                 .andExpect(jsonPath("$.code").value("EXTRACTION_FAILED"))
                 .andExpect(
                         jsonPath("$.payload")
