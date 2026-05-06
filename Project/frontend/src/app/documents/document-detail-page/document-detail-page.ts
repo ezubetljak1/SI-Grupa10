@@ -13,6 +13,7 @@ import {
 import {DocflowDocument} from '../models/document.models';
 import {DomSanitizer, SafeResourceUrl} from '@angular/platform-browser';
 import { ToastrService } from 'ngx-toastr';
+import { ExtractionField } from '../models/extraction.models';
 
 @Component({
   selector: 'app-document-detail-page',
@@ -44,6 +45,11 @@ export class DocumentDetailPageComponent implements OnInit {
   isPdf = false;
   isImage = false;
 
+  extractionFields: ExtractionField[] = [];
+  extractionLoading = false;
+  extractionRunning = false;
+  extractionError: string | null = null;
+
   ngOnInit(): void {
     const id = Number(this.route.snapshot.paramMap.get('id'));
     
@@ -68,6 +74,12 @@ export class DocumentDetailPageComponent implements OnInit {
 
         this.isPdf = this.document.fileType === 'application/pdf';
         this.isImage = this.document.fileType?.startsWith('image/');
+
+        this.extractionError = null;
+        this.extractionFields = [];
+        if (this.document.documentStatus === 'EXTRACTED') {
+          this.loadExtractionFields();
+        }
       },
       error: (err: HttpErrorResponse) => {
         this.loading = false;
@@ -79,6 +91,79 @@ export class DocumentDetailPageComponent implements OnInit {
         this.toastr.error(message, 'Error');
       },
     });
+  }
+
+  loadExtractionFields(): void {
+    if (!this.document) return;
+
+    this.extractionLoading = true;
+    this.extractionError = null;
+
+    this.documentApiService.getExtractionFields(this.document.id).subscribe({
+      next: (response) => {
+        this.extractionLoading = false;
+        this.extractionFields = response.payload ?? [];
+      },
+      error: (err: HttpErrorResponse) => {
+        this.extractionLoading = false;
+        this.extractionFields = [];
+        this.extractionError =
+          this.extractErrorMessage(err.error) ?? 'Failed to load extracted fields.';
+      },
+    });
+  }
+
+  runExtraction(): void {
+    if (!this.document) return;
+
+    this.extractionRunning = true;
+    this.extractionError = null;
+
+    this.documentApiService.processExtraction(this.document.id).subscribe({
+      next: (response) => {
+        this.extractionRunning = false;
+        this.extractionFields = response.payload?.fields ?? [];
+        this.toastr.success('Extraction completed.', 'Success');
+
+        this.loadDocument(this.document!.id);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.extractionRunning = false;
+        const message = this.extractErrorMessage(err.error) ?? 'Extraction failed.';
+        this.extractionError = message;
+        this.toastr.error(message, 'Error');
+      },
+    });
+  }
+
+  retryExtraction(): void {
+    if (!this.document) return;
+
+    this.extractionRunning = true;
+    this.extractionError = null;
+
+    this.documentApiService.retryExtraction(this.document.id).subscribe({
+      next: (response) => {
+        this.extractionRunning = false;
+        this.extractionFields = response.payload?.fields ?? [];
+        this.toastr.success('Extraction retried.', 'Success');
+
+        this.loadDocument(this.document!.id);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.extractionRunning = false;
+        const message = this.extractErrorMessage(err.error) ?? 'Retry extraction failed.';
+        this.extractionError = message;
+        this.toastr.error(message, 'Error');
+      },
+    });
+  }
+
+  formatConfidence(confidence: number | null | undefined): string {
+    if (confidence === null || confidence === undefined) return '—';
+    if (!Number.isFinite(confidence)) return '—';
+    const normalized = confidence <= 1 ? confidence * 100 : confidence;
+    return `${Math.round(normalized)}%`;
   }
 
   downloadDocument(): void {

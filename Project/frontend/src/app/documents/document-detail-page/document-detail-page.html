@@ -99,6 +99,86 @@
           }
         </div>
       </app-ui-card>
+
+      <app-ui-card
+        title="Extracted fields"
+        subtitle="Automatically extracted fields from OCR/AI processing.">
+        <div class="extraction-actions">
+          @if (document.documentStatus !== 'EXTRACTED') {
+            <button
+              type="button"
+              class="btn btn-primary"
+              (click)="runExtraction()"
+              [disabled]="extractionRunning">
+              {{ extractionRunning ? 'Running extraction...' : 'Run extraction' }}
+            </button>
+          } @else {
+            <button
+              type="button"
+              class="btn btn-muted"
+              (click)="retryExtraction()"
+              [disabled]="extractionRunning">
+              {{ extractionRunning ? 'Retrying...' : 'Retry extraction' }}
+            </button>
+
+            <button
+              type="button"
+              class="btn btn-muted"
+              (click)="loadExtractionFields()"
+              [disabled]="extractionLoading || extractionRunning">
+              {{ extractionLoading ? 'Refreshing...' : 'Refresh fields' }}
+            </button>
+          }
+        </div>
+
+        @if (extractionError) {
+          <div class="message-card message-card--error">
+            <strong>Extraction error:</strong> {{ extractionError }}
+          </div>
+        }
+
+        @if (extractionLoading) {
+          <div class="loading-state">
+            <div class="loading-spinner"></div>
+            <span>Loading extracted fields...</span>
+          </div>
+        }
+
+        @if (!extractionLoading && extractionFields.length === 0) {
+          <div class="message-card">
+            <span>No extracted fields yet.</span>
+          </div>
+        }
+
+        @if (!extractionLoading && extractionFields.length > 0) {
+          <div class="extraction-table-wrapper">
+            <table class="extraction-table">
+              <thead>
+                <tr>
+                  <th>Field</th>
+                  <th>Value</th>
+                  <th>Confidence</th>
+                  <th>Corrected</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (field of extractionFields; track field.id) {
+                  <tr>
+                    <td class="mono">{{ field.fieldName }}</td>
+                    <td>{{ field.value ?? '—' }}</td>
+                    <td>{{ formatConfidence(field.confidence) }}</td>
+                    <td>
+                      <span class="meta-chip" [class.meta-chip--ok]="field.corrected">
+                        {{ field.corrected ? 'Yes' : 'No' }}
+                      </span>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </app-ui-card>
     </div>
   }
 </section>
