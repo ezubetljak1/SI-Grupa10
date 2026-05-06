@@ -39,50 +39,51 @@ public class GoogleDocumentAiProvider implements OcrProvider {
                             .build();
 
             try (DocumentProcessorServiceClient client =
-                         DocumentProcessorServiceClient.create(settings)) {
+                    DocumentProcessorServiceClient.create(settings)) {
 
-                String processorName = ProcessorName.of(
-                        ocrProperties.getProjectId(),
-                        ocrProperties.getLocation(),
-                        ocrProperties.getProcessorId()
-                ).toString();
+                String processorName =
+                        ProcessorName.of(
+                                        ocrProperties.getProjectId(),
+                                        ocrProperties.getLocation(),
+                                        ocrProperties.getProcessorId())
+                                .toString();
 
-                RawDocument rawDocument = RawDocument.newBuilder()
-                        .setContent(ByteString.copyFrom(fileContent))
-                        .setMimeType(mimeType)
-                        .build();
+                RawDocument rawDocument =
+                        RawDocument.newBuilder()
+                                .setContent(ByteString.copyFrom(fileContent))
+                                .setMimeType(mimeType)
+                                .build();
 
-                ProcessRequest request = ProcessRequest.newBuilder()
-                        .setName(processorName)
-                        .setRawDocument(rawDocument)
-                        .build();
+                ProcessRequest request =
+                        ProcessRequest.newBuilder()
+                                .setName(processorName)
+                                .setRawDocument(rawDocument)
+                                .build();
 
                 ProcessResponse response = client.processDocument(request);
                 Document document = response.getDocument();
 
-                return new OcrResult(
-                        document.getText(),
-                        mapEntities(document)
-                );
+                return new OcrResult(document.getText(), mapEntities(document));
             }
         } catch (IOException exception) {
-            throw new IllegalStateException("Could not create Google Document AI client.", exception);
+            throw new IllegalStateException(
+                    "Could not create Google Document AI client.", exception);
         } catch (RuntimeException exception) {
             throw new IllegalStateException("Google Document AI processing failed.", exception);
         }
     }
 
     private List<OcrExtractedField> mapEntities(Document document) {
-        return document.getEntitiesList()
-                .stream()
-                .map(entity -> new OcrExtractedField(
-                        entity.getType(),
-                        entity.getMentionText(),
-                        entity.hasNormalizedValue()
-                                ? entity.getNormalizedValue().getText()
-                                : null,
-                        BigDecimal.valueOf(entity.getConfidence())
-                ))
+        return document.getEntitiesList().stream()
+                .map(
+                        entity ->
+                                new OcrExtractedField(
+                                        entity.getType(),
+                                        entity.getMentionText(),
+                                        entity.hasNormalizedValue()
+                                                ? entity.getNormalizedValue().getText()
+                                                : null,
+                                        BigDecimal.valueOf(entity.getConfidence())))
                 .toList();
     }
 
@@ -92,8 +93,7 @@ public class GoogleDocumentAiProvider implements OcrProvider {
                 || !StringUtils.hasText(ocrProperties.getProcessorId())
                 || !StringUtils.hasText(ocrProperties.getEndpoint())) {
             throw new IllegalStateException(
-                    "Google Document AI configuration is missing. Check GOOGLE_CLOUD_PROJECT_ID, GOOGLE_DOCUMENT_AI_LOCATION, GOOGLE_DOCUMENT_AI_PROCESSOR_ID and GOOGLE_DOCUMENT_AI_ENDPOINT."
-            );
+                    "Google Document AI configuration is missing. Check GOOGLE_CLOUD_PROJECT_ID, GOOGLE_DOCUMENT_AI_LOCATION, GOOGLE_DOCUMENT_AI_PROCESSOR_ID and GOOGLE_DOCUMENT_AI_ENDPOINT.");
         }
     }
 }

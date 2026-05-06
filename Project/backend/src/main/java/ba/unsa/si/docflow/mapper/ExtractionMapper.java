@@ -21,9 +21,7 @@ public class ExtractionMapper {
         ExtractionResponse response = new ExtractionResponse();
 
         response.setId(entity.getId());
-        response.setDocumentId(
-                entity.getDocument() != null ? entity.getDocument().getId() : null
-        );
+        response.setDocumentId(entity.getDocument() != null ? entity.getDocument().getId() : null);
         response.setRawJson(entity.getRawJson());
         response.setExtractionTime(entity.getExtractionTime());
 

@@ -12,7 +12,8 @@ import java.util.List;
 public class ExtractionFieldDAO extends AbstractDAO<ExtractionFieldEntity, Long> {
 
     public List<ExtractionFieldEntity> findByExtractionId(Long extractionId) {
-        String jpql = """
+        String jpql =
+                """
                 SELECT ef
                 FROM ExtractionFieldEntity ef
                 WHERE ef.extraction.id = :extractionId
@@ -28,7 +29,8 @@ public class ExtractionFieldDAO extends AbstractDAO<ExtractionFieldEntity, Long>
     }
 
     public List<ExtractionFieldEntity> findByDocumentId(Long documentId) {
-        String jpql = """
+        String jpql =
+                """
                 SELECT ef
                 FROM ExtractionFieldEntity ef
                 WHERE ef.extraction.document.id = :documentId

@@ -10,7 +10,8 @@ import org.springframework.stereotype.Repository;
 public class ExtractionDAO extends AbstractDAO<ExtractionEntity, Long> {
 
     public ExtractionEntity findByDocumentId(Long documentId) {
-        String jpql = """
+        String jpql =
+                """
                 SELECT e
                 FROM ExtractionEntity e
                 LEFT JOIN FETCH e.fields

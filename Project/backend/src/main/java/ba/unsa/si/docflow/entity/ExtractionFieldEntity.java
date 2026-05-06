@@ -18,8 +18,8 @@ public class ExtractionFieldEntity {
     private Long id;
 
     /**
-     * Many extracted fields belong to one extraction result.
-     * Example fields: supplier_name, invoice_id, invoice_date, total_amount, currency.
+     * Many extracted fields belong to one extraction result. Example fields: supplier_name,
+     * invoice_id, invoice_date, total_amount, currency.
      */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "extraction_id", nullable = false)
@@ -28,7 +28,7 @@ public class ExtractionFieldEntity {
     @Column(name = "field_name", nullable = false)
     private String fieldName;
 
-    @Column(name = "value", columnDefinition = "TEXT")
+    @Column(name = "`value`", columnDefinition = "TEXT")
     private String value;
 
     @Column(name = "confidence", precision = 10, scale = 6)

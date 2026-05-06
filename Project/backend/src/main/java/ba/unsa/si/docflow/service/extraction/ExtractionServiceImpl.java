@@ -74,9 +74,7 @@ public class ExtractionServiceImpl implements ExtractionService {
             documentDAO.merge(document);
 
             return new ApiResponse<>(
-                    "EXTRACTION_FAILED",
-                    "Document extraction failed: " + exception.getMessage()
-            );
+                    "EXTRACTION_FAILED", "Document extraction failed: " + exception.getMessage());
         }
     }
 
@@ -94,8 +92,7 @@ public class ExtractionServiceImpl implements ExtractionService {
 
         if (extraction == null) {
             throw new ApiNotFoundException(
-                    "Extraction result was not found for document with id: " + documentId
-            );
+                    "Extraction result was not found for document with id: " + documentId);
         }
 
         return new ApiResponse<>("OK", extractionMapper.entityToDto(extraction));
@@ -110,12 +107,10 @@ public class ExtractionServiceImpl implements ExtractionService {
 
         if (extraction == null) {
             throw new ApiNotFoundException(
-                    "Extraction result was not found for document with id: " + documentId
-            );
+                    "Extraction result was not found for document with id: " + documentId);
         }
 
-        List<ExtractionFieldEntity> fields =
-                extractionFieldDAO.findByDocumentId(documentId);
+        List<ExtractionFieldEntity> fields = extractionFieldDAO.findByDocumentId(documentId);
 
         return new ApiResponse<>("OK", extractionMapper.fieldsToDto(fields));
     }
@@ -123,13 +118,11 @@ public class ExtractionServiceImpl implements ExtractionService {
     @Override
     @Transactional(readOnly = true)
     public ApiResponse findFieldsByExtractionId(Long extractionId) {
-        List<ExtractionFieldEntity> fields =
-                extractionFieldDAO.findByExtractionId(extractionId);
+        List<ExtractionFieldEntity> fields = extractionFieldDAO.findByExtractionId(extractionId);
 
         if (fields.isEmpty()) {
             throw new ApiNotFoundException(
-                    "Extraction fields were not found for extraction with id: " + extractionId
-            );
+                    "Extraction fields were not found for extraction with id: " + extractionId);
         }
 
         return new ApiResponse<>("OK", extractionMapper.fieldsToDto(fields));
@@ -167,8 +160,7 @@ public class ExtractionServiceImpl implements ExtractionService {
         final ExtractionEntity extractionForFields = extraction;
 
         List<ExtractionFieldEntity> fieldEntities =
-                ocrResult.getFields()
-                        .stream()
+                ocrResult.getFields().stream()
                         .map(field -> toExtractionFieldEntity(extractionForFields, field))
                         .toList();
 
@@ -182,9 +174,7 @@ public class ExtractionServiceImpl implements ExtractionService {
     }
 
     private ExtractionFieldEntity toExtractionFieldEntity(
-            ExtractionEntity extraction,
-            OcrExtractedField field
-    ) {
+            ExtractionEntity extraction, OcrExtractedField field) {
         ExtractionFieldEntity entity = new ExtractionFieldEntity();
 
         entity.setExtraction(extraction);
@@ -222,18 +212,17 @@ public class ExtractionServiceImpl implements ExtractionService {
 
     private DocumentType resolveDocumentType(OcrResult ocrResult) {
         boolean hasInvoiceField =
-                ocrResult.getFields()
-                        .stream()
+                ocrResult.getFields().stream()
                         .map(OcrExtractedField::getType)
                         .filter(StringUtils::hasText)
-                        .anyMatch(type ->
-                                type.startsWith("invoice")
-                                        || type.equals("supplier_name")
-                                        || type.equals("total_amount")
-                                        || type.equals("net_amount")
-                                        || type.equals("total_tax_amount")
-                                        || type.equals("currency")
-                        );
+                        .anyMatch(
+                                type ->
+                                        type.startsWith("invoice")
+                                                || type.equals("supplier_name")
+                                                || type.equals("total_amount")
+                                                || type.equals("net_amount")
+                                                || type.equals("total_tax_amount")
+                                                || type.equals("currency"));
 
         boolean rawTextLooksLikeInvoice =
                 StringUtils.hasText(ocrResult.getRawText())

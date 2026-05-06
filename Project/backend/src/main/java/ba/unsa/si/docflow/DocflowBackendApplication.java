@@ -6,8 +6,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 @SpringBootApplication
 public class DocflowBackendApplication {
 
-	public static void main(String[] args) {
-		SpringApplication.run(DocflowBackendApplication.class, args);
-	}
-
+    public static void main(String[] args) {
+        SpringApplication.run(DocflowBackendApplication.class, args);
+    }
 }

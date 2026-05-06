@@ -20,16 +20,16 @@ public class ExtractionEntity {
     private Long id;
 
     /**
-     * One extraction result belongs to one document.
-     * Retry should update/replace fields for this extraction, not create a second extraction row.
+     * One extraction result belongs to one document. Retry should update/replace fields for this
+     * extraction, not create a second extraction row.
      */
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "document_id", nullable = false, unique = true)
     private DocumentEntity document;
 
     /**
-     * Stores the full serialized OCR/AI response used for traceability/debugging.
-     * This can include rawText + all fields returned by Google Document AI.
+     * Stores the full serialized OCR/AI response used for traceability/debugging. This can include
+     * rawText + all fields returned by Google Document AI.
      */
     @Column(name = "raw_json", columnDefinition = "TEXT")
     private String rawJson;
