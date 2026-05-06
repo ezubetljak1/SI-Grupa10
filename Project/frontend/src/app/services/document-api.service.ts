@@ -10,6 +10,7 @@ import {
   DocumentUpdateRequest,
   DocumentUploadRequest,
 } from '../documents/models/document.models';
+import { Extraction, ExtractionField } from '../documents/models/extraction.models';
 
 @Injectable({
   providedIn: 'root',
@@ -59,6 +60,27 @@ export class DocumentApiService {
 
   delete(id: number): Observable<ApiResponse<string>> {
     return this.http.delete<ApiResponse<string>>(`${this.baseUrl}/${id}`);
+  }
+
+  processExtraction(documentId: number): Observable<ApiResponse<Extraction>> {
+    return this.http.post<ApiResponse<Extraction>>(`${this.baseUrl}/${documentId}/extraction`, {});
+  }
+
+  retryExtraction(documentId: number): Observable<ApiResponse<Extraction>> {
+    return this.http.post<ApiResponse<Extraction>>(
+      `${this.baseUrl}/${documentId}/extraction/retry`,
+      {}
+    );
+  }
+
+  getExtraction(documentId: number): Observable<ApiResponse<Extraction>> {
+    return this.http.get<ApiResponse<Extraction>>(`${this.baseUrl}/${documentId}/extraction`);
+  }
+
+  getExtractionFields(documentId: number): Observable<ApiResponse<ExtractionField[]>> {
+    return this.http.get<ApiResponse<ExtractionField[]>>(
+      `${this.baseUrl}/${documentId}/extraction/fields`
+    );
   }
 
   filter(params: DocumentFilterRequest): Observable<PagedResponse<DocflowDocument>> {

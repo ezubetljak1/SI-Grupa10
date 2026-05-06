@@ -81,4 +81,10 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(new ApiResponse<>("INTERNAL_SERVER_ERROR", ex.getMessage()));
     }
+
+    @ExceptionHandler(ExtractionException.class)
+    public ResponseEntity<ApiResponse<String>> handleExtraction(ExtractionException ex) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(new ApiResponse<>("EXTRACTION_FAILED", ex.getMessage()));
+    }
 }

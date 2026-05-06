@@ -25,6 +25,7 @@ export class StatusBadgeComponent {
       FAILED: 'Failed',
       ERROR: 'Error',
       REJECTED: 'Rejected',
+      PROCESSING_FAILED: 'Processing Failed',
       UNKNOWN: 'Unknown'
     };
 
@@ -41,6 +42,7 @@ export class StatusBadgeComponent {
       FAILED: 'error',
       ERROR: 'error',
       REJECTED: 'error',
+      PROCESSING_FAILED: 'error',
       UNKNOWN: 'neutral'
     };
 
