@@ -1,4 +1,4 @@
-# Product Backlog
+# Sprint Backlog
 
 ## Legenda
 
@@ -32,12 +32,12 @@
 
 | ID  | Naziv stavke          | Opis                                                                           | Tip | Prioritet | Složenost | Status | Sprint |
 |-----|-----------------------|--------------------------------------------------------------------------------|-----|-----------|-----------|--------|--------|
-| S19 | Upload dokumenta      | Implementacija funkcionalnosti za upload PDF i slikovnih dokumenata putem UI-a | F   | P1        | M         | TODO   | 5      |
-| S20 | Validacija fajla      | Provjera tipa, veličine i ispravnosti dokumenta prije prihvatanja              | T   | P1        | S         | TODO   | 5      |
-| S21 | Pohrana dokumenta     | Spremanje dokumenta i metapodataka u sistem za dalju obradu                    | T   | P1        | M         | TODO   | 5      |
-| S22 | Lista dokumenata      | Prikaz svih uploadovanih dokumenata sa osnovnim informacijama i statusima      | F   | P1        | M         | TODO   | 5      |
-| S23 | Detalji dokumenta     | Prikaz pojedinačnog dokumenta i njegovog sadržaja korisniku                    | F   | P1        | M         | TODO   | 5      |
-| S24 | Error handling upload | Prikaz jasnih poruka o greškama prilikom neuspješnog uploada                   | F   | P2        | S         | TODO   | 5      |
-| S25 | Testovi upload        | Pisanje testova za upload i prikaz dokumenata                                  | T   | P2        | M         | TODO   | 5      |
-| S26 | Decision Log          | Evidentiranje ključnih tehničkih i projektnih odluka tokom razvoja             | D   | P1        | S         | TODO   | 5      |
-| S27 | AI Usage Log          | Evidentiranje načina i svrhe korištenja AI alata tokom projekta                | D   | P1        | S         | TODO   | 5      |
+| S19 | Upload dokumenta      | Implementacija funkcionalnosti za upload PDF i slikovnih dokumenata putem UI-a | F   | P1        | M         | Done   | 5      |
+| S20 | Validacija fajla      | Provjera tipa, veličine i ispravnosti dokumenta prije prihvatanja              | T   | P1        | S         | Done   | 5      |
+| S21 | Pohrana dokumenta     | Spremanje dokumenta i metapodataka u sistem za dalju obradu                    | T   | P1        | M         | Done   | 5      |
+| S22 | Lista dokumenata      | Prikaz svih uploadovanih dokumenata sa osnovnim informacijama i statusima      | F   | P1        | M         | Done   | 5      |
+| S23 | Detalji dokumenta     | Prikaz pojedinačnog dokumenta i njegovog sadržaja korisniku                    | F   | P1        | M         | Done   | 5      |
+| S24 | Error handling upload | Prikaz jasnih poruka o greškama prilikom neuspješnog uploada                   | F   | P2        | S         | Done   | 5      |
+| S25 | Testovi upload        | Pisanje testova za upload i prikaz dokumenata                                  | T   | P2        | M         | Done   | 5      |
+| S26 | Decision Log          | Evidentiranje ključnih tehničkih i projektnih odluka tokom razvoja             | D   | P1        | S         | Done   | 5      |
+| S27 | AI Usage Log          | Evidentiranje načina i svrhe korištenja AI alata tokom projekta                | D   | P1        | S         | Done   | 5      |
