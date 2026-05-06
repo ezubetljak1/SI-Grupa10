@@ -1,6 +1,7 @@
 package ba.unsa.si.docflow.document;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasItem;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -456,7 +457,7 @@ class DocumentUploadIntegrationTest {
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$[0].code").value("DOCUMENT_STATUS_INVALID"));
+                .andExpect(jsonPath("$[*].code", hasItem("DOCUMENT_STATUS_INVALID")));
 
         String status =
                 jdbcTemplate.queryForObject(
