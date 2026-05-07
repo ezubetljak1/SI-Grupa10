@@ -1,6 +1,7 @@
 package ba.unsa.si.docflow.service.document;
 
 import ba.unsa.si.docflow.dao.DocumentDAO;
+import ba.unsa.si.docflow.dao.ExtractionDAO;
 import ba.unsa.si.docflow.dto.document.Document;
 import ba.unsa.si.docflow.dto.document.DocumentCreateRequest;
 import ba.unsa.si.docflow.dto.document.DocumentFileResponse;
@@ -38,6 +39,8 @@ public class DocumentServiceImpl implements DocumentService {
     private final DocumentValidation documentValidation;
 
     private final StorageService storageService;
+
+    private final ExtractionDAO extractionDAO;
 
     @Override
     @Transactional(readOnly = true)
@@ -142,7 +145,10 @@ public class DocumentServiceImpl implements DocumentService {
 
         String storagePath = entity.getStoragePath();
 
+        extractionDAO.deleteByDocumentId(id);
+
         documentDAO.remove(entity);
+        documentDAO.flush();
 
         storageService.delete(storagePath);
 

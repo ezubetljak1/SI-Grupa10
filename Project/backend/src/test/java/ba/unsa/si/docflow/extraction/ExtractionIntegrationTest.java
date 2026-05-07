@@ -4,9 +4,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 import ba.unsa.si.docflow.service.ocr.OcrProvider;
@@ -328,6 +326,54 @@ class ExtractionIntegrationTest {
 
         assertEquals("PROCESSING_FAILED", documentStatus);
         assertEquals(0, extractionCount);
+    }
+
+    @Test
+    void deleteExtractedDocumentThenRemovesDocumentExtractionFieldsAndFile() throws Exception {
+        Long documentId = uploadPdf("Delete extracted invoice");
+
+        when(ocrProvider.process(any(byte[].class), eq("application/pdf")))
+                .thenReturn(sampleOcrResult());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
+                .andExpect(status().isOk());
+
+        String storagePath =
+                jdbcTemplate.queryForObject(
+                        "SELECT storage_path FROM document WHERE id = ?", String.class, documentId);
+
+        Path storedFile = UPLOAD_ROOT.resolve(storagePath);
+        assertTrue(Files.exists(storedFile));
+
+        mockMvc.perform(delete("/api/documents/{id}", documentId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("OK"));
+
+        Integer documentCount =
+                jdbcTemplate.queryForObject(
+                        "SELECT COUNT(*) FROM document WHERE id = ?", Integer.class, documentId);
+
+        Integer extractionCount =
+                jdbcTemplate.queryForObject(
+                        "SELECT COUNT(*) FROM extraction WHERE document_id = ?",
+                        Integer.class,
+                        documentId);
+
+        Integer fieldCount =
+                jdbcTemplate.queryForObject(
+                        """
+                        SELECT COUNT(*)
+                        FROM extraction_field ef
+                        JOIN extraction e ON ef.extraction_id = e.id
+                        WHERE e.document_id = ?
+                        """,
+                        Integer.class,
+                        documentId);
+
+        assertEquals(0, documentCount);
+        assertEquals(0, extractionCount);
+        assertEquals(0, fieldCount);
+        assertFalse(Files.exists(storedFile));
     }
 
     private Long uploadPdf(String name) throws Exception {
