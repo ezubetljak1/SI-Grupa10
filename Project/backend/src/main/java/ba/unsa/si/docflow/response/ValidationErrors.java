@@ -6,15 +6,15 @@ import java.util.List;
 public class ValidationErrors {
     private final List<ValidationError> errors = new ArrayList<>();
 
-    public void add(String code, String message){
+    public void add(String code, String message) {
         errors.add(new ValidationError(code, message));
     }
 
-    public boolean hasErrors(){
+    public boolean hasErrors() {
         return !errors.isEmpty();
     }
 
-    public List<ValidationError> getErrors(){
+    public List<ValidationError> getErrors() {
         return errors;
     }
 }
