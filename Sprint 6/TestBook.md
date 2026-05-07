@@ -8,6 +8,7 @@ Dokument posebno prati format evidentiranja rezultata: naziv/opis testa, ulazne 
 
 TestBook predstavlja živi dokument koji se ažurira nakon svakog završenog sprinta. Njegova svrha je interno evidentiranje provedenog testiranja i praćenje kvaliteta implementiranih funkcionalnosti kroz razvoj projekta.
 
+
 ---
 
 ## 2. Cilj dokumenta
