@@ -51,14 +51,17 @@ export class DocumentDetailPageComponent implements OnInit {
   extractionError: string | null = null;
 
   ngOnInit(): void {
-    const id = Number(this.route.snapshot.paramMap.get('id'));
-    
-    if (!Number.isFinite(id) || id <= 0){
-      this.toastr.error('Invalid document id.', 'Error');
-      return;
-    }
+    this.route.paramMap.subscribe((params) => {
+      const id = Number(params.get('id'));
 
-    this.loadDocument(id);
+      if (!Number.isFinite(id) || id <= 0) {
+        this.toastr.error('Invalid document id.', 'Error');
+        return;
+      }
+
+      this.resetDocumentState();
+      this.loadDocument(id);
+    });
   }
 
   loadDocument(id: number): void {
@@ -127,7 +130,7 @@ export class DocumentDetailPageComponent implements OnInit {
         this.extractionFields = response.payload?.fields ?? [];
         this.toastr.success('Extraction completed.', 'Success');
 
-        this.loadDocument(this.document!.id);
+        this.loadDocument(documentId);
       },
       error: (err: HttpErrorResponse) => {
         this.extractionRunning = false;
@@ -155,7 +158,7 @@ export class DocumentDetailPageComponent implements OnInit {
         this.extractionFields = response.payload?.fields ?? [];
         this.toastr.success('Extraction retried.', 'Success');
 
-        this.loadDocument(this.document!.id);
+        this.loadDocument(documentId);
       },
       error: (err: HttpErrorResponse) => {
         this.extractionRunning = false;
@@ -283,5 +286,16 @@ export class DocumentDetailPageComponent implements OnInit {
     }
 
     return this.extractErrorMessage(errorBody) ?? fallback;
+  }
+
+  private resetDocumentState(): void {
+    this.document = null;
+    this.fileUrl = null;
+    this.isPdf = false;
+    this.isImage = false;
+    this.extractionFields = [];
+    this.extractionError = null;
+    this.extractionLoading = false;
+    this.extractionRunning = false;
   }
 }
