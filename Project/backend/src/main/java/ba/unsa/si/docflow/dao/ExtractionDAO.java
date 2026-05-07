@@ -25,4 +25,13 @@ public class ExtractionDAO extends AbstractDAO<ExtractionEntity, Long> {
 
         return query.getResultStream().findFirst().orElse(null);
     }
+
+    public void deleteByDocumentId(Long documentId) {
+        ExtractionEntity extraction = findByDocumentId(documentId);
+
+        if (extraction != null) {
+            remove(extraction);
+            entityManager.flush();
+        }
+    }
 }

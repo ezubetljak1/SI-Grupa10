@@ -46,6 +46,10 @@ public abstract class AbstractDAO<T, K extends Serializable> {
         return findByPK(id) != null;
     }
 
+    public void flush() {
+        entityManager.flush();
+    }
+
     protected List<T> executePagedQuery(CriteriaQuery<T> cq, BaseFilterRequest request) {
         TypedQuery<T> query = entityManager.createQuery(cq);
         query.setFirstResult(request.getPage() * request.getSize());

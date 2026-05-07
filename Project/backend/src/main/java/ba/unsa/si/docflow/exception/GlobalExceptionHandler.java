@@ -4,8 +4,10 @@ import ba.unsa.si.docflow.response.ApiResponse;
 import ba.unsa.si.docflow.response.ValidationErrors;
 
 import lombok.AllArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.context.MessageSource;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -20,6 +22,7 @@ import java.util.Map;
 
 @RestControllerAdvice
 @AllArgsConstructor
+@Slf4j
 public class GlobalExceptionHandler {
 
     private final MessageSource messageSource;
@@ -61,6 +64,8 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(StorageException.class)
     public ResponseEntity<ApiResponse<String>> handleStorage(StorageException ex) {
+        log.error("Storage error occurred", ex);
+
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(new ApiResponse<>("STORAGE_ERROR", ex.getMessage()));
     }
@@ -76,15 +81,35 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest().body(errors);
     }
 
-    @ExceptionHandler(Exception.class)
-    public ResponseEntity<ApiResponse<String>> handleGeneric(Exception ex) {
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(new ApiResponse<>("INTERNAL_SERVER_ERROR", ex.getMessage()));
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ApiResponse<String>> handleDataIntegrityViolation(
+            DataIntegrityViolationException ex) {
+
+        log.warn("Data integrity violation occurred", ex);
+
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(
+                        new ApiResponse<>(
+                                "DATA_INTEGRITY_VIOLATION",
+                                "The requested operation cannot be completed because this record is still referenced by related data."));
     }
 
     @ExceptionHandler(ExtractionException.class)
     public ResponseEntity<ApiResponse<String>> handleExtraction(ExtractionException ex) {
+        log.error("Extraction error occurred", ex);
+
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(new ApiResponse<>("EXTRACTION_FAILED", ex.getMessage()));
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ApiResponse<String>> handleGeneric(Exception ex) {
+        log.error("Unexpected application error", ex);
+
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(
+                        new ApiResponse<>(
+                                "INTERNAL_SERVER_ERROR",
+                                "An unexpected error occurred. Please try again later."));
     }
 }
