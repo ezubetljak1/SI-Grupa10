@@ -1,4 +1,4 @@
-# AI Usage Log – Sprint 5
+# AI Usage Log – Sprint 6
 
 Napomena: Ovaj AI Usage Log je živi dokument i ažurira se kroz sprintove.
 
@@ -55,3 +55,20 @@ Napomena: Ovaj AI Usage Log je živi dokument i ažurira se kroz sprintove.
 | Šta je tim odbacio                         | Odbačeni su neki od inicijalnih prijedloga koji nisu davali željene rezultate, a tim je samostalno pronalazio alternativna rješenja za konzistentan prikaz podataka.                                                         |
 | Rizici, problemi ili greške koje su uočene | AI je u pojedinim dijelovima predložio kod koji nije bio usklađen s postojećim shared komponentama i globalnim stilovima, što je zahtijevalo ručne izmjene. Dodatno su se pojavili problemi s lokalnim razvojnim okruženjem. |
 | Ko je koristio alat                        | Emina Mušinović                                                                                                                                                                                                              |
+
+---
+## Unos #4
+
+| Polje                                      | Detalji                                                                                                                                                                                                 |
+|--------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Datum                                      | 06.05.2026                                                                                                                                                                                              |
+| Sprint broj                                | Sprint 6                                                                                                                                                                                                |
+| Alat koji je korišten                      | Codex 5.4                                                                                                                                                                                               |
+| Svrha korištenja                           | Pomoć pri implementaciji backend integracije sa Google Document AI OCR/AI servisom i čuvanju rezultata ekstrakcije prema planiranom ERD modelu.                                                         |
+| Kratak opis zadatka ili upita              | Korišten AI za pomoć pri povezivanju Spring Boot backend aplikacije sa Google Document AI servisom, definisanju konfiguracije preko environment varijabli i implementaciji endpointa za ekstrakciju.     |
+| Šta je AI predložio ili generisao          | AI je predložio početnu strukturu rješenja: konfiguraciju za Google Document AI, OCR provider sloj, modele za OCR rezultat, entitete za ekstrakciju, DAO/service sloj i REST endpoint-e za ekstrakciju. |
+| Šta je tim prihvatio                       | Prihvaćen je opći koncept izdvajanja OCR logike u poseban provider sloj, korištenje Google Document AI client biblioteke i čuvanje rezultata u tabelama extraction i extraction_field.             |
+| Šta je tim izmijenio                       | Rješenje je prilagođeno postojećem ERD-u, imenovanju i arhitekturi projekta. Dodatno su prilagođeni error handling, status dokumenta PROCESSING_FAILED, transakcijsko ponašanje i Docker/.env setup. |
+| Šta je tim odbacio                         | Odbačeni su prijedlozi koji nisu bili u trenutnom Sprint 6 scope-u, kao i prijedlozi koji bi podrazumijevali čuvanje osjetljivih Google vrijednosti u repozitoriju.                                      |
+| Rizici, problemi ili greške koje su uočene | Uočeni su problemi sa transakcijskim ponašanjem kod grešaka, kao i potreba da se Google credentials i service account JSON fajl čuvaju isključivo lokalno ili na deployment serveru, a ne u repozitoriju. |
+| Ko je koristio alat                        | Emina Zubetljak |
