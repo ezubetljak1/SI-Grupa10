@@ -3,6 +3,7 @@ package ba.unsa.si.docflow.service.extraction;
 import ba.unsa.si.docflow.dao.DocumentDAO;
 import ba.unsa.si.docflow.dao.ExtractionDAO;
 import ba.unsa.si.docflow.dao.ExtractionFieldDAO;
+import ba.unsa.si.docflow.dto.extraction.ExtractionFieldResponse;
 import ba.unsa.si.docflow.dto.extraction.ExtractionResponse;
 import ba.unsa.si.docflow.dto.extraction.UpdateExtractionFieldRequest;
 import ba.unsa.si.docflow.entity.DocumentEntity;
@@ -54,7 +55,7 @@ public class ExtractionServiceImpl implements ExtractionService {
     private final ExtractionValidation extractionValidation;
 
     @Override
-    public ApiResponse process(Long documentId) {
+    public ApiResponse<ExtractionResponse> process(Long documentId) {
         DocumentEntity document = documentValidation.validateExists(documentId);
 
         try {
@@ -82,13 +83,13 @@ public class ExtractionServiceImpl implements ExtractionService {
     }
 
     @Override
-    public ApiResponse retry(Long documentId) {
+    public ApiResponse<ExtractionResponse> retry(Long documentId) {
         return process(documentId);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public ApiResponse findByDocumentId(Long documentId) {
+    public ApiResponse<ExtractionResponse> findByDocumentId(Long documentId) {
         documentValidation.validateExists(documentId);
 
         ExtractionEntity extraction = extractionDAO.findByDocumentId(documentId);
@@ -103,7 +104,7 @@ public class ExtractionServiceImpl implements ExtractionService {
 
     @Override
     @Transactional(readOnly = true)
-    public ApiResponse findFieldsByDocumentId(Long documentId) {
+    public ApiResponse<List<ExtractionFieldResponse>> findFieldsByDocumentId(Long documentId) {
         documentValidation.validateExists(documentId);
 
         ExtractionEntity extraction = extractionDAO.findByDocumentId(documentId);
@@ -120,7 +121,7 @@ public class ExtractionServiceImpl implements ExtractionService {
 
     @Override
     @Transactional(readOnly = true)
-    public ApiResponse findFieldsByExtractionId(Long extractionId) {
+    public ApiResponse<List<ExtractionFieldResponse>> findFieldsByExtractionId(Long extractionId) {
         List<ExtractionFieldEntity> fields = extractionFieldDAO.findByExtractionId(extractionId);
 
         if (fields.isEmpty()) {
@@ -132,7 +133,7 @@ public class ExtractionServiceImpl implements ExtractionService {
     }
 
     @Override
-    public ApiResponse confirmExtraction(Long documentId) {
+    public ApiResponse<ExtractionResponse> confirmExtraction(Long documentId) {
         DocumentEntity document = documentValidation.validateExists(documentId);
 
         ExtractionEntity extraction = extractionDAO.findByDocumentId(documentId);
@@ -151,7 +152,7 @@ public class ExtractionServiceImpl implements ExtractionService {
     }
 
     @Override
-    public ApiResponse updateField(
+    public ApiResponse<ExtractionFieldResponse> updateField(
             Long extractionId, Long fieldId, UpdateExtractionFieldRequest request) {
         ExtractionFieldEntity field =
                 extractionFieldDAO

@@ -1,5 +1,6 @@
 package ba.unsa.si.docflow.controller;
 
+import ba.unsa.si.docflow.dto.extraction.ExtractionFieldResponse;
 import ba.unsa.si.docflow.dto.extraction.UpdateExtractionFieldRequest;
 import ba.unsa.si.docflow.response.ApiResponse;
 import ba.unsa.si.docflow.service.extraction.ExtractionService;
@@ -10,6 +11,8 @@ import lombok.AllArgsConstructor;
 
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/extractions/{extractionId}/fields")
 @AllArgsConstructor
@@ -19,12 +22,13 @@ public class ExtractionFieldController {
     private final ExtractionService extractionService;
 
     @GetMapping
-    public ApiResponse findFieldsByExtractionId(@PathVariable Long extractionId) {
+    public ApiResponse<List<ExtractionFieldResponse>> findFieldsByExtractionId(
+            @PathVariable Long extractionId) {
         return extractionService.findFieldsByExtractionId(extractionId);
     }
 
     @PatchMapping("/{fieldId}")
-    public ApiResponse updateField(
+    public ApiResponse<ExtractionFieldResponse> updateField(
             @PathVariable Long extractionId,
             @PathVariable Long fieldId,
             @RequestBody UpdateExtractionFieldRequest request) {
