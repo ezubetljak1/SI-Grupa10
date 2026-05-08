@@ -1,5 +1,6 @@
 package ba.unsa.si.docflow.controller;
 
+import ba.unsa.si.docflow.dto.extraction.UpdateExtractionFieldRequest;
 import ba.unsa.si.docflow.response.ApiResponse;
 import ba.unsa.si.docflow.service.extraction.ExtractionService;
 
@@ -20,5 +21,13 @@ public class ExtractionFieldController {
     @GetMapping
     public ApiResponse findFieldsByExtractionId(@PathVariable Long extractionId) {
         return extractionService.findFieldsByExtractionId(extractionId);
+    }
+
+    @PatchMapping("/{fieldId}")
+    public ApiResponse updateField(
+            @PathVariable Long extractionId,
+            @PathVariable Long fieldId,
+            @RequestBody UpdateExtractionFieldRequest request) {
+        return extractionService.updateField(extractionId, fieldId, request);
     }
 }

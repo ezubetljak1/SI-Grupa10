@@ -36,4 +36,9 @@ public class ExtractionController {
     public ApiResponse findFieldsByDocumentId(@PathVariable Long documentId) {
         return extractionService.findFieldsByDocumentId(documentId);
     }
+
+    @PostMapping("/confirm")
+    public ApiResponse confirmExtraction(@PathVariable Long documentId) {
+        return extractionService.confirmExtraction(documentId);
+    }
 }
