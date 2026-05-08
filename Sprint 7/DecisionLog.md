@@ -483,3 +483,38 @@ Za MVP, brisanje dokumenta treba značiti potpuno uklanjanje dokumenta iz sistem
 
 **Status:** Aktivna
 
+
+---
+
+### DL-021 – Backend endpointi za ručno editovanje i potvrdu ekstrakcije
+
+**Datum:** 08.05.2026
+
+**Opis problema:**  
+U Sprintu 7 bilo je potrebno omogućiti korisniku da nakon OCR/AI ekstrakcije ručno ispravi izdvojene podatke i potvrdi pregled ekstrakcije. Postojeći backend je podržavao pokretanje ekstrakcije, retry i dohvat izdvojenih polja, ali nije imao endpoint za edit pojedinačnog extraction field-a niti endpoint za potvrdu da je ekstrakcija pregledana.
+
+**Razmatrane opcije:**  
+1. Editovanje izdvojenih polja implementirati kroz update cijele ekstrakcije.  
+2. Editovanje izdvojenih polja implementirati kroz poseban endpoint za pojedinačno polje.  
+3. Potvrdu ekstrakcije vezati za postojeći retry/process flow.  
+4. Potvrdu ekstrakcije implementirati kroz poseban confirm endpoint.  
+
+**Odabrana opcija:**  
+Implementiran je poseban PATCH endpoint za izmjenu vrijednosti jednog izdvojenog polja. Nakon uspješne izmjene polje se označava sa `corrected = true`.
+
+Za potvrdu ekstrakcije implementiran je POST endpoint, koji provjerava da dokument i ekstrakcija postoje, poziva validaciju obaveznih polja i mijenja status dokumenta u `READY_FOR_APPROVAL`.
+
+**Razlog izbora:**  
+Poseban PATCH endpoint omogućava precizno editovanje jednog extraction field-a bez slanja cijele ekstrakcije. Provjera kombinacije `fieldId` i `extractionId` sprječava da se izmijeni polje koje ne pripada proslijeđenoj ekstrakciji.
+
+Poseban POST confirm endpoint jasno odvaja potvrdu pregledane ekstrakcije od OCR/AI obrade i retry procesa. Ovo je važno jer retry zamjenjuje postojeća extraction fields, dok confirm mora sačuvati prethodne ručne korekcije.
+
+**Posljedice odluke:**  
+- Backend podržava ručno editovanje izdvojenih polja.
+- Svako ručno izmijenjeno polje dobija `corrected = true`.
+- Nije moguće editovati field koji ne pripada proslijeđenom `extractionId`.
+- Potvrda ekstrakcije mijenja status dokumenta u `READY_FOR_APPROVAL`.
+- Confirm endpoint ne pokreće OCR ponovo i ne briše prethodno korigovana polja.
+- Validacija vrijednosti i validacija obaveznih polja ostaju odvojene kroz placeholder metode koje će biti implementirane u zasebnom backend validacijskom tasku.
+
+**Status:** Aktivna

@@ -91,3 +91,22 @@ Napomena: Ovaj AI Usage Log je živi dokument i ažurira se kroz sprintove.
 | Šta je tim odbacio                         | Odbačena je potreba da se u UI parsira ili prikazuje `rawJson` osim eventualno za debug; nije uveden “fake OCR provider” u backend jer nije bio dio FE scope-a.                                                                                                                                       |
 | Rizici, problemi ili greške koje su uočene | Lokalna ekstrakcija može vraćati `PROCESSING_FAILED`/`EXTRACTION_FAILED` bez Google konfiguracije i credentials; potrebno je osigurati da UI korektno prikaže grešku i da se osjetljive konfiguracije ne nalaze u repozitoriju.                                                                       |
 | Ko je koristio alat                        | Amar Breščić                                                                                                                                                                                                                                                                                          |
+
+
+---
+
+## Unos #6
+
+| Polje | Detalji |
+|--------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Datum | 08.05.2026 |
+| Sprint broj | Sprint 7 |
+| Alat koji je korišten | ChatGPT GPT-5.5 Thinking |
+| Svrha korištenja | Analiza postojećeg backend koda, planiranje implementacije, te review pristupa. |
+| Kratak opis zadatka ili upita | Alat je korišten za analizu postojećeg extraction backend modula i Sprint 7 zahtjeva vezanih za ručno editovanje izdvojenih polja i potvrdu ekstrakcije. Korišten je za razmatranje koji endpointi i service/DAO metode su potrebni za US 7.1 i US 7.5. |
+| Šta je AI predložio ili generisao | Predložena je struktura rješenja: endpoint za izmjenu jednog extraction field-a, endpoint za potvrdu ekstrakcije, DAO provjera kombinacije `fieldId` i `extractionId`, te placeholder metode za backend validacije koje su planirane kroz druge user stories. |
+| Šta je tim prihvatio | Prihvaćen je opšti pristup sa posebnim PATCH endpointom za edit jednog polja i posebnim confirm endpointom za potvrdu ekstrakcije. Prihvaćeno je i da se nakon uspješnog edita polje označava sa `corrected = true`, kao i da confirm endpoint mijenja status dokumenta u `READY_FOR_APPROVAL`. |
+| Šta je tim izmijenio | Implementacija je ručno prilagođena postojećoj arhitekturi projekta, postojećem `ApiResponse` formatu i DAO/service/controller slojevima. |
+| Šta je tim odbacio | Nije implementirana stvarna validacija vrijednosti i formata extraction field-a, jer je taj dio izdvojen za drugi backend validacijski task. Nije mijenjana struktura baze dodavanjem nove kolone za tip polja, jer se trenutna validacija može osloniti na postojeći `fieldName`. |
+| Rizici, problemi ili greške koje su uočene | Uočeno je da confirm endpoint ne smije koristiti retry/process logiku, jer retry može zamijeniti postojeća extraction fields i time obrisati ručne korekcije. Također je uočeno da validacije vrijednosti i obaveznih polja trebaju ostati odvojene kroz placeholder metode kako bi ih kolege kasnije mogle implementirati u okviru svog taska. |
+| Ko je koristio alat | Emina Zubetljak |
