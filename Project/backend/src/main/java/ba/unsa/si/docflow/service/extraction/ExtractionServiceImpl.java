@@ -3,7 +3,9 @@ package ba.unsa.si.docflow.service.extraction;
 import ba.unsa.si.docflow.dao.DocumentDAO;
 import ba.unsa.si.docflow.dao.ExtractionDAO;
 import ba.unsa.si.docflow.dao.ExtractionFieldDAO;
+import ba.unsa.si.docflow.dto.extraction.ExtractionFieldResponse;
 import ba.unsa.si.docflow.dto.extraction.ExtractionResponse;
+import ba.unsa.si.docflow.dto.extraction.UpdateExtractionFieldRequest;
 import ba.unsa.si.docflow.entity.DocumentEntity;
 import ba.unsa.si.docflow.entity.ExtractionEntity;
 import ba.unsa.si.docflow.entity.ExtractionFieldEntity;
@@ -50,9 +52,10 @@ public class ExtractionServiceImpl implements ExtractionService {
     private final OcrProvider ocrProvider;
     private final ExtractionMapper extractionMapper;
     private final ObjectMapper objectMapper;
+    private final ExtractionValidation extractionValidation;
 
     @Override
-    public ApiResponse process(Long documentId) {
+    public ApiResponse<ExtractionResponse> process(Long documentId) {
         DocumentEntity document = documentValidation.validateExists(documentId);
 
         try {
@@ -80,13 +83,13 @@ public class ExtractionServiceImpl implements ExtractionService {
     }
 
     @Override
-    public ApiResponse retry(Long documentId) {
+    public ApiResponse<ExtractionResponse> retry(Long documentId) {
         return process(documentId);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public ApiResponse findByDocumentId(Long documentId) {
+    public ApiResponse<ExtractionResponse> findByDocumentId(Long documentId) {
         documentValidation.validateExists(documentId);
 
         ExtractionEntity extraction = extractionDAO.findByDocumentId(documentId);
@@ -101,7 +104,7 @@ public class ExtractionServiceImpl implements ExtractionService {
 
     @Override
     @Transactional(readOnly = true)
-    public ApiResponse findFieldsByDocumentId(Long documentId) {
+    public ApiResponse<List<ExtractionFieldResponse>> findFieldsByDocumentId(Long documentId) {
         documentValidation.validateExists(documentId);
 
         ExtractionEntity extraction = extractionDAO.findByDocumentId(documentId);
@@ -118,7 +121,7 @@ public class ExtractionServiceImpl implements ExtractionService {
 
     @Override
     @Transactional(readOnly = true)
-    public ApiResponse findFieldsByExtractionId(Long extractionId) {
+    public ApiResponse<List<ExtractionFieldResponse>> findFieldsByExtractionId(Long extractionId) {
         List<ExtractionFieldEntity> fields = extractionFieldDAO.findByExtractionId(extractionId);
 
         if (fields.isEmpty()) {
@@ -127,6 +130,59 @@ public class ExtractionServiceImpl implements ExtractionService {
         }
 
         return new ApiResponse<>("OK", extractionMapper.fieldsToDto(fields));
+    }
+
+    @Override
+    public ApiResponse<ExtractionResponse> confirmExtraction(Long documentId) {
+        DocumentEntity document = documentValidation.validateExists(documentId);
+
+        ExtractionEntity extraction = extractionDAO.findByDocumentId(documentId);
+
+        if (extraction == null) {
+            throw new ApiNotFoundException(
+                    "Extraction result was not found for document with id: " + documentId);
+        }
+
+        extractionValidation.validateRequiredFields(extraction);
+
+        document.setDocumentStatus(DocumentStatus.READY_FOR_APPROVAL);
+        documentDAO.merge(document);
+
+        return new ApiResponse<>("OK", extractionMapper.entityToDto(extraction));
+    }
+
+    @Override
+    public ApiResponse<ExtractionFieldResponse> updateField(
+            Long extractionId, Long fieldId, UpdateExtractionFieldRequest request) {
+        ExtractionFieldEntity field =
+                extractionFieldDAO
+                        .findByIdAndExtractionId(fieldId, extractionId)
+                        .orElseThrow(
+                                () ->
+                                        new ApiNotFoundException(
+                                                "Extraction field was not found for extraction with id: "
+                                                        + extractionId
+                                                        + " and field id: "
+                                                        + fieldId));
+
+        validateUpdatedFieldValue(field, request.getValue());
+
+        field.setValue(request.getValue());
+        field.setCorrected(true);
+
+        ExtractionFieldEntity updatedField = extractionFieldDAO.merge(field);
+
+        return new ApiResponse<>("OK", extractionMapper.fieldToDto(updatedField));
+    }
+
+    private void validateUpdatedFieldValue(ExtractionFieldEntity field, String newValue) {
+        // TODO: Validation rules will be implemented as part of a separate Sprint 7 task.
+        // Expected rules:
+        // - value must not be empty
+        // - date fields must have valid date format
+        // - amount/total fields must be valid decimal numbers
+        // - etc.
+        // format + matematika
     }
 
     private byte[] readDocumentContent(DocumentEntity document) throws IOException {
