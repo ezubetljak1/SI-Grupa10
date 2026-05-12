@@ -7,7 +7,6 @@ import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-import ba.unsa.si.docflow.service.extraction.ExtractionValidation;
 import ba.unsa.si.docflow.service.ocr.OcrProvider;
 import ba.unsa.si.docflow.service.ocr.model.OcrExtractedField;
 import ba.unsa.si.docflow.service.ocr.model.OcrResult;
@@ -61,8 +60,6 @@ class ExtractionIntegrationTest {
 
     @MockitoBean private OcrProvider ocrProvider;
 
-    @MockitoBean private ExtractionValidation extractionValidation;
-
     @DynamicPropertySource
     static void registerProperties(DynamicPropertyRegistry registry) {
         registry.add("docflow.storage.root-dir", () -> UPLOAD_ROOT.toString());
@@ -77,7 +74,7 @@ class ExtractionIntegrationTest {
         deleteChildren(UPLOAD_ROOT);
         Files.createDirectories(UPLOAD_ROOT);
 
-        reset(ocrProvider, extractionValidation);
+        reset(ocrProvider);
     }
 
     @AfterAll
@@ -691,7 +688,6 @@ class ExtractionIntegrationTest {
         assertEquals("125.50", correctedField.get("value"));
         assertEquals(true, correctedField.get("is_corrected"));
 
-        verify(extractionValidation).validateRequiredFields(any());
         verify(ocrProvider, times(1)).process(any(byte[].class), eq("application/pdf"));
     }
 
@@ -704,7 +700,97 @@ class ExtractionIntegrationTest {
                 .andExpect(jsonPath("$.code").value("NOT_FOUND"));
 
         verifyNoInteractions(ocrProvider);
-        verifyNoInteractions(extractionValidation);
+    }
+
+    @Test
+    void confirmExtractionWithLowConfidenceUncorrectedFieldThenReturnsBadRequest()
+            throws Exception {
+        Long documentId = uploadPdf("Low confidence invoice");
+
+        when(ocrProvider.process(any(byte[].class), eq("application/pdf")))
+                .thenReturn(sampleLowConfidenceOcrResult());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction/confirm", documentId))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$[0].code").value("EXTRACTION_FIELD_LOW_CONFIDENCE"));
+
+        String documentStatus =
+                jdbcTemplate.queryForObject(
+                        "SELECT document_status FROM document WHERE id = ?",
+                        String.class,
+                        documentId);
+
+        assertEquals("EXTRACTED", documentStatus);
+    }
+
+    @Test
+    void confirmExtractionWithLowConfidenceCorrectedFieldThenSucceeds() throws Exception {
+        Long documentId = uploadPdf("Corrected low confidence invoice");
+
+        when(ocrProvider.process(any(byte[].class), eq("application/pdf")))
+                .thenReturn(sampleLowConfidenceOcrResult());
+
+        MvcResult processResult =
+                mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
+                        .andExpect(status().isOk())
+                        .andReturn();
+
+        JsonNode processResponse =
+                objectMapper.readTree(processResult.getResponse().getContentAsString());
+        Long extractionId = processResponse.get("payload").get("id").asLong();
+
+        Long lowConfidenceFieldId =
+                jdbcTemplate.queryForObject(
+                        """
+                        SELECT ef.id
+                        FROM extraction_field ef
+                        WHERE ef.extraction_id = ?
+                          AND ef.field_name = 'total_amount'
+                        """,
+                        Long.class,
+                        extractionId);
+
+        mockMvc.perform(
+                        patch(
+                                        "/api/extractions/{extractionId}/fields/{fieldId}",
+                                        extractionId,
+                                        lowConfidenceFieldId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                                        {
+                                          "value": "117.00"
+                                        }
+                                        """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.payload.corrected").value(true));
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction/confirm", documentId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("OK"))
+                .andExpect(jsonPath("$.payload.documentId").value(documentId));
+
+        String documentStatus =
+                jdbcTemplate.queryForObject(
+                        "SELECT document_status FROM document WHERE id = ?",
+                        String.class,
+                        documentId);
+
+        assertEquals("READY_FOR_APPROVAL", documentStatus);
+    }
+
+    private OcrResult sampleLowConfidenceOcrResult() {
+        return new OcrResult(
+                "INVOICE\nSupplier: Test Company d.o.o.\nTotal: 117.00 EUR\n",
+                List.of(
+                        field("supplier_name", "Test Company d.o.o.", null, "0.91"),
+                        field("invoice_id", "INV-001", null, "0.97"),
+                        field("invoice_date", "2026-05-06", "2026-05-06", "0.96"),
+                        field("total_amount", "117.00", "117", "0.26"),
+                        field("currency", "EUR", "EUR", "0.89")));
     }
 
     private Long uploadPdf(String name) throws Exception {
@@ -751,7 +837,9 @@ class ExtractionIntegrationTest {
                         field("currency", "EUR", "EUR", "0.89")));
     }
 
-    /** @return { extractionId, total_amount field id } */
+    /**
+     * @return { extractionId, total_amount field id }
+     */
     private long[] uploadAndExtractWith(OcrResult ocrResult) throws Exception {
         Long documentId = uploadPdf("Decimal validation invoice");
 
