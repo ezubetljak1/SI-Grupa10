@@ -165,7 +165,15 @@
                 @for (field of extractionFields; track field.id) {
                   <tr>
                     <td class="mono">{{ field.fieldName }}</td>
-                    <td>{{ field.value ?? '—' }}</td>
+                    <td>
+                      {{ field.value ?? '—' }}
+
+                      @if (isOptionalEmptyField(field)) {
+                      <div class="field-warning">
+                        Optional field is empty
+                      </div>
+                      }
+                    </td>
                     <td>{{ formatConfidence(field.confidence) }}</td>
                     <td>
                       <span class="meta-chip" [class.meta-chip--ok]="field.corrected">
