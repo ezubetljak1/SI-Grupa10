@@ -506,6 +506,119 @@ class ExtractionIntegrationTest {
     }
 
     @Test
+    void updateDecimalFieldWithEmptyValueThenReturnsBadRequest() throws Exception {
+        long[] ids = uploadAndExtractWith(sampleOcrResult());
+        long extractionId = ids[0];
+        long fieldId = ids[1];
+
+        mockMvc.perform(
+                        patch(
+                                        "/api/extractions/{extractionId}/fields/{fieldId}",
+                                        extractionId,
+                                        fieldId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"value\": \"\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$[0].code").value("EXTRACTION_FIELD_AMOUNT_INVALID"));
+
+        assertFieldUnchanged(extractionId, fieldId, "117.00", false);
+    }
+
+    @Test
+    void updateDecimalFieldWithNonNumericValueThenReturnsBadRequest() throws Exception {
+        long[] ids = uploadAndExtractWith(sampleOcrResult());
+        long extractionId = ids[0];
+        long fieldId = ids[1];
+
+        mockMvc.perform(
+                        patch(
+                                        "/api/extractions/{extractionId}/fields/{fieldId}",
+                                        extractionId,
+                                        fieldId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"value\": \"abc\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$[0].code").value("EXTRACTION_FIELD_AMOUNT_INVALID"));
+
+        assertFieldUnchanged(extractionId, fieldId, "117.00", false);
+    }
+
+    @Test
+    void updateDecimalFieldWithTooManyDecimalsThenReturnsBadRequest() throws Exception {
+        long[] ids = uploadAndExtractWith(sampleOcrResult());
+        long extractionId = ids[0];
+        long fieldId = ids[1];
+
+        mockMvc.perform(
+                        patch(
+                                        "/api/extractions/{extractionId}/fields/{fieldId}",
+                                        extractionId,
+                                        fieldId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"value\": \"117.001\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$[0].code").value("EXTRACTION_FIELD_AMOUNT_INVALID"));
+
+        assertFieldUnchanged(extractionId, fieldId, "117.00", false);
+    }
+
+    @Test
+    void updateDecimalFieldWithNegativeValueThenReturnsBadRequest() throws Exception {
+        long[] ids = uploadAndExtractWith(sampleOcrResult());
+        long extractionId = ids[0];
+        long fieldId = ids[1];
+
+        mockMvc.perform(
+                        patch(
+                                        "/api/extractions/{extractionId}/fields/{fieldId}",
+                                        extractionId,
+                                        fieldId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"value\": \"-1.00\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$[0].code").value("EXTRACTION_FIELD_AMOUNT_INVALID"));
+
+        assertFieldUnchanged(extractionId, fieldId, "117.00", false);
+    }
+
+    @Test
+    void updateDecimalFieldWithCommaAsDecimalSeparatorThenSucceeds() throws Exception {
+        long[] ids = uploadAndExtractWith(sampleOcrResult());
+        long extractionId = ids[0];
+        long fieldId = ids[1];
+
+        mockMvc.perform(
+                        patch(
+                                        "/api/extractions/{extractionId}/fields/{fieldId}",
+                                        extractionId,
+                                        fieldId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"value\": \"125,50\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.payload.value").value("125,50"))
+                .andExpect(jsonPath("$.payload.corrected").value(true));
+    }
+
+    @Test
+    void updateTotalAmountWhenInconsistentWithNetPlusVatThenReturnsBadRequest() throws Exception {
+        long[] ids = uploadAndExtractWith(sampleOcrResultWithNetVatTotal());
+        long extractionId = ids[0];
+        long totalFieldId = ids[1];
+
+        mockMvc.perform(
+                        patch(
+                                        "/api/extractions/{extractionId}/fields/{fieldId}",
+                                        extractionId,
+                                        totalFieldId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"value\": \"200.00\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$[0].code").value("EXTRACTION_FIELD_AMOUNT_INCONSISTENT"));
+
+        assertFieldUnchanged(extractionId, totalFieldId, "117.00", false);
+    }
+
+    @Test
     void confirmExtractionThenMarksDocumentReadyForApprovalAndKeepsCorrectedFields()
             throws Exception {
         Long documentId = uploadPdf("Confirm extraction invoice");
@@ -626,6 +739,62 @@ class ExtractionIntegrationTest {
                         field("invoice_date", "2026-05-06", "2026-05-06", "0.96"),
                         field("total_amount", "117.00", "117", "0.95"),
                         field("currency", "EUR", "EUR", "0.89")));
+    }
+
+    private OcrResult sampleOcrResultWithNetVatTotal() {
+        return new OcrResult(
+                "INVOICE\nNet 100 + VAT 17 = 117\n",
+                List.of(
+                        field("net_amount", "100.00", "100", "0.94"),
+                        field("vat_amount", "17.00", "17", "0.93"),
+                        field("total_amount", "117.00", "117", "0.95"),
+                        field("currency", "EUR", "EUR", "0.89")));
+    }
+
+    /** @return { extractionId, total_amount field id } */
+    private long[] uploadAndExtractWith(OcrResult ocrResult) throws Exception {
+        Long documentId = uploadPdf("Decimal validation invoice");
+
+        when(ocrProvider.process(any(byte[].class), eq("application/pdf"))).thenReturn(ocrResult);
+
+        MvcResult processResult =
+                mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
+                        .andExpect(status().isOk())
+                        .andReturn();
+
+        JsonNode processResponse =
+                objectMapper.readTree(processResult.getResponse().getContentAsString());
+        long extractionId = processResponse.get("payload").get("id").asLong();
+
+        long fieldId =
+                jdbcTemplate.queryForObject(
+                        """
+                        SELECT ef.id
+                        FROM extraction_field ef
+                        WHERE ef.extraction_id = ?
+                          AND ef.field_name = 'total_amount'
+                        """,
+                        Long.class,
+                        extractionId);
+
+        return new long[] {extractionId, fieldId};
+    }
+
+    private void assertFieldUnchanged(
+            long extractionId, long fieldId, String expectedValue, boolean expectedCorrected)
+            throws Exception {
+        Map<String, Object> row =
+                jdbcTemplate.queryForMap(
+                        """
+                        SELECT ef."value", ef.is_corrected
+                        FROM extraction_field ef
+                        WHERE ef.id = ? AND ef.extraction_id = ?
+                        """,
+                        fieldId,
+                        extractionId);
+
+        assertEquals(expectedValue, row.get("value"));
+        assertEquals(expectedCorrected, row.get("is_corrected"));
     }
 
     private OcrResult sampleRetryOcrResult() {

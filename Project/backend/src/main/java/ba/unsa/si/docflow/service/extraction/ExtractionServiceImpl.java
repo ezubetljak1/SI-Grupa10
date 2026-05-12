@@ -12,7 +12,9 @@ import ba.unsa.si.docflow.entity.ExtractionFieldEntity;
 import ba.unsa.si.docflow.entity.enums.DocumentStatus;
 import ba.unsa.si.docflow.entity.enums.DocumentType;
 import ba.unsa.si.docflow.exception.ApiNotFoundException;
+import ba.unsa.si.docflow.exception.ApiValidationException;
 import ba.unsa.si.docflow.exception.ExtractionException;
+import ba.unsa.si.docflow.response.ValidationErrors;
 import ba.unsa.si.docflow.mapper.ExtractionMapper;
 import ba.unsa.si.docflow.response.ApiResponse;
 import ba.unsa.si.docflow.service.document.DocumentValidation;
@@ -37,12 +39,31 @@ import java.io.InputStream;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 @Service
 @Transactional(noRollbackFor = ExtractionException.class)
 @AllArgsConstructor
 public class ExtractionServiceImpl implements ExtractionService {
+
+    /** Canonical invoice amount fields (US 7.4 – matematika). */
+    private static final Set<String> DECIMAL_FIELDS =
+            Set.of("net_amount", "vat_amount", "total_amount");
+
+    /**
+     * Muhamed proširuje – validacija formata datuma pri editu polja.
+     */
+    private static final Set<String> DATE_FIELDS = Set.of();
+
+    /**
+     * Muhamed proširuje – validacija broja fakture / tekstualnog formata.
+     */
+    private static final Set<String> INVOICE_NO_FIELDS = Set.of();
+
+    private static final BigDecimal AMOUNT_TOTAL_TOLERANCE = new BigDecimal("0.01");
 
     private final ExtractionDAO extractionDAO;
     private final ExtractionFieldDAO extractionFieldDAO;
@@ -176,13 +197,117 @@ public class ExtractionServiceImpl implements ExtractionService {
     }
 
     private void validateUpdatedFieldValue(ExtractionFieldEntity field, String newValue) {
-        // TODO: Validation rules will be implemented as part of a separate Sprint 7 task.
-        // Expected rules:
-        // - value must not be empty
-        // - date fields must have valid date format
-        // - amount/total fields must be valid decimal numbers
-        // - etc.
-        // format + matematika
+        String fieldName = field.getFieldName();
+        if (DATE_FIELDS.contains(fieldName)) {
+            // Muhamed proširuje – validacija formata datuma.
+            return;
+        }
+        if (INVOICE_NO_FIELDS.contains(fieldName)) {
+            // Muhamed proširuje – validacija broja fakture / tekstualnog formata.
+            return;
+        }
+        if (!DECIMAL_FIELDS.contains(fieldName)) {
+            return;
+        }
+
+        parseNonNegativeTwoDecimalAmount(newValue, fieldName);
+        validateTotalMatchesNetPlusVatIfComplete(field, newValue);
+    }
+
+    private void parseNonNegativeTwoDecimalAmount(String raw, String fieldName) {
+        if (!StringUtils.hasText(raw)) {
+            throw invalidAmount(fieldName, "Value must not be empty.");
+        }
+
+        String trimmed = raw.trim();
+        if (trimmed.contains(" ") || trimmed.contains("\t")) {
+            throw invalidAmount(fieldName, "Amount must not contain spaces.");
+        }
+
+        if (trimmed.contains(",") && trimmed.contains(".")) {
+            throw invalidAmount(fieldName, "Use either comma or dot as decimal separator, not both.");
+        }
+
+        int comma = trimmed.indexOf(',');
+        int dot = trimmed.indexOf('.');
+        if (comma >= 0 && trimmed.indexOf(',', comma + 1) >= 0) {
+            throw invalidAmount(fieldName, "Invalid amount format.");
+        }
+        if (dot >= 0 && trimmed.indexOf('.', dot + 1) >= 0) {
+            throw invalidAmount(fieldName, "Invalid amount format.");
+        }
+
+        String normalized = trimmed.replace(',', '.');
+        BigDecimal amount;
+        try {
+            amount = new BigDecimal(normalized);
+        } catch (NumberFormatException exception) {
+            throw invalidAmount(fieldName, "Amount must be a valid decimal number.");
+        }
+
+        if (amount.signum() < 0) {
+            throw invalidAmount(fieldName, "Amount must not be negative.");
+        }
+
+        if (amount.scale() > 2) {
+            throw invalidAmount(fieldName, "Amount must have at most 2 decimal places.");
+        }
+    }
+
+    private void validateTotalMatchesNetPlusVatIfComplete(
+            ExtractionFieldEntity editedField, String newValueForEditedField) {
+        Long extractionId = editedField.getExtraction().getId();
+        List<ExtractionFieldEntity> allFields = extractionFieldDAO.findByExtractionId(extractionId);
+
+        Map<String, String> effective = new HashMap<>();
+        for (ExtractionFieldEntity f : allFields) {
+            if (!DECIMAL_FIELDS.contains(f.getFieldName())) {
+                continue;
+            }
+            boolean isEdited = f.getId().equals(editedField.getId());
+            String v = isEdited ? newValueForEditedField : f.getValue();
+            effective.put(f.getFieldName(), v);
+        }
+
+        if (!effective.containsKey("net_amount")
+                || !effective.containsKey("vat_amount")
+                || !effective.containsKey("total_amount")) {
+            return;
+        }
+
+        String netRaw = effective.get("net_amount");
+        String vatRaw = effective.get("vat_amount");
+        String totalRaw = effective.get("total_amount");
+        if (!StringUtils.hasText(netRaw)
+                || !StringUtils.hasText(vatRaw)
+                || !StringUtils.hasText(totalRaw)) {
+            return;
+        }
+
+        BigDecimal net = parseAmountStrict(netRaw, "net_amount");
+        BigDecimal vat = parseAmountStrict(vatRaw, "vat_amount");
+        BigDecimal total = parseAmountStrict(totalRaw, "total_amount");
+
+        BigDecimal expected = net.add(vat).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal totalRounded = total.setScale(2, RoundingMode.HALF_UP);
+        if (totalRounded.subtract(expected).abs().compareTo(AMOUNT_TOTAL_TOLERANCE) > 0) {
+            ValidationErrors errors = new ValidationErrors();
+            errors.add(
+                    "EXTRACTION_FIELD_AMOUNT_INCONSISTENT",
+                    "total_amount must equal net_amount + vat_amount (within 0.01).");
+            throw new ApiValidationException(errors);
+        }
+    }
+
+    private BigDecimal parseAmountStrict(String raw, String fieldName) {
+        parseNonNegativeTwoDecimalAmount(raw, fieldName);
+        return new BigDecimal(raw.trim().replace(',', '.')).setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private static ApiValidationException invalidAmount(String fieldName, String message) {
+        ValidationErrors errors = new ValidationErrors();
+        errors.add("EXTRACTION_FIELD_AMOUNT_INVALID", fieldName + ": " + message);
+        return new ApiValidationException(errors);
     }
 
     private byte[] readDocumentContent(DocumentEntity document) throws IOException {
