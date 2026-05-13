@@ -23,6 +23,12 @@ interface EditState {
   validationError: string | null;
 }
 
+interface BackendValidationError {
+  code?: string;
+  message?: string;
+  payload?: string;
+}
+
 @Component({
   selector: 'app-document-detail-page',
   standalone: true,
@@ -61,6 +67,7 @@ export class DocumentDetailPageComponent implements OnInit {
 
   extractionId: number | null = null;
   editState: EditState | null = null;
+  confirmingExtraction = false;
 
   ngOnInit(): void {
     this.route.paramMap.subscribe((params) => {
@@ -86,7 +93,7 @@ export class DocumentDetailPageComponent implements OnInit {
         this.isImage = this.document.fileType?.startsWith('image/');
         this.extractionError = null;
         this.extractionFields = [];
-        if (this.document.documentStatus === 'EXTRACTED') {
+        if (this.shouldLoadExtractionForStatus(this.document.documentStatus)) {
           this.loadExtraction();
         }
       },
@@ -305,6 +312,7 @@ export class DocumentDetailPageComponent implements OnInit {
             ...this.extractionFields[idx],
             value: updated.value,
             corrected: updated.corrected,
+            placeholder: updated.placeholder,
           };
         }
         this.editState = null;
@@ -348,6 +356,59 @@ export class DocumentDetailPageComponent implements OnInit {
     });
   }
 
+  confirmExtraction(): void {
+    if (!this.document) return;
+
+    if (this.editState) {
+      this.toastr.warning(
+        'Save or cancel the current field edit before confirming extraction.',
+        'Review required'
+      );
+      return;
+    }
+
+    const documentId = this.document.id;
+    this.confirmingExtraction = true;
+    this.extractionError = null;
+
+    this.documentApiService.confirmExtraction(documentId).subscribe({
+      next: (response) => {
+        this.confirmingExtraction = false;
+        this.extractionId = response.payload?.id ?? this.extractionId;
+        this.extractionFields = response.payload?.fields ?? this.extractionFields;
+
+        this.toastr.success(
+          'Extraction confirmed. Document is ready for approval.',
+          'Success'
+        );
+
+        this.loadDocument(documentId);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.confirmingExtraction = false;
+
+        if (this.hasValidationErrors(err.error)) {
+          const message = this.buildExtractionValidationMessage(
+            err.error,
+            'Review highlighted fields before confirming.'
+          );
+
+          this.extractionError = null;
+          this.toastr.warning(message, 'Review required');
+          return;
+        }
+
+        const message = this.extractExtractionErrorMessage(
+          err.error,
+          'Extraction confirmation failed.'
+        );
+
+        this.extractionError = message;
+        this.toastr.error(message, 'Error');
+      },
+    });
+  }
+
   formatFileSize(sizeInBytes: number): string {
     if (sizeInBytes < 1024) return `${sizeInBytes} B`;
     const kb = sizeInBytes / 1024;
@@ -364,6 +425,90 @@ export class DocumentDetailPageComponent implements OnInit {
       hour: '2-digit',
       minute: '2-digit',
     });
+  }
+
+  isPlaceholderField(field: ExtractionField): boolean {
+    return field.placeholder === true;
+  }
+
+  isLowConfidenceField(field: ExtractionField): boolean {
+    if (field.placeholder) return false;
+    if (field.confidence === null || field.confidence === undefined) return false;
+
+    const confidencePercent = field.confidence <= 1 ? field.confidence * 100 : field.confidence;
+    return confidencePercent < 70;
+  }
+
+  needsManualReview(field: ExtractionField): boolean {
+    return this.isPlaceholderField(field)
+      || (this.isLowConfidenceField(field) && !field.corrected);
+  }
+
+  get missingRequiredFields(): ExtractionField[] {
+    return this.extractionFields.filter((field) => this.isPlaceholderField(field));
+  }
+
+  get lowConfidenceUnreviewedFields(): ExtractionField[] {
+    return this.extractionFields.filter(
+      (field) => this.isLowConfidenceField(field) && !field.corrected
+    );
+  }
+
+  get missingRequiredFieldNames(): string {
+    return this.missingRequiredFields
+      .map((field) => field.fieldName)
+      .join(', ');
+  }
+
+  get lowConfidenceUnreviewedFieldNames(): string {
+    return this.lowConfidenceUnreviewedFields
+      .map((field) => field.fieldName)
+      .join(', ');
+  }
+
+  hasPendingFieldIssues(): boolean {
+    return this.missingRequiredFields.length > 0
+      || this.lowConfidenceUnreviewedFields.length > 0;
+  }
+
+  getFieldReviewLabel(field: ExtractionField): string {
+    if (this.isPlaceholderField(field)) {
+      return 'Missing required';
+    }
+
+    if (this.isLowConfidenceField(field) && !field.corrected) {
+      return 'Review needed';
+    }
+
+    if (field.corrected) {
+      return 'Reviewed';
+    }
+
+    return 'OK';
+  }
+
+  getFieldReviewClass(field: ExtractionField): string {
+    if (this.isPlaceholderField(field)) {
+      return 'review-badge--missing';
+    }
+
+    if (this.isLowConfidenceField(field) && !field.corrected) {
+      return 'review-badge--warning';
+    }
+
+    if (field.corrected) {
+      return 'review-badge--reviewed';
+    }
+
+    return 'review-badge--ok';
+  }
+
+  displayFieldValue(field: ExtractionField): string {
+    if (this.isPlaceholderField(field)) {
+      return 'Missing value';
+    }
+
+    return field.value?.trim() || '—';
   }
 
   private resolveDownloadFileName(doc: DocflowDocument): string {
@@ -423,5 +568,113 @@ export class DocumentDetailPageComponent implements OnInit {
     this.extractionLoading = false;
     this.extractionRunning = false;
     this.editState = null;
+    this.confirmingExtraction = false;
+  }
+
+  private shouldLoadExtractionForStatus(status: string | null | undefined): boolean {
+    return status === 'EXTRACTED' || status === 'READY_FOR_APPROVAL';
+  }
+
+  private hasValidationErrors(errorBody: unknown): boolean {
+    return this.extractValidationErrors(errorBody).length > 0;
+  }
+
+  private extractValidationErrors(errorBody: unknown): BackendValidationError[] {
+    if (Array.isArray(errorBody)) {
+      return errorBody
+        .filter((item) => item && typeof item === 'object')
+        .map((item) => item as BackendValidationError);
+    }
+
+    if (errorBody && typeof errorBody === 'object') {
+      const body = errorBody as BackendValidationError;
+
+      if (body.code || body.message || body.payload) {
+        return [body];
+      }
+    }
+
+    return [];
+  }
+
+  private buildExtractionValidationMessage(errorBody: unknown, fallback: string): string {
+    const errors = this.extractValidationErrors(errorBody);
+
+    if (errors.length === 0) {
+      return this.extractExtractionErrorMessage(errorBody, fallback);
+    }
+
+    const codes = new Set(errors.map((error) => error.code).filter(Boolean));
+    const parts: string[] = [];
+
+    if (codes.has('EXTRACTION_REQUIRED_FIELD_MISSING')) {
+      const fields = this.extractFieldNamesFromErrors(errors, 'EXTRACTION_REQUIRED_FIELD_MISSING');
+
+      parts.push(
+        fields.length > 0
+          ? `Missing: ${fields.join(', ')}.`
+          : 'Some required fields are missing.'
+      );
+    }
+
+    if (codes.has('EXTRACTION_FIELD_EMPTY')) {
+      const fields = this.extractFieldNamesFromErrors(errors, 'EXTRACTION_FIELD_EMPTY');
+
+      parts.push(
+        fields.length > 0
+          ? `Empty: ${fields.join(', ')}.`
+          : 'Some required fields are empty.'
+      );
+    }
+
+    if (codes.has('EXTRACTION_FIELD_LOW_CONFIDENCE')) {
+      const count = errors.filter(
+        (error) => error.code === 'EXTRACTION_FIELD_LOW_CONFIDENCE'
+      ).length;
+
+      parts.push(
+        count > 1
+          ? `${count} low-confidence fields need review.`
+          : 'One low-confidence field needs review.'
+      );
+    }
+
+    if (
+      codes.has('EXTRACTION_FIELD_DATE_FORMAT_INVALID')
+      || codes.has('EXTRACTION_FIELD_NUMERIC_FORMAT_INVALID')
+      || codes.has('EXTRACTION_FIELD_AMOUNT_INVALID')
+    ) {
+      parts.push('Fix invalid date or amount formats.');
+    }
+
+    if (codes.has('EXTRACTION_FIELD_AMOUNT_INCONSISTENT')) {
+      parts.push('Check amount consistency.');
+    }
+
+    if (codes.has('EXTRACTION_FIELDS_MISSING')) {
+      parts.push('Run extraction again before confirming.');
+    }
+
+    if (parts.length === 0) {
+      return 'Review highlighted fields before confirming.';
+    }
+
+    return parts.join(' ');
+  }
+
+  private extractFieldNamesFromErrors(
+    errors: BackendValidationError[],
+    code: string
+  ): string[] {
+    const names = errors
+      .filter((error) => error.code === code)
+      .map((error) => error.message ?? error.payload ?? '')
+      .map((message) => {
+        const match = message.match(/'([^']+)'/);
+        return match?.[1] ?? null;
+      })
+      .filter((value): value is string => Boolean(value));
+
+    return Array.from(new Set(names));
   }
 }

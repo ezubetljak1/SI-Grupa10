@@ -40,6 +40,12 @@
   border-color: var(--processing-border);
 }
 
+.status-badge--approval {
+  color: var(--processing);
+  background: var(--processing-soft);
+  border-color: var(--processing-border);
+}
+
 .status-badge--neutral {
   color: var(--text-muted);
   background: var(--section);

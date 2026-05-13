@@ -102,34 +102,61 @@
 
       <app-ui-card
         title="Extracted fields"
-        subtitle="Automatically extracted fields from OCR/AI processing. Click a row to manually correct a value.">
+        subtitle="Automatically extracted fields from OCR/AI processing. Review flagged values before confirming.">
         <div class="extraction-actions">
-          @if (document.documentStatus !== 'EXTRACTED') {
-            <button
-              type="button"
-              class="btn btn-primary"
-              (click)="runExtraction()"
-              [disabled]="extractionRunning">
-              {{ extractionRunning ? 'Running extraction...' : 'Run extraction' }}
-            </button>
-          } @else {
-            <button
-              type="button"
-              class="btn btn-muted"
-              (click)="retryExtraction()"
-              [disabled]="extractionRunning">
-              {{ extractionRunning ? 'Retrying...' : 'Retry extraction' }}
-            </button>
+          @if (document.documentStatus === 'EXTRACTED') {
+            <div class="extraction-actions__left">
+              <button
+                type="button"
+                class="btn btn-muted"
+                (click)="retryExtraction()"
+                [disabled]="extractionRunning || extractionLoading || confirmingExtraction">
+                {{ extractionRunning ? 'Retrying...' : 'Retry extraction' }}
+              </button>
 
+              <button
+                type="button"
+                class="btn btn-muted"
+                (click)="loadExtraction()"
+                [disabled]="extractionLoading || extractionRunning || confirmingExtraction">
+                {{ extractionLoading ? 'Refreshing...' : 'Refresh fields' }}
+              </button>
+            </div>
+
+            <div class="extraction-actions__right">
+              <button
+                type="button"
+                class="btn btn-primary"
+                (click)="confirmExtraction()"
+                [disabled]="extractionRunning || extractionLoading || confirmingExtraction || !!editState">
+                {{ confirmingExtraction ? 'Confirming...' : 'Confirm extraction' }}
+              </button>
+            </div>
+          } @else if (document.documentStatus === 'READY_FOR_APPROVAL') {
             <button
               type="button"
               class="btn btn-muted"
               (click)="loadExtraction()"
-              [disabled]="extractionLoading || extractionRunning">
+              [disabled]="extractionLoading || extractionRunning || confirmingExtraction">
               {{ extractionLoading ? 'Refreshing...' : 'Refresh fields' }}
+            </button>
+          } @else {
+            <button
+              type="button"
+              class="btn btn-primary"
+              (click)="runExtraction()"
+              [disabled]="extractionRunning || extractionLoading || confirmingExtraction">
+              {{ extractionRunning ? 'Running extraction...' : 'Run extraction' }}
             </button>
           }
         </div>
+
+        @if (document.documentStatus === 'READY_FOR_APPROVAL') {
+          <div class="message-card message-card--success">
+            <strong>Extraction confirmed.</strong>
+            This document is ready for approval.
+          </div>
+        }
 
         @if (extractionError) {
           <div class="message-card message-card--error">
@@ -159,15 +186,27 @@
                   <th>Value</th>
                   <th>Confidence</th>
                   <th>Corrected</th>
+                  <th>Review status</th>
                   <th>Actions</th>
                 </tr>
               </thead>
+
               <tbody>
                 @for (field of extractionFields; track field.id) {
-                  <tr [class.row--editing]="isEditing(field)">
-                    <td class="mono">{{ field.fieldName }}</td>
+                  <tr
+                    [class.row--editing]="isEditing(field)"
+                    [class.row--placeholder]="isPlaceholderField(field)"
+                    [class.row--warning]="isLowConfidenceField(field) && !field.corrected && !isPlaceholderField(field)">
+                    <td class="field-cell">
+                      <div class="field-cell__content">
+                        <span class="mono">{{ field.fieldName }}</span>
 
-                    <!-- Value cell: shows input when editing, plain text otherwise -->
+                        @if (isPlaceholderField(field)) {
+                          <span class="field-pill field-pill--required">Required</span>
+                        }
+                      </div>
+                    </td>
+
                     <td class="value-cell">
                       @if (isEditing(field)) {
                         <div class="edit-cell">
@@ -180,31 +219,46 @@
                             (keydown.escape)="cancelEdit()"
                             autofocus
                           />
+
                           @if (editState!.validationError) {
                             <span class="validation-error">{{ editState!.validationError }}</span>
                           }
                         </div>
                       } @else {
-                        {{ field.value ?? '—' }}
+                        <span [class.value--missing]="isPlaceholderField(field)">
+                          {{ displayFieldValue(field) }}
+                        </span>
                       }
                     </td>
 
-                    <td>{{ formatConfidence(field.confidence) }}</td>
+                    <td>
+                      <span [class.confidence--low]="isLowConfidenceField(field)">
+                        {{ formatConfidence(field.confidence) }}
+                      </span>
+                    </td>
 
                     <td>
-                      <span class="meta-chip" [class.meta-chip--ok]="field.corrected">
+                      <span
+                        class="meta-chip"
+                        [class.meta-chip--ok]="field.corrected"
+                        [class.meta-chip--muted]="!field.corrected">
                         {{ field.corrected ? 'Yes' : 'No' }}
                       </span>
                     </td>
 
-                    <!-- Action buttons -->
+                    <td class="review-cell">
+                      <span class="review-badge" [ngClass]="getFieldReviewClass(field)">
+                        {{ getFieldReviewLabel(field) }}
+                      </span>
+                    </td>
+
                     <td class="actions-cell">
                       @if (!isEditing(field)) {
                         <button
                           type="button"
                           class="icon-btn"
                           title="Koriguj vrijednost"
-                          [disabled]="editState !== null || extractionRunning"
+                          [disabled]="editState !== null || extractionRunning || extractionLoading || confirmingExtraction"
                           (click)="startEdit(field)">
                           ✎
                         </button>
@@ -218,6 +272,7 @@
                             (click)="confirmEdit(field)">
                             {{ editState!.saving ? '…' : '✓' }}
                           </button>
+
                           <button
                             type="button"
                             class="icon-btn icon-btn--cancel"
