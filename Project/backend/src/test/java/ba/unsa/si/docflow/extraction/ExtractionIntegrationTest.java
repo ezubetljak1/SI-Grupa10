@@ -597,6 +597,44 @@ class ExtractionIntegrationTest {
     }
 
     @Test
+    void updateDateFieldWithInvalidFormatThenReturnsBadRequestAndKeepsOldValue()
+            throws Exception {
+        long[] ids = uploadAndExtractFieldWith(sampleOcrResult(), "invoice_date");
+        long extractionId = ids[0];
+        long fieldId = ids[1];
+
+        mockMvc.perform(
+                        patch(
+                                        "/api/extractions/{extractionId}/fields/{fieldId}",
+                                        extractionId,
+                                        fieldId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"value\": \"06-05-2026\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$[0].code").value("EXTRACTION_FIELD_DATE_FORMAT_INVALID"));
+
+        assertFieldUnchanged(extractionId, fieldId, "2026-05-06", false);
+    }
+
+    @Test
+    void updateDateFieldWithSupportedFormatThenSucceeds() throws Exception {
+        long[] ids = uploadAndExtractFieldWith(sampleOcrResult(), "invoice_date");
+        long extractionId = ids[0];
+        long fieldId = ids[1];
+
+        mockMvc.perform(
+                        patch(
+                                        "/api/extractions/{extractionId}/fields/{fieldId}",
+                                        extractionId,
+                                        fieldId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"value\": \"06.05.2026\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.payload.value").value("06.05.2026"))
+                .andExpect(jsonPath("$.payload.corrected").value(true));
+    }
+
+    @Test
     void updateTotalAmountWhenInconsistentWithNetPlusVatThenReturnsBadRequest() throws Exception {
         long[] ids = uploadAndExtractWith(sampleOcrResultWithNetVatTotal());
         long extractionId = ids[0];
@@ -853,6 +891,29 @@ class ExtractionIntegrationTest {
     }
 
     @Test
+    void confirmInvoiceExtractionWithInvalidDateFormatThenReturnsBadRequest() throws Exception {
+        Long documentId = uploadPdf("Invalid date format invoice");
+
+        when(ocrProvider.process(any(byte[].class), eq("application/pdf")))
+                .thenReturn(sampleOcrResultWithInvalidDateFormat());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction/confirm", documentId))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$[0].code").value("EXTRACTION_FIELD_DATE_FORMAT_INVALID"));
+
+        String documentStatus =
+                jdbcTemplate.queryForObject(
+                        "SELECT document_status FROM document WHERE id = ?",
+                        String.class,
+                        documentId);
+
+        assertEquals("EXTRACTED", documentStatus);
+    }
+
+    @Test
     void confirmInvoiceExtractionWithDifferentFieldNameCaseThenSucceeds() throws Exception {
         Long documentId = uploadPdf("Normalized field names invoice");
 
@@ -902,6 +963,17 @@ class ExtractionIntegrationTest {
                         field("supplier_name", "   ", null, "0.91"),
                         field("invoice_id", "INV-001", null, "0.97"),
                         field("invoice_date", "2026-05-06", "2026-05-06", "0.96"),
+                        field("total_amount", "117.00", "117", "0.95"),
+                        field("currency", "EUR", "EUR", "0.89")));
+    }
+
+    private OcrResult sampleOcrResultWithInvalidDateFormat() {
+        return new OcrResult(
+                "INVOICE\nSupplier: Test Company d.o.o.\nTotal: 117.00 EUR\n",
+                List.of(
+                        field("supplier_name", "Test Company d.o.o.", null, "0.91"),
+                        field("invoice_id", "INV-001", null, "0.97"),
+                        field("invoice_date", "06-05-2026", null, "0.96"),
                         field("total_amount", "117.00", "117", "0.95"),
                         field("currency", "EUR", "EUR", "0.89")));
     }
@@ -965,6 +1037,11 @@ class ExtractionIntegrationTest {
      * @return { extractionId, total_amount field id }
      */
     private long[] uploadAndExtractWith(OcrResult ocrResult) throws Exception {
+        return uploadAndExtractFieldWith(ocrResult, "total_amount");
+    }
+
+    private long[] uploadAndExtractFieldWith(OcrResult ocrResult, String fieldName)
+            throws Exception {
         Long documentId = uploadPdf("Decimal validation invoice");
 
         when(ocrProvider.process(any(byte[].class), eq("application/pdf"))).thenReturn(ocrResult);
@@ -984,10 +1061,11 @@ class ExtractionIntegrationTest {
                         SELECT ef.id
                         FROM extraction_field ef
                         WHERE ef.extraction_id = ?
-                          AND ef.field_name = 'total_amount'
+                          AND ef.field_name = ?
                         """,
                         Long.class,
-                        extractionId);
+                        extractionId,
+                        fieldName);
 
         return new long[] {extractionId, fieldId};
     }

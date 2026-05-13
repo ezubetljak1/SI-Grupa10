@@ -41,6 +41,7 @@ import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -51,17 +52,18 @@ public class ExtractionServiceImpl implements ExtractionService {
 
     /** Canonical invoice amount fields (US 7.4 – matematika). */
     private static final Set<String> DECIMAL_FIELDS =
-            Set.of("net_amount", "vat_amount", "total_amount");
-
-    /**
-     * Muhamed proširuje – validacija formata datuma pri editu polja.
-     */
-    private static final Set<String> DATE_FIELDS = Set.of();
-
-    /**
-     * Muhamed proširuje – validacija broja fakture / tekstualnog formata.
-     */
-    private static final Set<String> INVOICE_NO_FIELDS = Set.of();
+            Set.of(
+                    "net_amount",
+                    "vat_amount",
+                    "total_amount",
+                    "total_tax_amount",
+                    "tax_amount",
+                    "subtotal_amount",
+                    "amount",
+                    "price",
+                    "unit_price",
+                    "quantity",
+                    "qty");
 
     private static final BigDecimal AMOUNT_TOTAL_TOLERANCE = new BigDecimal("0.01");
 
@@ -197,16 +199,12 @@ public class ExtractionServiceImpl implements ExtractionService {
     }
 
     private void validateUpdatedFieldValue(ExtractionFieldEntity field, String newValue) {
-        String fieldName = field.getFieldName();
-        if (DATE_FIELDS.contains(fieldName)) {
-            // Muhamed proširuje – validacija formata datuma.
+        String fieldName = normalizeFieldName(field.getFieldName());
+        if (isDateField(fieldName)) {
+            extractionValidation.validateUpdatedFieldFormat(field, newValue);
             return;
         }
-        if (INVOICE_NO_FIELDS.contains(fieldName)) {
-            // Muhamed proširuje – validacija broja fakture / tekstualnog formata.
-            return;
-        }
-        if (!DECIMAL_FIELDS.contains(fieldName)) {
+        if (!isDecimalField(fieldName)) {
             return;
         }
 
@@ -261,12 +259,12 @@ public class ExtractionServiceImpl implements ExtractionService {
 
         Map<String, String> effective = new HashMap<>();
         for (ExtractionFieldEntity f : allFields) {
-            if (!DECIMAL_FIELDS.contains(f.getFieldName())) {
+            if (!isDecimalField(normalizeFieldName(f.getFieldName()))) {
                 continue;
             }
             boolean isEdited = f.getId().equals(editedField.getId());
             String v = isEdited ? newValueForEditedField : f.getValue();
-            effective.put(f.getFieldName(), v);
+            effective.put(normalizeFieldName(f.getFieldName()), v);
         }
 
         if (!effective.containsKey("net_amount")
@@ -308,6 +306,26 @@ public class ExtractionServiceImpl implements ExtractionService {
         ValidationErrors errors = new ValidationErrors();
         errors.add("EXTRACTION_FIELD_AMOUNT_INVALID", fieldName + ": " + message);
         return new ApiValidationException(errors);
+    }
+
+    private boolean isDateField(String normalizedFieldName) {
+        return normalizedFieldName.contains("date") || normalizedFieldName.contains("datum");
+    }
+
+    private boolean isDecimalField(String normalizedFieldName) {
+        return DECIMAL_FIELDS.contains(normalizedFieldName)
+                || normalizedFieldName.contains("amount")
+                || normalizedFieldName.contains("iznos")
+                || normalizedFieldName.contains("cijena")
+                || normalizedFieldName.endsWith("_price")
+                || normalizedFieldName.endsWith("_quantity");
+    }
+
+    private String normalizeFieldName(String fieldName) {
+        if (fieldName == null) {
+            return "";
+        }
+        return fieldName.trim().toLowerCase(Locale.ROOT);
     }
 
     private byte[] readDocumentContent(DocumentEntity document) throws IOException {
