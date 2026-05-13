@@ -205,38 +205,76 @@ export class DocumentDetailPageComponent implements OnInit {
   }
 
   validateEditValue(field: ExtractionField, value: string): string | null {
-    if (value.trim() === '') {
+    const trimmed = value.trim();
+
+    if (trimmed === '') {
       return 'Field value cannot be empty.';
     }
 
     const name = field.fieldName.toLowerCase();
 
     if (name.includes('date') || name.includes('datum')) {
-      const datePatterns = [
-        /^\d{4}-\d{2}-\d{2}$/,
-        /^\d{2}\.\d{2}\.\d{4}$/,
-        /^\d{2}\/\d{2}\/\d{4}$/,
-      ];
-      const valid = datePatterns.some((p) => p.test(value.trim()));
-      if (!valid) {
-        return 'Invalid date format. Accepted formats: YYYY-MM-DD, DD.MM.YYYY, MM/DD/YYYY';
+      if (!this.isValidDateValue(trimmed)) {
+        return 'Invalid date format. Accepted formats: YYYY-MM-DD, DD.MM.YYYY, DD/MM/YYYY.';
       }
     }
 
     if (
       name.includes('amount') ||
-      name.includes('total') ||
-      name.includes('price') ||
       name.includes('iznos') ||
-      name.includes('cijena')
+      name.includes('cijena') ||
+      name.endsWith('_price') ||
+      name.endsWith('_quantity') ||
+      ['net_amount', 'vat_amount', 'total_amount', 'total_tax_amount', 'tax_amount', 'subtotal_amount', 'amount', 'price', 'unit_price', 'quantity', 'qty'].includes(name)
     ) {
-      const numericPattern = /^-?\d+([.,]\d+)?$/;
-      if (!numericPattern.test(value.trim())) {
-        return 'Field must be a number (e.g. 1234.56 or 1234,56).';
+      if (!this.isValidNumericValue(trimmed)) {
+        return 'Field must be a non-negative number with up to 2 decimals (e.g. 1234.56 or 1234,56).';
       }
     }
 
     return null;
+  }
+
+  private isValidDateValue(value: string): boolean {
+    const matchers = [
+      {
+        pattern: /^(\d{4})-(\d{2})-(\d{2})$/,
+        parts: (match: RegExpMatchArray) => [Number(match[1]), Number(match[2]), Number(match[3])],
+      },
+      {
+        pattern: /^(\d{2})\.(\d{2})\.(\d{4})$/,
+        parts: (match: RegExpMatchArray) => [Number(match[3]), Number(match[2]), Number(match[1])],
+      },
+      {
+        pattern: /^(\d{2})\/(\d{2})\/(\d{4})$/,
+        parts: (match: RegExpMatchArray) => [Number(match[3]), Number(match[2]), Number(match[1])],
+      },
+    ];
+
+    for (const matcher of matchers) {
+      const match = value.match(matcher.pattern);
+      if (!match) {
+        continue;
+      }
+
+      const [year, month, day] = matcher.parts(match);
+      const parsed = new Date(Date.UTC(year, month - 1, day));
+      return (
+        parsed.getUTCFullYear() === year &&
+        parsed.getUTCMonth() === month - 1 &&
+        parsed.getUTCDate() === day
+      );
+    }
+
+    return false;
+  }
+
+  private isValidNumericValue(value: string): boolean {
+    if (value.includes(' ') || value.includes('\t') || (value.includes(',') && value.includes('.'))) {
+      return false;
+    }
+
+    return /^\d+([.,]\d{1,2})?$/.test(value);
   }
 
   confirmEdit(field: ExtractionField): void {
