@@ -13,4 +13,3 @@ export interface Extraction {
   extractionTime: string;
   fields: ExtractionField[];
 }
-
