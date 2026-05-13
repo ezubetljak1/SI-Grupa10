@@ -782,6 +782,130 @@ class ExtractionIntegrationTest {
         assertEquals("READY_FOR_APPROVAL", documentStatus);
     }
 
+    @Test
+    void confirmInvoiceExtractionWithoutRequiredFieldThenReturnsBadRequest() throws Exception {
+        Long documentId = uploadPdf("Missing required field invoice");
+
+        when(ocrProvider.process(any(byte[].class), eq("application/pdf")))
+                .thenReturn(sampleOcrResultWithoutInvoiceId());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction/confirm", documentId))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$[0].code").value("EXTRACTION_REQUIRED_FIELD_MISSING"));
+
+        String documentStatus =
+                jdbcTemplate.queryForObject(
+                        "SELECT document_status FROM document WHERE id = ?",
+                        String.class,
+                        documentId);
+
+        assertEquals("EXTRACTED", documentStatus);
+    }
+
+    @Test
+    void confirmInvoiceExtractionWithBlankFieldThenReturnsBadRequest() throws Exception {
+        Long documentId = uploadPdf("Blank required field invoice");
+
+        when(ocrProvider.process(any(byte[].class), eq("application/pdf")))
+                .thenReturn(sampleOcrResultWithBlankSupplierName());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction/confirm", documentId))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$[0].code").value("EXTRACTION_FIELD_EMPTY"));
+
+        String documentStatus =
+                jdbcTemplate.queryForObject(
+                        "SELECT document_status FROM document WHERE id = ?",
+                        String.class,
+                        documentId);
+
+        assertEquals("EXTRACTED", documentStatus);
+    }
+
+    @Test
+    void confirmInvoiceExtractionWithRequiredFieldsThenSucceeds() throws Exception {
+        Long documentId = uploadPdf("Valid required fields invoice");
+
+        when(ocrProvider.process(any(byte[].class), eq("application/pdf")))
+                .thenReturn(sampleOcrResult());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction/confirm", documentId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("OK"))
+                .andExpect(jsonPath("$.payload.documentId").value(documentId));
+
+        String documentStatus =
+                jdbcTemplate.queryForObject(
+                        "SELECT document_status FROM document WHERE id = ?",
+                        String.class,
+                        documentId);
+
+        assertEquals("READY_FOR_APPROVAL", documentStatus);
+    }
+
+    @Test
+    void confirmInvoiceExtractionWithDifferentFieldNameCaseThenSucceeds() throws Exception {
+        Long documentId = uploadPdf("Normalized field names invoice");
+
+        when(ocrProvider.process(any(byte[].class), eq("application/pdf")))
+                .thenReturn(sampleOcrResultWithMixedCaseFieldNames());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction/confirm", documentId))
+                .andExpect(status().isOk());
+
+        String documentStatus =
+                jdbcTemplate.queryForObject(
+                        "SELECT document_status FROM document WHERE id = ?",
+                        String.class,
+                        documentId);
+
+        assertEquals("READY_FOR_APPROVAL", documentStatus);
+    }
+
+    private OcrResult sampleOcrResultWithMixedCaseFieldNames() {
+        return new OcrResult(
+                "INVOICE\nSupplier: Test Company d.o.o.\nTotal: 117.00 EUR\n",
+                List.of(
+                        field(" Supplier_Name ", "Test Company d.o.o.", null, "0.91"),
+                        field("Invoice_ID", "INV-001", null, "0.97"),
+                        field("INVOICE_DATE", "2026-05-06", "2026-05-06", "0.96"),
+                        field("Total_Amount", "117.00", "117", "0.95"),
+                        field("Currency", "EUR", "EUR", "0.89")));
+    }
+
+    private OcrResult sampleOcrResultWithoutInvoiceId() {
+        return new OcrResult(
+                "INVOICE\nSupplier: Test Company d.o.o.\nTotal: 117.00 EUR\n",
+                List.of(
+                        field("supplier_name", "Test Company d.o.o.", null, "0.91"),
+                        field("invoice_date", "2026-05-06", "2026-05-06", "0.96"),
+                        field("total_amount", "117.00", "117", "0.95"),
+                        field("currency", "EUR", "EUR", "0.89")));
+    }
+
+    private OcrResult sampleOcrResultWithBlankSupplierName() {
+        return new OcrResult(
+                "INVOICE\nSupplier:\nTotal: 117.00 EUR\n",
+                List.of(
+                        field("supplier_name", "   ", null, "0.91"),
+                        field("invoice_id", "INV-001", null, "0.97"),
+                        field("invoice_date", "2026-05-06", "2026-05-06", "0.96"),
+                        field("total_amount", "117.00", "117", "0.95"),
+                        field("currency", "EUR", "EUR", "0.89")));
+    }
+
     private OcrResult sampleLowConfidenceOcrResult() {
         return new OcrResult(
                 "INVOICE\nSupplier: Test Company d.o.o.\nTotal: 117.00 EUR\n",
