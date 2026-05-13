@@ -378,7 +378,7 @@ Sprintovi 1–4 fokusirani su na human-first fazu projekta i obuhvataju analizu 
 
 | ID | Naziv zadatka ili storyja | Odgovorna osoba ili osobe | Status | Napomena |
 |---|---|---|---|---|
-| SB-7.1 | Edit forma za izdvojena polja |  | Planned | Ručna korekcija podataka |
+| SB-7.1 | Edit forma za izdvojena polja | Mušinović Emina i Kovač Azra | Done | Ručna korekcija podataka |
 | SB-7.2 | Server-side i client-side validacije |  | Planned | Potrebno za konzistentnost |
 | SB-7.3 | Validacija obaveznih polja |  | Planned | Sprječava nepotpun unos |
 | SB-7.4 | Validacija formata |  | Planned | Datum, brojčane vrijednosti |
