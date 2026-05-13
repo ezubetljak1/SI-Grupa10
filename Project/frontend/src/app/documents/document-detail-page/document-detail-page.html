@@ -102,7 +102,7 @@
 
       <app-ui-card
         title="Extracted fields"
-        subtitle="Automatically extracted fields from OCR/AI processing.">
+        subtitle="Automatically extracted fields from OCR/AI processing. Click a row to manually correct a value.">
         <div class="extraction-actions">
           @if (document.documentStatus !== 'EXTRACTED') {
             <button
@@ -124,7 +124,7 @@
             <button
               type="button"
               class="btn btn-muted"
-              (click)="loadExtractionFields()"
+              (click)="loadExtraction()"
               [disabled]="extractionLoading || extractionRunning">
               {{ extractionLoading ? 'Refreshing...' : 'Refresh fields' }}
             </button>
@@ -159,18 +159,75 @@
                   <th>Value</th>
                   <th>Confidence</th>
                   <th>Corrected</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 @for (field of extractionFields; track field.id) {
-                  <tr>
+                  <tr [class.row--editing]="isEditing(field)">
                     <td class="mono">{{ field.fieldName }}</td>
-                    <td>{{ field.value ?? '—' }}</td>
+
+                    <!-- Value cell: shows input when editing, plain text otherwise -->
+                    <td class="value-cell">
+                      @if (isEditing(field)) {
+                        <div class="edit-cell">
+                          <input
+                            class="input edit-input"
+                            type="text"
+                            [(ngModel)]="editState!.editValue"
+                            [disabled]="editState!.saving"
+                            (keydown.enter)="confirmEdit(field)"
+                            (keydown.escape)="cancelEdit()"
+                            autofocus
+                          />
+                          @if (editState!.validationError) {
+                            <span class="validation-error">{{ editState!.validationError }}</span>
+                          }
+                        </div>
+                      } @else {
+                        {{ field.value ?? '—' }}
+                      }
+                    </td>
+
                     <td>{{ formatConfidence(field.confidence) }}</td>
+
                     <td>
                       <span class="meta-chip" [class.meta-chip--ok]="field.corrected">
                         {{ field.corrected ? 'Yes' : 'No' }}
                       </span>
+                    </td>
+
+                    <!-- Action buttons -->
+                    <td class="actions-cell">
+                      @if (!isEditing(field)) {
+                        <button
+                          type="button"
+                          class="icon-btn"
+                          title="Koriguj vrijednost"
+                          [disabled]="editState !== null || extractionRunning"
+                          (click)="startEdit(field)">
+                          ✎
+                        </button>
+                      } @else {
+                        <div class="edit-actions">
+                          <button
+                            type="button"
+                            class="icon-btn icon-btn--confirm"
+                            title="Potvrdi izmjenu"
+                            [disabled]="editState!.saving"
+                            (click)="confirmEdit(field)">
+                            {{ editState!.saving ? '…' : '✓' }}
+                          </button>
+                          <button
+                            type="button"
+                            class="icon-btn icon-btn--cancel"
+                            title="Odustani"
+                            [disabled]="editState!.saving"
+                            (click)="cancelEdit()">
+                            ✕
+                          </button>
+                        </div>
+                      }
                     </td>
                   </tr>
                 }
