@@ -14,9 +14,9 @@ import ba.unsa.si.docflow.entity.enums.DocumentType;
 import ba.unsa.si.docflow.exception.ApiNotFoundException;
 import ba.unsa.si.docflow.exception.ApiValidationException;
 import ba.unsa.si.docflow.exception.ExtractionException;
-import ba.unsa.si.docflow.response.ValidationErrors;
 import ba.unsa.si.docflow.mapper.ExtractionMapper;
 import ba.unsa.si.docflow.response.ApiResponse;
+import ba.unsa.si.docflow.response.ValidationErrors;
 import ba.unsa.si.docflow.service.document.DocumentValidation;
 import ba.unsa.si.docflow.service.ocr.OcrProvider;
 import ba.unsa.si.docflow.service.ocr.model.OcrExtractedField;
@@ -44,6 +44,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @Transactional(noRollbackFor = ExtractionException.class)
@@ -86,11 +87,13 @@ public class ExtractionServiceImpl implements ExtractionService {
             String mimeType = resolveMimeType(document);
 
             OcrResult ocrResult = ocrProvider.process(fileContent, mimeType);
+            DocumentType resolvedDocumentType = resolveDocumentType(ocrResult);
 
-            ExtractionEntity extraction = upsertExtraction(document, ocrResult);
+            ExtractionEntity extraction =
+                    upsertExtraction(document, ocrResult, resolvedDocumentType);
 
             document.setDocumentStatus(DocumentStatus.EXTRACTED);
-            document.setDocumentType(resolveDocumentType(ocrResult));
+            document.setDocumentType(resolvedDocumentType);
             documentDAO.merge(document);
 
             ExtractionResponse response = extractionMapper.entityToDto(extraction);
@@ -192,6 +195,7 @@ public class ExtractionServiceImpl implements ExtractionService {
 
         field.setValue(request.getValue());
         field.setCorrected(true);
+        field.setPlaceholder(false);
 
         ExtractionFieldEntity updatedField = extractionFieldDAO.merge(field);
 
@@ -223,7 +227,8 @@ public class ExtractionServiceImpl implements ExtractionService {
         }
 
         if (trimmed.contains(",") && trimmed.contains(".")) {
-            throw invalidAmount(fieldName, "Use either comma or dot as decimal separator, not both.");
+            throw invalidAmount(
+                    fieldName, "Use either comma or dot as decimal separator, not both.");
         }
 
         int comma = trimmed.indexOf(',');
@@ -344,7 +349,8 @@ public class ExtractionServiceImpl implements ExtractionService {
         return MediaType.APPLICATION_OCTET_STREAM_VALUE;
     }
 
-    private ExtractionEntity upsertExtraction(DocumentEntity document, OcrResult ocrResult) {
+    private ExtractionEntity upsertExtraction(
+            DocumentEntity document, OcrResult ocrResult, DocumentType documentType) {
         ExtractionEntity extraction = extractionDAO.findByDocumentId(document.getId());
 
         if (extraction == null) {
@@ -365,12 +371,45 @@ public class ExtractionServiceImpl implements ExtractionService {
                         .toList();
 
         extraction.getFields().addAll(fieldEntities);
+        addMissingRequiredFieldPlaceholders(extraction, documentType);
 
         if (extraction.getId() == null) {
             return extractionDAO.persist(extraction);
         }
 
         return extractionDAO.merge(extraction);
+    }
+
+    private void addMissingRequiredFieldPlaceholders(
+            ExtractionEntity extraction, DocumentType documentType) {
+        Set<String> requiredFields = extractionValidation.getRequiredFields(documentType);
+
+        if (requiredFields.isEmpty()) {
+            return;
+        }
+
+        Set<String> existingFieldNames =
+                extraction.getFields().stream()
+                        .map(ExtractionFieldEntity::getFieldName)
+                        .filter(StringUtils::hasText)
+                        .map(this::normalizeFieldName)
+                        .collect(Collectors.toSet());
+
+        for (String requiredField : requiredFields) {
+            if (existingFieldNames.contains(requiredField)) {
+                continue;
+            }
+
+            ExtractionFieldEntity placeholder = new ExtractionFieldEntity();
+            placeholder.setExtraction(extraction);
+            placeholder.setFieldName(requiredField);
+            placeholder.setValue(null);
+            placeholder.setConfidence(BigDecimal.ZERO.setScale(6, RoundingMode.HALF_UP));
+            placeholder.setCorrected(false);
+            placeholder.setPlaceholder(true);
+
+            extraction.getFields().add(placeholder);
+        }
     }
 
     private ExtractionFieldEntity toExtractionFieldEntity(
@@ -382,6 +421,7 @@ public class ExtractionServiceImpl implements ExtractionService {
         entity.setValue(resolveFieldValue(field));
         entity.setConfidence(scaleConfidence(field.getConfidence()));
         entity.setCorrected(false);
+        entity.setPlaceholder(false);
 
         return entity;
     }
