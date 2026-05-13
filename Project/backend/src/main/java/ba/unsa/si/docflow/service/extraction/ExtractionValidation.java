@@ -1,11 +1,15 @@
 package ba.unsa.si.docflow.service.extraction;
 
+import ba.unsa.si.docflow.entity.enums.DocumentType;
 import ba.unsa.si.docflow.entity.ExtractionEntity;
 import ba.unsa.si.docflow.entity.ExtractionFieldEntity;
 import ba.unsa.si.docflow.exception.ApiValidationException;
 import ba.unsa.si.docflow.response.ValidationErrors;
 import org.springframework.util.StringUtils;
 import org.springframework.stereotype.Service;
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import java.math.BigDecimal;
 
@@ -13,11 +17,20 @@ import java.math.BigDecimal;
 public class ExtractionValidation {
     private static final BigDecimal MIN_CONFIDENCE_FOR_AUTO_CONFIRM = new BigDecimal("0.70");
 
+    private static final Set<String> REQUIRED_INVOICE_FIELDS =
+            Set.of(
+                    "invoice_id",
+                    "invoice_date",
+                    "supplier_name",
+                    "total_amount",
+                    "currency"
+            );
+
     public void validateRequiredFields(ExtractionEntity extraction) {
         ValidationErrors errors = new ValidationErrors();
 
         validateLowConfidenceFieldsAreCorrected(extraction, errors);
-        validateRequiredFieldsExist(extraction, errors);
+        validateExtractionFields(extraction, errors);
 
         if (errors.hasErrors()) {
             throw new ApiValidationException(errors);
@@ -37,39 +50,79 @@ public class ExtractionValidation {
         }
     }
 
-    private void validateRequiredFieldsExist(
-            ExtractionEntity extraction,
-            ValidationErrors errors
-    ) {
-
-        for (ExtractionFieldEntity field : extraction.getFields()) {
-
-            String fieldName = field.getFieldName();
-            String value = field.getValue();
-
-            if (isRequiredField(fieldName)
-                    && !StringUtils.hasText(value)) {
-
-                errors.add(
-                        "EXTRACTION_REQUIRED_FIELD_MISSING",
-                        "Field '" + fieldName + "' is required and cannot be empty."
-                );
-            }
-        }
-    }
-
     private boolean isLowConfidence(ExtractionFieldEntity field) {
         return field.getConfidence() != null
                 && field.getConfidence().compareTo(MIN_CONFIDENCE_FOR_AUTO_CONFIRM) < 0;
     }
 
-    private boolean isRequiredField(String fieldName) {
+    private void validateExtractionFields(
+            ExtractionEntity extraction,
+            ValidationErrors errors
+    ) {
 
-        String normalized = fieldName.toLowerCase();
+        List<ExtractionFieldEntity> fields = extraction.getFields();
 
-        return normalized.equals("invoice_id")
-                || normalized.contains("amount")
-                || normalized.contains("date")
-                || normalized.contains("currency");
+        if (fields == null || fields.isEmpty()) {
+
+            errors.add(
+                    "EXTRACTION_FIELDS_MISSING",
+                    "No extraction fields were found."
+            );
+
+            return;
+        }
+
+        DocumentType documentType =
+                extraction.getDocument().getDocumentType();
+
+        if (documentType == DocumentType.INVOICE) {
+
+            validateRequiredInvoiceFields(fields, errors);
+        }
+
+        validateFieldsAreNotBlank(fields, errors);
+    }
+
+    private void validateRequiredInvoiceFields(
+            List<ExtractionFieldEntity> fields,
+            ValidationErrors errors
+    ) {
+
+        Set<String> extractedFieldNames =
+                fields.stream()
+                        .map(ExtractionFieldEntity::getFieldName)
+                        .collect(Collectors.toSet());
+
+        for (String requiredField : REQUIRED_INVOICE_FIELDS) {
+
+            if (!extractedFieldNames.contains(requiredField)) {
+
+                errors.add(
+                        "EXTRACTION_REQUIRED_FIELD_MISSING",
+                        "Required field '"
+                                + requiredField
+                                + "' is missing."
+                );
+            }
+        }
+    }
+
+    private void validateFieldsAreNotBlank(
+            List<ExtractionFieldEntity> fields,
+            ValidationErrors errors
+    ) {
+
+        for (ExtractionFieldEntity field : fields) {
+
+            if (!StringUtils.hasText(field.getValue())) {
+
+                errors.add(
+                        "EXTRACTION_FIELD_EMPTY",
+                        "Field '"
+                                + field.getFieldName()
+                                + "' cannot be empty."
+                );
+            }
+        }
     }
 }

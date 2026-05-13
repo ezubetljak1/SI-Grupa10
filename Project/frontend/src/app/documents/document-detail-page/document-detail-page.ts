@@ -220,22 +220,6 @@ export class DocumentDetailPageComponent implements OnInit {
     });
   }
 
-isRequiredField(fieldName: string): boolean {
-
-  const normalized = fieldName.toLowerCase();
-
-  return normalized === 'invoice_id'
-    || normalized.includes('amount')
-    || normalized.includes('date')
-    || normalized.includes('currency');
-}
-
-isOptionalEmptyField(field: ExtractionField): boolean {
-
-  return !this.isRequiredField(field.fieldName)
-    && (!field.value || !field.value.trim());
-}
-
   private resolveDownloadFileName(doc: DocflowDocument): string {
     if (doc.name.includes('.')) return doc.name;
     const ext = this.resolveExtension(doc);
