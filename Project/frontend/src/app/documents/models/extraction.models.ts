@@ -4,6 +4,7 @@ export interface ExtractionField {
   value: string | null;
   confidence: number | null;
   corrected: boolean;
+  placeholder: boolean;
 }
 
 export interface Extraction {

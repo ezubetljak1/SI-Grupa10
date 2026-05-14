@@ -95,6 +95,13 @@ export class DocumentApiService {
     );
   }
 
+  confirmExtraction(documentId: number): Observable<ApiResponse<Extraction>> {
+    return this.http.post<ApiResponse<Extraction>>(
+      `${this.baseUrl}/${documentId}/extraction/confirm`,
+      {}
+    );
+  }
+
   filter(params: DocumentFilterRequest): Observable<PagedResponse<DocflowDocument>> {
     return this.getAll(params);
   }

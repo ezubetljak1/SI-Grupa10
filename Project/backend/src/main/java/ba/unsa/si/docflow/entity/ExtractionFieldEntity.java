@@ -36,4 +36,7 @@ public class ExtractionFieldEntity {
 
     @Column(name = "is_corrected", nullable = false)
     private Boolean corrected = false;
+
+    @Column(name = "is_placeholder", nullable = false, columnDefinition = "boolean default false")
+    private Boolean placeholder = false;
 }

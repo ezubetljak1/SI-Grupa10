@@ -1,6 +1,13 @@
 import { Component, Input } from '@angular/core';
 
-type BadgeVariant = 'success' | 'warning' | 'error' | 'info' | 'processing' | 'neutral';
+type BadgeVariant =
+  | 'success'
+  | 'warning'
+  | 'error'
+  | 'info'
+  | 'processing'
+  | 'approval'
+  | 'neutral';
 
 @Component({
   selector: 'app-status-badge',
@@ -26,6 +33,7 @@ export class StatusBadgeComponent {
       ERROR: 'Error',
       REJECTED: 'Rejected',
       PROCESSING_FAILED: 'Processing Failed',
+      READY_FOR_APPROVAL: 'Ready For Approval',
       UNKNOWN: 'Unknown'
     };
 
@@ -43,6 +51,7 @@ export class StatusBadgeComponent {
       ERROR: 'error',
       REJECTED: 'error',
       PROCESSING_FAILED: 'error',
+      READY_FOR_APPROVAL: 'approval',
       UNKNOWN: 'neutral'
     };
 

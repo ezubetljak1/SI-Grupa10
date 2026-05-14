@@ -16,6 +16,7 @@ import java.time.format.DateTimeParseException;
 import java.time.format.ResolverStyle;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -47,8 +48,10 @@ public class ExtractionValidation {
     private static final List<DateTimeFormatter> ACCEPTED_DATE_FORMATS =
             List.of(
                     DateTimeFormatter.ISO_LOCAL_DATE.withResolverStyle(ResolverStyle.STRICT),
-                    DateTimeFormatter.ofPattern("dd.MM.uuuu").withResolverStyle(ResolverStyle.STRICT),
-                    DateTimeFormatter.ofPattern("dd/MM/uuuu").withResolverStyle(ResolverStyle.STRICT));
+                    DateTimeFormatter.ofPattern("dd.MM.uuuu")
+                            .withResolverStyle(ResolverStyle.STRICT),
+                    DateTimeFormatter.ofPattern("dd/MM/uuuu")
+                            .withResolverStyle(ResolverStyle.STRICT));
 
     public void validateRequiredFields(ExtractionEntity extraction) {
         ValidationErrors errors = new ValidationErrors();
@@ -61,6 +64,14 @@ public class ExtractionValidation {
         }
     }
 
+    public Set<String> getRequiredFields(DocumentType documentType) {
+        if (documentType == DocumentType.INVOICE) {
+            return REQUIRED_INVOICE_FIELDS;
+        }
+
+        return Set.of();
+    }
+
     public void validateUpdatedFieldFormat(ExtractionFieldEntity field, String value) {
         ValidationErrors errors = new ValidationErrors();
         validateFieldFormat(field.getFieldName(), value, errors);
@@ -71,7 +82,17 @@ public class ExtractionValidation {
 
     private void validateLowConfidenceFieldsAreCorrected(
             ExtractionEntity extraction, ValidationErrors errors) {
+        if (extraction == null
+                || extraction.getFields() == null
+                || extraction.getFields().isEmpty()) {
+            return;
+        }
+
         for (ExtractionFieldEntity field : extraction.getFields()) {
+            if (Boolean.TRUE.equals(field.getPlaceholder())) {
+                continue;
+            }
+
             if (isLowConfidence(field) && !Boolean.TRUE.equals(field.getCorrected())) {
                 errors.add(
                         "EXTRACTION_FIELD_LOW_CONFIDENCE",
@@ -95,24 +116,35 @@ public class ExtractionValidation {
             validateRequiredInvoiceFields(fields, errors);
         }
 
-        validateFieldsAreNotBlank(fields, errors);
         validateFieldFormats(fields, errors);
     }
 
     private void validateRequiredInvoiceFields(
             List<ExtractionFieldEntity> fields, ValidationErrors errors) {
-        Set<String> extractedFieldNames =
+        Map<String, ExtractionFieldEntity> fieldsByName =
                 fields.stream()
-                        .map(ExtractionFieldEntity::getFieldName)
-                        .filter(StringUtils::hasText)
-                        .map(this::normalizeFieldName)
-                        .collect(Collectors.toSet());
+                        .filter(field -> StringUtils.hasText(field.getFieldName()))
+                        .collect(
+                                Collectors.toMap(
+                                        field -> normalizeFieldName(field.getFieldName()),
+                                        field -> field,
+                                        (first, second) -> first));
 
         for (String requiredField : REQUIRED_INVOICE_FIELDS) {
-            if (!extractedFieldNames.contains(requiredField)) {
+            ExtractionFieldEntity field = fieldsByName.get(requiredField);
+
+            if (field == null || Boolean.TRUE.equals(field.getPlaceholder())) {
                 errors.add(
                         "EXTRACTION_REQUIRED_FIELD_MISSING",
-                        "Required field '" + requiredField + "' is missing.");
+                        "Required field '"
+                                + requiredField
+                                + "' is missing and must be filled before confirmation.");
+                continue;
+            }
+
+            if (!StringUtils.hasText(field.getValue())) {
+                errors.add(
+                        "EXTRACTION_FIELD_EMPTY", "Field '" + requiredField + "' cannot be empty.");
             }
         }
     }
