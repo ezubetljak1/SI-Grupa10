@@ -280,3 +280,127 @@ Zaključak:
 - Svi evidentirani testovi za Sprint 6 imaju status `Pass`.
 
 ---
+
+# Sprint 7 – Testiranje editovanja, validacije i potvrde ekstrakcije
+
+## 7.1 Funkcionalnosti koje se testiraju
+
+U Sprintu 7 fokus testiranja je na ručnom editovanju izdvojenih OCR/AI polja, validaciji vrijednosti i potvrdi ekstrakcije nakon korisničkog review-a.
+
+Testirane funkcionalnosti uključuju:
+
+- ručno editovanje jednog extraction field-a,
+- validaciju vrijednosti za datume i numerička polja,
+- potvrdu ekstrakcije kroz confirm endpoint,
+- promjenu statusa dokumenta u `READY_FOR_APPROVAL`,
+- blokiranje potvrde ako postoje nepregledana low-confidence polja,
+- automatsko kreiranje placeholder redova za required polja koja OCR nije vratio,
+- ručno popunjavanje placeholder required polja,
+- frontend prikaz review statusa polja,
+- toastr poruke za validation greške,
+- regresionu provjeru retry extraction flow-a nakon uvođenja placeholder logike,
+- deployment smoke provjeru backend/frontend containera i nove `is_placeholder` kolone.
+
+---
+
+## 7.2 Backend/API i integracijsko testiranje
+
+| ID testa | Vrsta testiranja | Funkcionalnost | Ulaz / koraci | Očekivani ishod | Stvarni ishod | Status |
+|---|---|---|---|---|---|---|
+| S7-BE-001 | Integration testiranje | Uspješan edit jednog extraction field-a | Postojeći dokument sa pokrenutom ekstrakcijom; poslati `PATCH /api/extractions/{extractionId}/fields/{fieldId}` sa body `{ "value": "125.50" }` | Backend vraća `200 OK`, ažuriranu vrijednost i `corrected = true` | Endpoint je vratio `200 OK`; vrijednost polja je promijenjena, a polje je označeno kao ručno korigovano | Pass |
+| S7-BE-002 | Integration testiranje | Zaštita od editovanja polja koje ne pripada datoj ekstrakciji | `fieldId` iz prve ekstrakcije se šalje uz `extractionId` druge ekstrakcije | Backend vraća `404 NOT_FOUND`, a postojeća vrijednost polja ostaje nepromijenjena | Endpoint je vratio `404 NOT_FOUND`; prethodna vrijednost i status korekcije nisu promijenjeni | Pass |
+| S7-BE-003 | Integration testiranje | Potvrda ekstrakcije nakon ručne korekcije | Dokument sa pokrenutom ekstrakcijom i prethodno editovanim poljem | Confirm endpoint vraća `200 OK`, dokument prelazi u `READY_FOR_APPROVAL`, a prethodne korekcije ostaju sačuvane | Endpoint je vratio `200 OK`; dokument je označen kao `READY_FOR_APPROVAL`, a editovana vrijednost i `corrected = true` su ostali sačuvani | Pass |
+| S7-BE-004 | Backend/API testiranje | Potvrda ekstrakcije prije pokretanja OCR/AI obrade | Uploadovan dokument bez kreirane ekstrakcije; pozvati confirm endpoint | Backend vraća `404 NOT_FOUND` jer ne postoji extraction rezultat | Endpoint je vratio `404 NOT_FOUND`, jer za dokument još ne postoji extraction rezultat | Pass |
+| S7-BE-005 | Validaciono testiranje | Odbijanje prazne vrijednosti za decimalno polje | Postojeći `total_amount` field; poslati body `{ "value": "" }` | Backend vraća `400 Bad Request` sa kodom `EXTRACTION_FIELD_AMOUNT_INVALID`; prethodna vrijednost ostaje nepromijenjena | Endpoint je vratio `400 Bad Request`; vrijednost polja nije promijenjena | Pass |
+| S7-BE-006 | Validaciono testiranje | Odbijanje nenumeričke vrijednosti za decimalno polje | Postojeći `total_amount` field; poslati body `{ "value": "abc" }` | Backend vraća `400 Bad Request` sa kodom `EXTRACTION_FIELD_AMOUNT_INVALID`; prethodna vrijednost ostaje nepromijenjena | Endpoint je vratio `400 Bad Request`; vrijednost polja nije promijenjena | Pass |
+| S7-BE-007 | Validaciono testiranje | Odbijanje decimalne vrijednosti sa previše decimala | Postojeći `total_amount` field; poslati body `{ "value": "117.001" }` | Backend vraća `400 Bad Request` sa kodom `EXTRACTION_FIELD_AMOUNT_INVALID`; prethodna vrijednost ostaje nepromijenjena | Endpoint je vratio `400 Bad Request`; vrijednost polja nije promijenjena | Pass |
+| S7-BE-008 | Validaciono testiranje | Odbijanje negativne vrijednosti za decimalno polje | Postojeći `total_amount` field; poslati body `{ "value": "-1.00" }` | Backend vraća `400 Bad Request` sa kodom `EXTRACTION_FIELD_AMOUNT_INVALID`; negativna vrijednost se ne sprema | Endpoint je vratio `400 Bad Request`; negativna vrijednost nije prihvaćena | Pass |
+| S7-BE-009 | Validaciono testiranje | Prihvatanje zareza kao decimalnog separatora | Postojeći `total_amount` field; poslati body `{ "value": "125,50" }` | Backend vraća `200 OK`, vrijednost se ažurira i polje dobija `corrected = true` | Endpoint je vratio `200 OK`; vrijednost `125,50` je prihvaćena i polje je označeno kao korigovano | Pass |
+| S7-BE-010 | Validaciono testiranje | Odbijanje nevalidnog formata datuma pri editovanju | Postojeći `invoice_date` field; poslati body `{ "value": "06-05-2026" }` | Backend vraća `400 Bad Request` sa kodom `EXTRACTION_FIELD_DATE_FORMAT_INVALID`; prethodna vrijednost ostaje nepromijenjena | Endpoint je vratio `400 Bad Request`; nevalidan format datuma nije prihvaćen | Pass |
+| S7-BE-011 | Validaciono testiranje | Prihvatanje podržanog formata datuma pri editovanju | Postojeći `invoice_date` field; poslati body `{ "value": "06.05.2026" }` | Backend vraća `200 OK`, vrijednost se ažurira i polje dobija `corrected = true` | Endpoint je vratio `200 OK`; podržani format datuma je prihvaćen | Pass |
+| S7-BE-012 | Validaciono testiranje | Odbijanje nekonzistentnog total amount iznosa | Ekstrakcija sadrži `net_amount = 100.00`, `vat_amount = 17.00`, `total_amount = 117.00`; pokušati update `total_amount` na `200.00` | Backend vraća `400 Bad Request` sa kodom `EXTRACTION_FIELD_AMOUNT_INCONSISTENT`; prethodna vrijednost ostaje nepromijenjena | Endpoint je vratio `400 Bad Request`; nekonzistentan total amount nije prihvaćen | Pass |
+| S7-BE-013 | Validaciono testiranje | Blokiranje confirma kada postoji low-confidence polje koje nije ručno pregledano | Dokument sa ekstrakcijom gdje `total_amount` ima confidence score ispod praga i nije `corrected` | Confirm endpoint vraća `400 Bad Request` sa kodom `EXTRACTION_FIELD_LOW_CONFIDENCE`; dokument ostaje u statusu `EXTRACTED` | Confirm je odbijen; dokument je ostao u statusu `EXTRACTED` | Pass |
+| S7-BE-014 | Integration testiranje | Uspješan confirm nakon ručne korekcije low-confidence polja | Low-confidence `total_amount` polje se ručno edituje, zatim se poziva confirm endpoint | Confirm endpoint vraća `200 OK`, a dokument prelazi u `READY_FOR_APPROVAL` | Confirm je uspješno izvršen nakon ručnog pregleda/korekcije polja | Pass |
+| S7-BE-015 | Validaciono testiranje | Blokiranje confirma kada nedostaje required polje | OCR rezultat ne sadrži jedno required invoice polje | Confirm endpoint vraća `400 Bad Request` sa kodom `EXTRACTION_REQUIRED_FIELD_MISSING`; dokument ostaje u statusu `EXTRACTED` | Confirm je odbijen jer required polje nije validno popunjeno | Pass |
+| S7-BE-016 | Validaciono testiranje | Blokiranje confirma kada je required polje prazno | OCR rezultat sadrži `supplier_name` kao prazan string | Confirm endpoint vraća `400 Bad Request` sa kodom `EXTRACTION_FIELD_EMPTY`; dokument ostaje u statusu `EXTRACTED` | Confirm je odbijen jer required polje ima praznu vrijednost | Pass |
+| S7-BE-017 | Integration testiranje | Uspješan confirm kada su required polja validno popunjena | Dokument sa ekstrakcijom koja sadrži sva required invoice polja | Confirm endpoint vraća `200 OK`, a dokument prelazi u status `READY_FOR_APPROVAL` | Confirm je uspješno izvršen; dokument je dobio status `READY_FOR_APPROVAL` | Pass |
+| S7-BE-018 | Validaciono testiranje | Blokiranje confirma zbog nevalidnog formata datuma | OCR rezultat sadrži `invoice_date = 06-05-2026` | Confirm endpoint vraća `400 Bad Request` sa kodom `EXTRACTION_FIELD_DATE_FORMAT_INVALID`; dokument ostaje u statusu `EXTRACTED` | Confirm je odbijen zbog nevalidnog formata datuma | Pass |
+| S7-BE-019 | Integration testiranje | Normalizacija naziva polja pri confirm validaciji | OCR rezultat sadrži nazive polja različitog case-a i dodatne razmake, npr. ` Supplier_Name `, `Invoice_ID`, `INVOICE_DATE` | Backend normalizuje nazive polja i confirm prolazi ako su vrijednosti validne | Confirm je uspješno izvršen i dokument je prešao u `READY_FOR_APPROVAL` | Pass |
+| S7-BE-020 | Integration testiranje | Kreiranje placeholder redova za missing required polja | OCR rezultat sadrži samo `invoice_id`, `invoice_date` i `total_amount`, bez `supplier_name` i `currency` | Backend nakon ekstrakcije automatski dodaje `supplier_name` i `currency` kao placeholder polja sa `placeholder = true` | Backend je kreirao placeholder redove za missing required polja | Pass |
+| S7-BE-021 | Validaciono testiranje | Blokiranje confirma dok postoje required placeholder polja | Dokument ima ekstrakciju u kojoj `supplier_name` i `currency` postoje kao placeholder polja | Confirm endpoint vraća `400 Bad Request` sa kodom `EXTRACTION_REQUIRED_FIELD_MISSING`; dokument ostaje u statusu `EXTRACTED` | Confirm je odbijen dok placeholder required polja nisu ručno popunjena | Pass |
+| S7-BE-022 | Integration testiranje | Editovanje placeholder polja | Placeholder polje `supplier_name` se edituje vrijednošću `Manual Supplier d.o.o.` | Backend vraća `200 OK`; polje dobija novu vrijednost, `corrected = true` i `placeholder = false` | Placeholder polje je uspješno popunjeno i više nije označeno kao placeholder | Pass |
+| S7-BE-023 | Integration testiranje | Uspješan confirm nakon popunjavanja svih placeholder required polja | Dokument ima placeholder polja `supplier_name` i `currency`; oba polja se ručno popunjavaju prije confirma | Confirm endpoint vraća `200 OK`, dokument prelazi u `READY_FOR_APPROVAL`, a broj placeholder polja postaje 0 | Confirm je uspješno izvršen nakon popunjavanja placeholder polja | Pass |
+| S7-BE-024 | Regresiono testiranje | Retry ekstrakcije nakon uvođenja placeholder logike | Dokument sa postojećom ekstrakcijom; retry OCR rezultat vraća samo dio required polja | Retry koristi isti extraction zapis, zamjenjuje prethodna polja novim rezultatom i dodaje missing required polja kao placeholder redove | Retry je zadržao isti extraction ID, zamijenio polja i dodao potrebne placeholder redove | Pass |
+
+---
+
+## 7.3 Frontend/UI testiranje
+
+| ID testa | Vrsta testiranja | Funkcionalnost | Koraci testiranja | Očekivani ishod | Stvarni ishod | Status |
+|---|---|---|---|---|---|---|
+| S7-UI-001 | Frontend/UI testiranje | Prikaz Confirm extraction dugmeta | Otvoriti detalje dokumenta koji ima status `EXTRACTED` | Prikazuje se dugme `Confirm extraction`, odvojeno od akcija za retry/refresh | Dugme za confirm je prikazano na document detail stranici i dostupno nakon ekstrakcije | Pass |
+| S7-UI-002 | Frontend/UI testiranje | Prikaz placeholder required polja u tabeli | Pokrenuti ekstrakciju nad dokumentom gdje OCR ne vrati sva required polja | Missing required polja se prikazuju u tabeli i jasno su označena kao polja koja korisnik mora popuniti | Placeholder polja su prikazana i označena kao `Missing required` / `Required` | Pass |
+| S7-UI-003 | Frontend/UI testiranje | Ručno popunjavanje placeholder polja kroz UI | Kliknuti edit na placeholder polje, unijeti vrijednost i potvrditi izmjenu | Vrijednost se spašava, polje prestaje biti označeno kao placeholder i dobija status ručno pregledanog/korigovanog polja | Nakon editovanja, placeholder oznaka je uklonjena i polje je označeno kao pregledano/korigovano | Pass |
+| S7-UI-004 | Frontend/UI testiranje | Pokušaj confirma dok postoje placeholder required polja | Kliknuti `Confirm extraction` dok missing required polja nisu popunjena | Confirm se ne izvršava; korisniku se prikazuje toastr upozorenje, a dokument ostaje u statusu `EXTRACTED` | Confirm je blokiran i prikazana je razumljiva toastr poruka | Pass |
+| S7-UI-005 | Frontend/UI testiranje | Prikaz low-confidence polja u tabeli | Otvoriti ekstrakciju koja sadrži polje sa confidence score ispod praga | Polje se označava kao `Review needed` ili ekvivalentno upozorenje u tabeli | Low-confidence polje je jasno označeno kao polje koje zahtijeva review | Pass |
+| S7-UI-006 | Frontend/UI testiranje | Pokušaj confirma bez review-a low-confidence polja | Kliknuti `Confirm extraction` dok postoji low-confidence polje koje nije ručno editovano/pregledano | Confirm se ne izvršava; korisniku se prikazuje toastr upozorenje da treba pregledati low-confidence polja | Confirm je blokiran i korisniku je prikazana odgovarajuća toastr poruka | Pass |
+| S7-UI-007 | Frontend/UI testiranje | Prikaz validacione greške za nevalidan format polja | Pokušati editovati date/amount polje nevalidnom vrijednošću | UI ili backend validacija odbija vrijednost i korisniku prikazuje razumljivu poruku; prethodna vrijednost ostaje sačuvana | Nevalidna vrijednost nije sačuvana, a korisniku je prikazana validaciona poruka | Pass |
+| S7-UI-008 | Frontend/UI testiranje | Uspješan confirm nakon popunjavanja i review-a svih problematičnih polja | Popuniti placeholder required polja, editovati low-confidence polja i kliknuti `Confirm extraction` | Confirm prolazi, prikazuje se success toastr, a dokument dobija status `READY_FOR_APPROVAL` | Confirm je uspješno izvršen i dokument je dobio status `READY_FOR_APPROVAL` | Pass |
+| S7-UI-009 | Frontend/UI testiranje | Prikaz statusa `READY_FOR_APPROVAL` nakon confirma | Nakon uspješnog confirma otvoriti listu dokumenata ili detalje dokumenta | Status dokumenta se prikazuje kao `READY_FOR_APPROVAL` / Ready for approval badge | Status je prikazan kao spreman za odobrenje i vizuelno je označen odgovarajućim badge-om | Pass |
+| S7-UI-010 | Frontend/UI testiranje | Prikaz extraction tabele nakon prelaska u `READY_FOR_APPROVAL` | Confirmati ekstrakciju, zatim refreshovati ili ponovo otvoriti detalje dokumenta | Extracted fields ostaju dostupni za pregled i nakon confirma | Tabela izdvojenih polja ostaje prikazana nakon što dokument pređe u `READY_FOR_APPROVAL` | Pass |
+
+---
+
+## 7.4 Manualno API testiranje kroz Swagger/Postman
+
+| ID testa | Vrsta testiranja | Alat | Endpoint / funkcionalnost | Koraci | Očekivani rezultat | Stvarni rezultat | Status |
+|---|---|---|---|---|---|---|---|
+| S7-API-001 | Backend/API testiranje | Swagger | Upload dokumenta i pokretanje ekstrakcije kao priprema za edit | Pozvati `POST /api/documents/upload`, zatim `POST /api/documents/{documentId}/extraction` | Dokument se uspješno uploaduje, ekstrakcija se kreira i response sadrži `extractionId` i listu izdvojenih polja | Dokument je uspješno uploadovan, ekstrakcija je pokrenuta i polja su vraćena u response-u | Pass |
+| S7-API-002 | Backend/API testiranje | Swagger | Ručna izmjena izdvojenog podatka | Pozvati `PATCH /api/extractions/{extractionId}/fields/{fieldId}` sa body `{ "value": "125.50" }` | Backend vraća ažurirano polje sa novom vrijednošću i `corrected = true` | Polje je uspješno ažurirano, nova vrijednost je vraćena u response-u i `corrected` je postavljen na `true` | Pass |
+| S7-API-003 | Backend/API testiranje | Swagger | Provjera da je izmjena trajno sačuvana | Pozvati `GET /api/extractions/{extractionId}/fields` nakon PATCH zahtjeva | Lista polja sadrži prethodno ažuriranu vrijednost i `corrected = true` | GET endpoint prikazuje novu vrijednost i potvrđuje da je izmjena sačuvana | Pass |
+| S7-API-004 | Backend/API testiranje | Swagger | Potvrda ekstrakcije nakon pregleda/korekcije | Pozvati `POST /api/documents/{documentId}/extraction/confirm` | Backend potvrđuje ekstrakciju bez ponovnog OCR procesa i dokument prelazi u status `READY_FOR_APPROVAL` | Confirm endpoint je uspješno izvršen, prethodne korekcije nisu izgubljene | Pass |
+| S7-API-005 | Backend/API testiranje | Swagger | Provjera statusa dokumenta nakon potvrde ekstrakcije | Pozvati `GET /api/documents/{documentId}` nakon confirm zahtjeva | Dokument ima status `READY_FOR_APPROVAL` | Status dokumenta je `READY_FOR_APPROVAL` | Pass |
+
+---
+
+## 7.5 End-to-end i regresiono testiranje
+
+| ID testa | Vrsta testiranja | Scenario | Koraci | Očekivani ishod | Stvarni ishod | Status |
+|---|---|---|---|---|---|---|
+| S7-E2E-001 | End-to-end testiranje | Kompletan flow: upload → extraction → placeholder edit → confirm | Uploadati dokument, pokrenuti ekstrakciju, popuniti missing required polja, pregledati low-confidence polja i potvrditi ekstrakciju | Kompletan tok prolazi bez greške; dokument završava u statusu `READY_FOR_APPROVAL` | Kompletan tok je uspješno izvršen kroz API/UI i dokument je spreman za odobrenje | Pass |
+| S7-E2E-002 | End-to-end testiranje | Confirm blokiran dok korisnik ne završi review | Pokrenuti ekstrakciju nad dokumentom sa placeholder ili low-confidence poljima, pokušati confirm, zatim popuniti/pregledati polja i ponoviti confirm | Prvi confirm je blokiran validacijom; nakon ručnog review-a confirm prolazi | Sistem je blokirao nepotpun review, a nakon popunjavanja/pregleda polja confirm je uspješno prošao | Pass |
+| S7-E2E-003 | Regresiono testiranje | Provjera Sprint 6 extraction funkcionalnosti nakon dodavanja confirm flow-a | Testirati run extraction, retry extraction, refresh fields i prikaz extraction tabele | Postojeće extraction funkcionalnosti iz Sprinta 6 i dalje rade nakon dodavanja edit/confirm logike | Run, retry, refresh i prikaz extraction polja rade bez regresije | Pass |
+
+---
+
+## 7.6 Deployment smoke testiranje
+
+| ID testa | Vrsta testiranja | Okruženje | Funkcionalnost | Koraci | Očekivani ishod | Stvarni ishod | Status |
+|---|---|---|---|---|---|---|---|
+| S7-DEP-001 | Deployment smoke testiranje | Server | Pokretanje backend containera nakon Sprint 7 izmjena | Pokrenuti backend container nakon dodavanja edit/confirm/placeholder logike | Backend se pokreće bez greške i aplikacija je dostupna | Backend container se uspješno pokrenuo nakon Sprint 7 izmjena | Pass |
+| S7-DEP-002 | Deployment smoke testiranje | Server | Pokretanje frontend containera nakon Sprint 7 UI izmjena | Pokrenuti frontend container nakon dodavanja confirm dugmeta, review statusa i placeholder prikaza | Frontend se pokreće bez greške i aplikacija je dostupna u browseru | Frontend container se uspješno pokrenuo i aplikacija je dostupna u browseru | Pass |
+| S7-DEP-003 | Deployment smoke testiranje | Server | Provjera nove kolone `is_placeholder` u bazi | Pokrenuti aplikaciju i provjeriti da tabela `extraction_field` sadrži kolonu `is_placeholder` sa default vrijednošću | Baza ima potrebnu kolonu i backend može spremati placeholder extraction polja | Kolona `is_placeholder` je prisutna i placeholder polja se mogu spremiti bez greške | Pass |
+| S7-DEP-004 | Deployment smoke testiranje | Server | Komunikacija FE-BE za confirm extraction flow | Otvoriti document detail stranicu i izvršiti akcije extraction/edit/confirm | Frontend uspješno poziva backend endpoint-e za extraction fields, edit field-a i confirm extraction | FE-BE komunikacija je uspješno izvršena kroz novi confirm extraction flow | Pass |
+| S7-DEP-005 | Deployment smoke testiranje | Server | Provjera placeholder required polja u deployanom okruženju | Pokrenuti ekstrakciju nad dokumentom kojem OCR ne vrati sva required polja | Backend automatski dodaje missing required polja kao placeholder redove, a FE ih prikazuje korisniku | Placeholder required polja su kreirana na backendu i prikazana na frontend tabeli | Pass |
+| S7-DEP-006 | Deployment smoke testiranje | Server | Blokiranje confirma u deployanom okruženju | Pokušati potvrditi ekstrakciju dok postoje placeholder ili low-confidence polja bez review-a | Confirm se ne izvršava, korisnik dobija toastr upozorenje, a dokument ostaje u statusu `EXTRACTED` | Confirm je blokiran dok review nije završen i prikazana je odgovarajuća toastr poruka | Pass |
+| S7-DEP-007 | Deployment smoke testiranje | Server | Uspješan confirm nakon review-a u deployanom okruženju | Ručno popuniti placeholder required polja, pregledati low-confidence polja i kliknuti `Confirm extraction` | Confirm prolazi, dokument dobija status `READY_FOR_APPROVAL`, a extraction podaci ostaju dostupni | Dokument je uspješno prešao u status `READY_FOR_APPROVAL`, a polja su ostala dostupna za pregled | Pass |
+| S7-DEP-008 | Deployment smoke testiranje | Server | Regresiona provjera upload/extraction flow-a nakon Sprint 7 izmjena | Uploadati dokument, otvoriti detalje, pokrenuti extraction, retry i refresh fields | Funkcionalnosti iz prethodnih sprintova i dalje rade nakon dodavanja edit/confirm logike | Upload, detalji dokumenta, extraction, retry i refresh fields rade bez regresije | Pass |
+
+---
+
+## Zaključak testiranja
+
+Tokom Sprinta 7 testirane su funkcionalnosti vezane za ručni review OCR/AI rezultata, editovanje izdvojenih polja, validaciju vrijednosti, placeholder required polja i potvrdu ekstrakcije.
+
+Zaključak:
+
+- Testirano je ručno editovanje extraction field vrijednosti.
+- Testirani su negativni validacioni scenariji za datume i numerička polja.
+- Testirano je blokiranje confirma kada postoje missing required, placeholder ili low-confidence polja.
+- Testirano je automatsko kreiranje placeholder redova za required polja koja OCR nije vratio.
+- Testirano je ručno popunjavanje placeholder polja i uklanjanje placeholder statusa.
+- Testirano je da confirm ne pokreće OCR ponovo i ne briše prethodne ručne korekcije.
+- Testiran je frontend prikaz review statusa, toastr poruka i statusa `READY_FOR_APPROVAL`.
+- Izvršeno je end-to-end i regresiono testiranje extraction flow-a nakon Sprint 7 izmjena.
+- Izvršeno je deployment smoke testiranje backend/frontend containera, nove `is_placeholder` kolone i kompletnog confirm extraction flow-a u deployanom okruženju.
+- Svi evidentirani testovi za Sprint 7 imaju status `Pass`.
