@@ -16,7 +16,19 @@ Nema nezavršenih zadataka, svi planirani zadaci su uspješno realizovani.
 
 # 4. Demonstrirane funkcionalnosti ili artefakti
 
--
+Demonstrirane funkcionalnosti uključuju:
+
+- Ručna korekcija i validacija izdvojenih podataka putem korisničkog interfejsa
+- Ažuriranje podataka u sistemu nakon korekcije i validacije
+- Prikaz statusa dokumenta nakon obrade
+- Isticanje nepopunjenih obaveznih polja i onih sa niskim confidence score-om na frontend-u
+
+Demonstrirani artefakti uključuju:
+
+- SprintGoal
+- SprintBacklog
+- SprintReview
+- SprintRetrospective
 
 # 5. Glavni problemi i blokeri
 
@@ -34,8 +46,16 @@ Detaljniji opis navedenih odluka se nalazi u DecisionLog dokuemtnu, počevši od
 
 # 7. Povratna informacija Product Ownera
 
--
+Poroduct Owner je izrazio zadovoljstvo nakon demonstracije funkcionalnosti i artefakata koji su realizovani u sprintu 7.
+Također, naveo je tri napomene koje bi tim trebao da doradi, a to su:
+
+- Format datuma - potrebno je korisniku koji ručno prepravlja podatke jasno naznačiti koji format datuma je podržan.
+- Ekstrakcija numeričkih vrijednosti - potrebno je doraditi u smislu da OCR ne izdvaja tekst uz brojeve (na primjer
+  "1500 KM"). Također, potrebno je doraditi matematičku validaciju nakon ručne korekcije.
+- Testirati rad sistema u slučaju kada su neka polja u dokumentima prazna i kada dokumenti sadrže rukopis.
 
 # 8. Zaključak za naredni sprint
 
-- 
+Na osnovu povratne informacije Product Ownera, tim će se u narednom sprintu fokusirati na doradu funkcionalnosti za
+ručnu korekciju. Osim toga, obzirom da su svi planirani zadaci realizovani, tim će se nakon dorade fokusirati na
+sljedeći sprint.
