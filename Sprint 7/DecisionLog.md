@@ -193,18 +193,22 @@ body, validacijske greške, upis u bazu i rad sa fajlovima.
 **Opis problema:**  
 U Sprintu 6 bilo je potrebno omogućiti automatsku ekstrakciju teksta i ključnih podataka iz uploadovanih dokumenata.
 
-**Razmatrane opcije:**  
-1. Implementirati vlastitu OCR logiku  
-2. Koristiti klasični OCR servis samo za tekst  
+**Razmatrane opcije:**
+
+1. Implementirati vlastitu OCR logiku
+2. Koristiti klasični OCR servis samo za tekst
 3. Koristiti Google Document AI za OCR i strukturiranu ekstrakciju podataka
 
 **Odabrana opcija:**  
 Google Document AI
 
 **Razlog izbora:**  
-Google Document AI omogućava obradu dokumenta i vraćanje strukturiranih polja, što odgovara cilju Sprinta 6: izdvajanje podataka kao što su dobavljač, datum i iznos. Ovo je bolje od običnog OCR pristupa jer sistem ne dobija samo sirovi tekst, nego i prepoznata polja.
+Google Document AI omogućava obradu dokumenta i vraćanje strukturiranih polja, što odgovara cilju Sprinta 6: izdvajanje
+podataka kao što su dobavljač, datum i iznos. Ovo je bolje od običnog OCR pristupa jer sistem ne dobija samo sirovi
+tekst, nego i prepoznata polja.
 
-**Posljedice odluke:**  
+**Posljedice odluke:**
+
 - Backend zavisi od eksternog Google servisa.
 - Potrebna je konfiguracija preko environment varijabli.
 - Potrebno je sigurno čuvati service account JSON fajl.
@@ -219,20 +223,25 @@ Google Document AI omogućava obradu dokumenta i vraćanje strukturiranih polja,
 **Datum:** 06.05.2026
 
 **Opis problema:**  
-Bilo je potrebno integrisati eksterni OCR/AI servis, ali bez vezivanja kompletne extraction logike direktno za konkretnu Google implementaciju.
+Bilo je potrebno integrisati eksterni OCR/AI servis, ali bez vezivanja kompletne extraction logike direktno za konkretnu
+Google implementaciju.
 
-**Razmatrane opcije:**  
-1. Pozivati Google Document AI direktno iz extraction servisa  
-2. Implementirati poseban OCR provider sloj  
+**Razmatrane opcije:**
+
+1. Pozivati Google Document AI direktno iz extraction servisa
+2. Implementirati poseban OCR provider sloj
 3. Smjestiti OCR poziv direktno u controller
 
 **Odabrana opcija:**  
 Poseban OCR provider sloj
 
 **Razlog izbora:**  
-OCR logika je izdvojena kroz OcrProvider, dok konkretna implementacija koristi GoogleDocumentAiProvider. Time extraction servis ostaje fokusiran na poslovni tok: učitavanje dokumenta, pozivanje OCR providera, mapiranje rezultata i spremanje u bazu. Ovakav pristup olakšava i testiranje, jer se OCR provider može mockovati bez pozivanja stvarnog Google servisa. 
+OCR logika je izdvojena kroz OcrProvider, dok konkretna implementacija koristi GoogleDocumentAiProvider. Time extraction
+servis ostaje fokusiran na poslovni tok: učitavanje dokumenta, pozivanje OCR providera, mapiranje rezultata i spremanje
+u bazu. Ovakav pristup olakšava i testiranje, jer se OCR provider može mockovati bez pozivanja stvarnog Google servisa.
 
-**Posljedice odluke:**  
+**Posljedice odluke:**
+
 - Kod je modularniji i lakši za testiranje.
 - U budućnosti je moguće zamijeniti OCR servis bez velikih promjena u ostatku aplikacije.
 - Potrebno je održavati interni model rezultata OCR obrade.
@@ -246,20 +255,25 @@ OCR logika je izdvojena kroz OcrProvider, dok konkretna implementacija koristi G
 **Datum:** 06.05.2026
 
 **Opis problema:**  
-Rezultat ekstrakcije može sadržavati različita polja, zavisno od tipa dokumenta i kvaliteta OCR/AI prepoznavanja. Bilo je potrebno odlučiti da li čuvati konkretne kolone za invoice podatke ili fleksibilniji model.
+Rezultat ekstrakcije može sadržavati različita polja, zavisno od tipa dokumenta i kvaliteta OCR/AI prepoznavanja. Bilo
+je potrebno odlučiti da li čuvati konkretne kolone za invoice podatke ili fleksibilniji model.
 
-**Razmatrane opcije:**  
-1. Dodati konkretne kolone u tabelu dokumenta, npr. supplier, amount, invoice date  
-2. Napraviti posebnu tabelu za extraction i posebnu tabelu za extracted fields  
+**Razmatrane opcije:**
+
+1. Dodati konkretne kolone u tabelu dokumenta, npr. supplier, amount, invoice date
+2. Napraviti posebnu tabelu za extraction i posebnu tabelu za extracted fields
 3. Čuvati samo raw JSON bez pojedinačnih polja
 
 **Odabrana opcija:**  
 Posebne tabele extraction i extraction_field
 
 **Razlog izbora:**  
-Model sa tabelama extraction i extraction_field prati planirani ERD i omogućava fleksibilno čuvanje različitih polja. extraction čuva vezu na dokument, raw JSON i vrijeme ekstrakcije, dok extraction_field čuva naziv polja, vrijednost, confidence i informaciju da li je polje korigovano. 
+Model sa tabelama extraction i extraction_field prati planirani ERD i omogućava fleksibilno čuvanje različitih polja.
+extraction čuva vezu na dokument, raw JSON i vrijeme ekstrakcije, dok extraction_field čuva naziv polja, vrijednost,
+confidence i informaciju da li je polje korigovano.
 
-**Posljedice odluke:**  
+**Posljedice odluke:**
+
 - Model nije ograničen samo na invoice dokumente.
 - UI može prikazati listu izdvojenih polja bez promjene šeme baze za svako novo polje.
 - Za ručno ispravljanje polja u narednim sprintovima već postoji atribut is_corrected.
@@ -273,19 +287,26 @@ Model sa tabelama extraction i extraction_field prati planirani ERD i omogućava
 **Datum:** 06.05.2026
 
 **Opis problema:**  
-User story US-6.1 je prvobitno predviđao da se OCR/AI obrada automatski pokrene odmah nakon uploadanja dokumenta. Tokom implementacije je uočeno da takav pristup može dovesti do nepotrebnog korištenja eksternog Google Document AI servisa, jer bi se obrada pokretala za svaki uploadovani dokument, uključujući i dokumente koji su uploadovani greškom ili za koje korisnik ne želi odmah pokrenuti ekstrakciju.
+User story US-6.1 je prvobitno predviđao da se OCR/AI obrada automatski pokrene odmah nakon uploadanja dokumenta. Tokom
+implementacije je uočeno da takav pristup može dovesti do nepotrebnog korištenja eksternog Google Document AI servisa,
+jer bi se obrada pokretala za svaki uploadovani dokument, uključujući i dokumente koji su uploadovani greškom ili za
+koje korisnik ne želi odmah pokrenuti ekstrakciju.
 
-**Razmatrane opcije:**  
-1. Zadržati automatsko pokretanje OCR/AI obrade odmah nakon uploada dokumenta.  
+**Razmatrane opcije:**
+
+1. Zadržati automatsko pokretanje OCR/AI obrade odmah nakon uploada dokumenta.
 2. Omogućiti korisniku da nakon uploada ručno pokrene OCR/AI obradu sa stranice detalja dokumenta.
 
 **Odabrana opcija:**  
 Korisnik ručno pokreće obradu dokumenta nakon uploada, putem akcije na stranici detalja dokumenta.
 
 **Razlog izbora:**  
-Ručno pokretanje ekstrakcije smanjuje nepotrebne pozive prema eksternom Google Document AI servisu i daje korisniku veću kontrolu nad time koji dokumenti će se obrađivati. Korisnik prije pokretanja obrade može otvoriti detalje dokumenta, provjeriti metapodatke i preview fajla, te tek zatim odlučiti da li želi pokrenuti ekstrakciju.
+Ručno pokretanje ekstrakcije smanjuje nepotrebne pozive prema eksternom Google Document AI servisu i daje korisniku veću
+kontrolu nad time koji dokumenti će se obrađivati. Korisnik prije pokretanja obrade može otvoriti detalje dokumenta,
+provjeriti metapodatke i preview fajla, te tek zatim odlučiti da li želi pokrenuti ekstrakciju.
 
-**Posljedice odluke:**  
+**Posljedice odluke:**
+
 - Acceptance criteria za US-6.1 je potrebno uskladiti sa novim ponašanjem sistema.
 - OCR/AI obrada se ne pokreće automatski nakon svakog uploada.
 - Korisnik mora ručno pokrenuti obradu dokumenta.
@@ -301,20 +322,25 @@ Ručno pokretanje ekstrakcije smanjuje nepotrebne pozive prema eksternom Google 
 **Datum:** 06.05.2026
 
 **Opis problema:**  
-Bilo je potrebno odlučiti šta se dešava kada se ekstrakcija ponovo pokrene nad dokumentom koji već ima rezultat ekstrakcije.
+Bilo je potrebno odlučiti šta se dešava kada se ekstrakcija ponovo pokrene nad dokumentom koji već ima rezultat
+ekstrakcije.
 
-**Razmatrane opcije:**  
-1. Kreirati novi extraction zapis pri svakom retry pokušaju  
-2. Zadržati više historijskih extraction rezultata  
+**Razmatrane opcije:**
+
+1. Kreirati novi extraction zapis pri svakom retry pokušaju
+2. Zadržati više historijskih extraction rezultata
 3. Ponovo koristiti postojeći extraction zapis i zamijeniti njegova polja
 
 **Odabrana opcija:**  
 Retry koristi postojeći extraction zapis i zamjenjuje povezana polja.
 
 **Razlog izbora:**  
-Za trenutni MVP nije potrebna historija svih extraction pokušaja. Jedan dokument ima jedan aktivni extraction rezultat, a retry osvježava taj rezultat i povezana polja. U entitetu je veza dokument–ekstrakcija definisana kao jedan-na-jedan, a komentari u kodu navode da retry treba updateovati/zamijeniti fields, ne kreirati drugi extraction red. 
+Za trenutni MVP nije potrebna historija svih extraction pokušaja. Jedan dokument ima jedan aktivni extraction rezultat,
+a retry osvježava taj rezultat i povezana polja. U entitetu je veza dokument–ekstrakcija definisana kao jedan-na-jedan,
+a komentari u kodu navode da retry treba updateovati/zamijeniti fields, ne kreirati drugi extraction red.
 
-**Posljedice odluke:**  
+**Posljedice odluke:**
+
 - Sprječava se dupliranje extraction rezultata za isti dokument.
 - UI uvijek prikazuje trenutno važeći rezultat.
 - Ako u budućnosti bude potrebna historija ekstrakcija, model će se morati proširiti.
@@ -328,20 +354,25 @@ Za trenutni MVP nije potrebna historija svih extraction pokušaja. Jedan dokumen
 **Datum:** 06.05.2026
 
 **Opis problema:**  
-Eksterni OCR/AI servis može biti nedostupan, pogrešno konfigurisan ili može vratiti grešku. Bilo je potrebno odlučiti kako sistem treba reagovati u tom slučaju.
+Eksterni OCR/AI servis može biti nedostupan, pogrešno konfigurisan ili može vratiti grešku. Bilo je potrebno odlučiti
+kako sistem treba reagovati u tom slučaju.
 
-**Razmatrane opcije:**  
-1. Ostaviti dokument u prethodnom statusu  
-2. Vratiti grešku bez promjene statusa dokumenta  
+**Razmatrane opcije:**
+
+1. Ostaviti dokument u prethodnom statusu
+2. Vratiti grešku bez promjene statusa dokumenta
 3. Postaviti dokument u status PROCESSING_FAILED i vratiti kontrolisanu API grešku
 
 **Odabrana opcija:**  
 Dokument se postavlja u status PROCESSING_FAILED, a backend vraća kontrolisanu grešku EXTRACTION_FAILED.
 
 **Razlog izbora:**  
-Korisnik i frontend moraju jasno vidjeti da obrada nije uspjela. Backend kod u slučaju greške postavlja status dokumenta na PROCESSING_FAILED, baca ExtractionException, a globalni exception handler vraća response sa kodom EXTRACTION_FAILED. Transakcijsko ponašanje je prilagođeno tako da se status ne rollbackuje zajedno sa exceptionom. 
+Korisnik i frontend moraju jasno vidjeti da obrada nije uspjela. Backend kod u slučaju greške postavlja status dokumenta
+na PROCESSING_FAILED, baca ExtractionException, a globalni exception handler vraća response sa kodom EXTRACTION_FAILED.
+Transakcijsko ponašanje je prilagođeno tako da se status ne rollbackuje zajedno sa exceptionom.
 
-**Posljedice odluke:**  
+**Posljedice odluke:**
+
 - UI može prikazati status greške i omogućiti ponovno pokretanje ekstrakcije.
 - Greške eksternog servisa se ne prikazuju kao uspješan API rezultat.
 - Potrebno je paziti na transakcije kako bi se status PROCESSING_FAILED stvarno sačuvao.
@@ -357,18 +388,22 @@ Korisnik i frontend moraju jasno vidjeti da obrada nije uspjela. Backend kod u s
 **Opis problema:**  
 Frontend je trebao način da pokrene ekstrakciju, ponovi ekstrakciju i prikaže rezultat za konkretan dokument.
 
-**Razmatrane opcije:**  
-1. Dodati extraction logiku u postojeće document CRUD endpoint-e  
-2. Napraviti posebne endpoint-e u okviru document resource-a  
+**Razmatrane opcije:**
+
+1. Dodati extraction logiku u postojeće document CRUD endpoint-e
+2. Napraviti posebne endpoint-e u okviru document resource-a
 3. Napraviti potpuno odvojen extraction API bez veze sa document rutama
 
 **Odabrana opcija:**  
 Posebni endpointi pod /api/documents/{documentId}/extraction
 
 **Razlog izbora:**  
-Ekstrakcija je vezana za konkretan dokument, pa je najjasnije da endpointi budu ugniježđeni pod document rutom. Implementirani controller podržava pokretanje ekstrakcije, dohvat extraction rezultata, retry i dohvat izdvojenih polja za dokument. 
+Ekstrakcija je vezana za konkretan dokument, pa je najjasnije da endpointi budu ugniježđeni pod document rutom.
+Implementirani controller podržava pokretanje ekstrakcije, dohvat extraction rezultata, retry i dohvat izdvojenih polja
+za dokument.
 
-**Posljedice odluke:**  
+**Posljedice odluke:**
+
 - API je intuitivan za frontend.
 - Extraction flow je odvojen od osnovnog document CRUD-a.
 - Ako se kasnije doda editovanje polja, može se proširiti postojeća extraction API struktura.
@@ -384,18 +419,22 @@ Ekstrakcija je vezana za konkretan dokument, pa je najjasnije da endpointi budu 
 **Opis problema:**  
 Korisniku je trebalo omogućiti da iz detalja dokumenta pokrene ekstrakciju i vidi izdvojena polja.
 
-**Razmatrane opcije:**  
-1. Prikazati extraction podatke direktno u listi dokumenata  
-2. Napraviti posebnu stranicu samo za ekstrakciju  
+**Razmatrane opcije:**
+
+1. Prikazati extraction podatke direktno u listi dokumenata
+2. Napraviti posebnu stranicu samo za ekstrakciju
 3. Proširiti document detail stranicu extraction akcijama i tabelom polja
 
 **Odabrana opcija:**  
 Proširiti document detail stranicu.
 
 **Razlog izbora:**  
-Ekstrakcija je prirodno vezana za pojedinačni dokument. Detail page već prikazuje metapodatke i preview/download opcije, pa je logično da se tu nalaze i akcije Run extraction, Retry extraction, Refresh fields i tabela izdvojenih polja. Frontend servis koristi endpoint-e za process, retry, dohvat extraction rezultata i dohvat extraction fields. 
+Ekstrakcija je prirodno vezana za pojedinačni dokument. Detail page već prikazuje metapodatke i preview/download opcije,
+pa je logično da se tu nalaze i akcije Run extraction, Retry extraction, Refresh fields i tabela izdvojenih polja.
+Frontend servis koristi endpoint-e za process, retry, dohvat extraction rezultata i dohvat extraction fields.
 
-**Posljedice odluke:**  
+**Posljedice odluke:**
+
 - Korisnik može obraditi dokument iz konteksta u kojem već vidi njegove metapodatke.
 - Lista dokumenata ostaje pregledna.
 - Detail page postaje centralno mjesto za rad sa jednim dokumentom.
@@ -409,20 +448,24 @@ Ekstrakcija je prirodno vezana za pojedinačni dokument. Detail page već prikaz
 **Datum:** 06.05.2026
 
 **Opis problema:**  
-Bilo je potrebno testirati extraction flow, ali bez trošenja Google Cloud kredita i bez zavisnosti od service account JSON fajla u testnom okruženju.
+Bilo je potrebno testirati extraction flow, ali bez trošenja Google Cloud kredita i bez zavisnosti od service account
+JSON fajla u testnom okruženju.
 
-**Razmatrane opcije:**  
-1. U testovima pozivati stvarni Google Document AI  
-2. Testirati samo ručno kroz Swagger  
+**Razmatrane opcije:**
+
+1. U testovima pozivati stvarni Google Document AI
+2. Testirati samo ručno kroz Swagger
 3. Koristiti integration testove uz mockovani OCR provider
 
 **Odabrana opcija:**  
 Integration testovi uz mockovani OcrProvider.
 
 **Razlog izbora:**  
-Testovi provjeravaju kompletan backend flow kroz MockMvc, bazu i storage, ali ne pozivaju stvarni Google servis. OcrProvider je u testu zamijenjen mockom, pa se mogu simulirati i uspješan OCR rezultat i greška providera. 
+Testovi provjeravaju kompletan backend flow kroz MockMvc, bazu i storage, ali ne pozivaju stvarni Google servis.
+OcrProvider je u testu zamijenjen mockom, pa se mogu simulirati i uspješan OCR rezultat i greška providera.
 
-**Posljedice odluke:**  
+**Posljedice odluke:**
+
 - Testovi se mogu pokretati lokalno i u CI okruženju bez Google credentialsa.
 - Ne troše se Google Cloud krediti.
 - Ručno testiranje stvarne Google integracije i dalje ostaje potrebno za deployment provjeru.
@@ -436,20 +479,25 @@ Testovi provjeravaju kompletan backend flow kroz MockMvc, bazu i storage, ali ne
 **Datum:** 07.05.2026
 
 **Opis problema:**  
-Backend mora imati pristup Google service account JSON fajlu i Document AI konfiguraciji, ali osjetljivi fajlovi i stvarne vrijednosti ne smiju biti commitani u repozitorij.
+Backend mora imati pristup Google service account JSON fajlu i Document AI konfiguraciji, ali osjetljivi fajlovi i
+stvarne vrijednosti ne smiju biti commitani u repozitorij.
 
-**Razmatrane opcije:**  
-1. Commitati JSON key u repozitorij  
-2. Unijeti credentials direktno u application.properties  
+**Razmatrane opcije:**
+
+1. Commitati JSON key u repozitorij
+2. Unijeti credentials direktno u application.properties
 3. Koristiti .env za konfiguraciju i mountati JSON key kao deployment secret
 
 **Odabrana opcija:**  
 Korištenje .env vrijednosti i Docker mounta za service account JSON.
 
 **Razlog izbora:**  
-docker-compose.yml prosljeđuje Google Document AI environment varijable backend containeru i mounta lokalni server fajl ./secrets/google-document-ai.json u container kao /app/secrets/google-document-ai.json. .env.example sadrži samo placeholder vrijednosti i upozorenje da se realni .env i service account JSON ne commitaju.
+docker-compose.yml prosljeđuje Google Document AI environment varijable backend containeru i mounta lokalni server fajl
+./secrets/google-document-ai.json u container kao /app/secrets/google-document-ai.json. .env.example sadrži samo
+placeholder vrijednosti i upozorenje da se realni .env i service account JSON ne commitaju.
 
-**Posljedice odluke:**  
+**Posljedice odluke:**
+
 - Credentials nisu dio repozitorija.
 - Deployment server mora ručno imati Project/secrets/google-document-ai.json.
 - Dokumentacija deploymenta mora jasno navesti koje varijable se postavljaju u .env.
@@ -463,20 +511,24 @@ docker-compose.yml prosljeđuje Google Document AI environment varijable backend
 **Datum:** 07.05.2026
 
 **Opis problema:**  
-Nakon dodavanja extraction modela, dokument koji ima povezanu ekstrakciju nije se mogao obrisati bez uklanjanja povezanih podataka.
+Nakon dodavanja extraction modela, dokument koji ima povezanu ekstrakciju nije se mogao obrisati bez uklanjanja
+povezanih podataka.
 
-**Razmatrane opcije:**  
-1. Zabraniti brisanje dokumenata koji imaju extraction rezultat  
-2. Dozvoliti brisanje dokumenta, ali ostaviti extraction podatke  
+**Razmatrane opcije:**
+
+1. Zabraniti brisanje dokumenata koji imaju extraction rezultat
+2. Dozvoliti brisanje dokumenta, ali ostaviti extraction podatke
 3. Pri brisanju dokumenta ukloniti i extraction podatke i originalni fajl
 
 **Odabrana opcija:**  
 Brisanje dokumenta uklanja povezane extraction podatke i fizički fajl.
 
 **Razlog izbora:**  
-Za MVP, brisanje dokumenta treba značiti potpuno uklanjanje dokumenta iz sistema. DocumentServiceImpl.delete prije brisanja dokumenta uklanja extraction podatke za taj dokument, zatim briše document zapis i fizički fajl. 
+Za MVP, brisanje dokumenta treba značiti potpuno uklanjanje dokumenta iz sistema. DocumentServiceImpl.delete prije
+brisanja dokumenta uklanja extraction podatke za taj dokument, zatim briše document zapis i fizički fajl.
 
-**Posljedice odluke:**  
+**Posljedice odluke:**
+
 - Nema FK greške pri brisanju extracted dokumenata.
 - Sistem ostaje konzistentan: ne ostaju orphan extraction podaci.
 - Ako se kasnije uvede audit/history, brisanje će možda trebati dodatno razmotriti.
@@ -491,31 +543,40 @@ Za MVP, brisanje dokumenta treba značiti potpuno uklanjanje dokumenta iz sistem
 **Datum:** 08.05.2026
 
 **Opis problema:**  
-U Sprintu 7 bilo je potrebno omogućiti korisniku da nakon OCR/AI ekstrakcije ručno ispravi izdvojene podatke i potvrdi pregled ekstrakcije. Postojeći backend je podržavao pokretanje ekstrakcije, retry i dohvat izdvojenih polja, ali nije imao endpoint za edit pojedinačnog extraction field-a niti endpoint za potvrdu da je ekstrakcija pregledana.
+U Sprintu 7 bilo je potrebno omogućiti korisniku da nakon OCR/AI ekstrakcije ručno ispravi izdvojene podatke i potvrdi
+pregled ekstrakcije. Postojeći backend je podržavao pokretanje ekstrakcije, retry i dohvat izdvojenih polja, ali nije
+imao endpoint za edit pojedinačnog extraction field-a niti endpoint za potvrdu da je ekstrakcija pregledana.
 
-**Razmatrane opcije:**  
-1. Editovanje izdvojenih polja implementirati kroz update cijele ekstrakcije.  
-2. Editovanje izdvojenih polja implementirati kroz poseban endpoint za pojedinačno polje.  
-3. Potvrdu ekstrakcije vezati za postojeći retry/process flow.  
-4. Potvrdu ekstrakcije implementirati kroz poseban confirm endpoint.  
+**Razmatrane opcije:**
+
+1. Editovanje izdvojenih polja implementirati kroz update cijele ekstrakcije.
+2. Editovanje izdvojenih polja implementirati kroz poseban endpoint za pojedinačno polje.
+3. Potvrdu ekstrakcije vezati za postojeći retry/process flow.
+4. Potvrdu ekstrakcije implementirati kroz poseban confirm endpoint.
 
 **Odabrana opcija:**  
-Implementiran je poseban PATCH endpoint za izmjenu vrijednosti jednog izdvojenog polja. Nakon uspješne izmjene polje se označava sa `corrected = true`.
+Implementiran je poseban PATCH endpoint za izmjenu vrijednosti jednog izdvojenog polja. Nakon uspješne izmjene polje se
+označava sa `corrected = true`.
 
-Za potvrdu ekstrakcije implementiran je POST endpoint, koji provjerava da dokument i ekstrakcija postoje, poziva validaciju obaveznih polja i mijenja status dokumenta u `READY_FOR_APPROVAL`.
+Za potvrdu ekstrakcije implementiran je POST endpoint, koji provjerava da dokument i ekstrakcija postoje, poziva
+validaciju obaveznih polja i mijenja status dokumenta u `READY_FOR_APPROVAL`.
 
 **Razlog izbora:**  
-Poseban PATCH endpoint omogućava precizno editovanje jednog extraction field-a bez slanja cijele ekstrakcije. Provjera kombinacije `fieldId` i `extractionId` sprječava da se izmijeni polje koje ne pripada proslijeđenoj ekstrakciji.
+Poseban PATCH endpoint omogućava precizno editovanje jednog extraction field-a bez slanja cijele ekstrakcije. Provjera
+kombinacije `fieldId` i `extractionId` sprječava da se izmijeni polje koje ne pripada proslijeđenoj ekstrakciji.
 
-Poseban POST confirm endpoint jasno odvaja potvrdu pregledane ekstrakcije od OCR/AI obrade i retry procesa. Ovo je važno jer retry zamjenjuje postojeća extraction fields, dok confirm mora sačuvati prethodne ručne korekcije.
+Poseban POST confirm endpoint jasno odvaja potvrdu pregledane ekstrakcije od OCR/AI obrade i retry procesa. Ovo je važno
+jer retry zamjenjuje postojeća extraction fields, dok confirm mora sačuvati prethodne ručne korekcije.
 
-**Posljedice odluke:**  
+**Posljedice odluke:**
+
 - Backend podržava ručno editovanje izdvojenih polja.
 - Svako ručno izmijenjeno polje dobija `corrected = true`.
 - Nije moguće editovati field koji ne pripada proslijeđenom `extractionId`.
 - Potvrda ekstrakcije mijenja status dokumenta u `READY_FOR_APPROVAL`.
 - Confirm endpoint ne pokreće OCR ponovo i ne briše prethodno korigovana polja.
-- Validacija vrijednosti i validacija obaveznih polja ostaju odvojene kroz placeholder metode koje će biti implementirane u zasebnom backend validacijskom tasku.
+- Validacija vrijednosti i validacija obaveznih polja ostaju odvojene kroz placeholder metode koje će biti
+  implementirane u zasebnom backend validacijskom tasku.
 
 **Status:** Aktivna
 
@@ -526,21 +587,28 @@ Poseban POST confirm endpoint jasno odvaja potvrdu pregledane ekstrakcije od OCR
 **Datum:** 14.05.2026
 
 **Opis problema:**  
-Tokom testiranja OCR/AI ekstrakcije uočeno je da eksterni servis ne vraća uvijek sva polja koja sistem smatra obaveznim za nastavak procesa. Ako polje nije vraćeno iz OCR rezultata, korisnik ga ranije nije mogao jednostavno ručno popuniti kroz postojeći edit flow, jer takvo polje nije ni postojalo u tabeli `extraction_field`.
+Tokom testiranja OCR/AI ekstrakcije uočeno je da eksterni servis ne vraća uvijek sva polja koja sistem smatra obaveznim
+za nastavak procesa. Ako polje nije vraćeno iz OCR rezultata, korisnik ga ranije nije mogao jednostavno ručno popuniti
+kroz postojeći edit flow, jer takvo polje nije ni postojalo u tabeli `extraction_field`.
 
-**Razmatrane opcije:**  
-1. Dozvoliti confirm iako required polja nisu vraćena.  
-2. Blokirati confirm, ali ne prikazati missing polja u UI tabeli.  
-3. Dodati poseban “Add field” endpoint i UI formu za dodavanje polja.  
+**Razmatrane opcije:**
+
+1. Dozvoliti confirm iako required polja nisu vraćena.
+2. Blokirati confirm, ali ne prikazati missing polja u UI tabeli.
+3. Dodati poseban “Add field” endpoint i UI formu za dodavanje polja.
 4. Nakon ekstrakcije automatski kreirati missing required polja kao placeholder redove.
 
 **Odabrana opcija:**  
-Backend nakon svake ekstrakcije automatski dodaje required polja koja OCR nije vratio kao placeholder redove u tabelu `extraction_field`.
+Backend nakon svake ekstrakcije automatski dodaje required polja koja OCR nije vratio kao placeholder redove u tabelu
+`extraction_field`.
 
 **Razlog izbora:**  
-Ovo omogućava korisniku da missing required polja vidi u istoj tabeli kao i ostala OCR polja i da ih popuni kroz postojeći edit flow. Time se izbjegava uvođenje posebnog “Add field” endpointa i dodatnog UI toka, a sistem i dalje može jasno razlikovati stvarno prepoznata OCR polja od polja koja su dodana kao placeholder.
+Ovo omogućava korisniku da missing required polja vidi u istoj tabeli kao i ostala OCR polja i da ih popuni kroz
+postojeći edit flow. Time se izbjegava uvođenje posebnog “Add field” endpointa i dodatnog UI toka, a sistem i dalje može
+jasno razlikovati stvarno prepoznata OCR polja od polja koja su dodana kao placeholder.
 
-**Posljedice odluke:**  
+**Posljedice odluke:**
+
 - U tabelu `extraction_field` dodana je kolona `is_placeholder`.
 - Placeholder polja imaju praznu vrijednost, confidence 0 i `is_placeholder = true`.
 - Nakon što korisnik ručno popuni placeholder polje, ono se označava kao korigovano i više nije placeholder.
@@ -556,20 +624,28 @@ Ovo omogućava korisniku da missing required polja vidi u istoj tabeli kao i ost
 **Datum:** 14.05.2026
 
 **Opis problema:**  
-Potvrda ekstrakcije ne smije biti dozvoljena ako OCR rezultat još uvijek sadrži nepregledana ili nepotpuna polja. Posebno su problematična required polja koja OCR nije prepoznao i polja sa confidence score-om ispod definisanog praga od 70%.
+Potvrda ekstrakcije ne smije biti dozvoljena ako OCR rezultat još uvijek sadrži nepregledana ili nepotpuna polja.
+Posebno su problematična required polja koja OCR nije prepoznao i polja sa confidence score-om ispod definisanog praga
+od 70%.
 
-**Razmatrane opcije:**  
-1. Dozvoliti confirm bez dodatnih provjera i osloniti se na korisnika.  
-2. Validirati samo postojanje extraction rezultata.  
-3. Blokirati confirm dok required placeholder polja nisu popunjena i dok low-confidence polja nisu ručno pregledana/editovana.
+**Razmatrane opcije:**
+
+1. Dozvoliti confirm bez dodatnih provjera i osloniti se na korisnika.
+2. Validirati samo postojanje extraction rezultata.
+3. Blokirati confirm dok required placeholder polja nisu popunjena i dok low-confidence polja nisu ručno
+   pregledana/editovana.
 
 **Odabrana opcija:**  
-Confirm endpoint poziva backend validaciju koja provjerava required polja, placeholder status, prazne vrijednosti, format vrijednosti i low-confidence polja.
+Confirm endpoint poziva backend validaciju koja provjerava required polja, placeholder status, prazne vrijednosti,
+format vrijednosti i low-confidence polja.
 
 **Razlog izbora:**  
-Confirm akcija predstavlja trenutak u kojem korisnik potvrđuje da su OCR/AI podaci pregledani i spremni za naredni korak procesa. Zbog toga backend mora biti finalna validacijska tačka i ne smije dozvoliti prelazak dokumenta u `READY_FOR_APPROVAL` ako postoje nepregledana ili nepopunjena problematična polja.
+Confirm akcija predstavlja trenutak u kojem korisnik potvrđuje da su OCR/AI podaci pregledani i spremni za naredni korak
+procesa. Zbog toga backend mora biti finalna validacijska tačka i ne smije dozvoliti prelazak dokumenta u
+`READY_FOR_APPROVAL` ako postoje nepregledana ili nepopunjena problematična polja.
 
-**Posljedice odluke:**  
+**Posljedice odluke:**
+
 - Dokument prelazi u `READY_FOR_APPROVAL` samo ako validacija prođe.
 - Required placeholder polja moraju biti ručno popunjena prije confirma.
 - Polja sa confidence score-om ispod praga moraju biti ručno pregledana/editovana prije confirma.
@@ -586,21 +662,28 @@ Confirm akcija predstavlja trenutak u kojem korisnik potvrđuje da su OCR/AI pod
 **Datum:** 14.05.2026
 
 **Opis problema:**  
-Korisniku je trebalo jasno prikazati koja izdvojena polja zahtijevaju ručni review, ali bez pretrpavanja interfejsa velikim brojem tehničkih validation error poruka. Backend može vratiti više validacijskih grešaka odjednom, npr. više missing required polja i više low-confidence polja.
+Korisniku je trebalo jasno prikazati koja izdvojena polja zahtijevaju ručni review, ali bez pretrpavanja interfejsa
+velikim brojem tehničkih validation error poruka. Backend može vratiti više validacijskih grešaka odjednom, npr. više
+missing required polja i više low-confidence polja.
 
-**Razmatrane opcije:**  
-1. Prikazati sve backend validation error poruke direktno u UI tabeli.  
-2. Prikazati samo prvi error koji backend vrati.  
-3. Označiti problematična polja direktno u tabeli, a confirm greške prikazati kroz kratke toastr poruke.  
+**Razmatrane opcije:**
+
+1. Prikazati sve backend validation error poruke direktno u UI tabeli.
+2. Prikazati samo prvi error koji backend vrati.
+3. Označiti problematična polja direktno u tabeli, a confirm greške prikazati kroz kratke toastr poruke.
 4. Prikazati veliki warning blok iznad tabele sa svim detaljima.
 
 **Odabrana opcija:**  
-Frontend označava problematična polja direktno u tabeli kroz review status oznake, dok se validation greške pri pokušaju confirma prikazuju kroz kraći toastr.
+Frontend označava problematična polja direktno u tabeli kroz review status oznake, dok se validation greške pri pokušaju
+confirma prikazuju kroz kraći toastr.
 
 **Razlog izbora:**  
-Tabela je najprirodnije mjesto da korisnik vidi koje polje treba pregledati ili popuniti. Istovremeno, preduge i višestruke validation poruke bi nepotrebno opteretile UI. Kraći toastr daje korisniku signal zašto confirm nije prošao, dok tabela pokazuje gdje treba izvršiti izmjenu.
+Tabela je najprirodnije mjesto da korisnik vidi koje polje treba pregledati ili popuniti. Istovremeno, preduge i
+višestruke validation poruke bi nepotrebno opteretile UI. Kraći toastr daje korisniku signal zašto confirm nije prošao,
+dok tabela pokazuje gdje treba izvršiti izmjenu.
 
-**Posljedice odluke:**  
+**Posljedice odluke:**
+
 - Placeholder required polja se u tabeli označavaju kao `Missing required`.
 - Low-confidence polja se označavaju kao `Review needed`.
 - Ručno pregledana/editovana polja dobijaju status `Reviewed`.
@@ -610,3 +693,5 @@ Tabela je najprirodnije mjesto da korisnik vidi koje polje treba pregledati ili 
 - UI ostaje pregledniji i konzistentniji sa postojećim dizajnom aplikacije.
 
 **Status:** Aktivna
+
+---
