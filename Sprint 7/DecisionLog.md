@@ -518,3 +518,95 @@ Poseban POST confirm endpoint jasno odvaja potvrdu pregledane ekstrakcije od OCR
 - Validacija vrijednosti i validacija obaveznih polja ostaju odvojene kroz placeholder metode koje će biti implementirane u zasebnom backend validacijskom tasku.
 
 **Status:** Aktivna
+
+---
+
+### DL-022 – Placeholder polja za missing required vrijednosti nakon OCR ekstrakcije
+
+**Datum:** 14.05.2026
+
+**Opis problema:**  
+Tokom testiranja OCR/AI ekstrakcije uočeno je da eksterni servis ne vraća uvijek sva polja koja sistem smatra obaveznim za nastavak procesa. Ako polje nije vraćeno iz OCR rezultata, korisnik ga ranije nije mogao jednostavno ručno popuniti kroz postojeći edit flow, jer takvo polje nije ni postojalo u tabeli `extraction_field`.
+
+**Razmatrane opcije:**  
+1. Dozvoliti confirm iako required polja nisu vraćena.  
+2. Blokirati confirm, ali ne prikazati missing polja u UI tabeli.  
+3. Dodati poseban “Add field” endpoint i UI formu za dodavanje polja.  
+4. Nakon ekstrakcije automatski kreirati missing required polja kao placeholder redove.
+
+**Odabrana opcija:**  
+Backend nakon svake ekstrakcije automatski dodaje required polja koja OCR nije vratio kao placeholder redove u tabelu `extraction_field`.
+
+**Razlog izbora:**  
+Ovo omogućava korisniku da missing required polja vidi u istoj tabeli kao i ostala OCR polja i da ih popuni kroz postojeći edit flow. Time se izbjegava uvođenje posebnog “Add field” endpointa i dodatnog UI toka, a sistem i dalje može jasno razlikovati stvarno prepoznata OCR polja od polja koja su dodana kao placeholder.
+
+**Posljedice odluke:**  
+- U tabelu `extraction_field` dodana je kolona `is_placeholder`.
+- Placeholder polja imaju praznu vrijednost, confidence 0 i `is_placeholder = true`.
+- Nakon što korisnik ručno popuni placeholder polje, ono se označava kao korigovano i više nije placeholder.
+- Frontend može jasno prikazati koja polja korisnik mora ručno popuniti.
+- Potrebno je osigurati da postojeće baze dobiju novu kolonu sa default vrijednošću `false`.
+
+**Status:** Aktivna
+
+---
+
+### DL-023 – Confirm ekstrakcije dozvoljen samo nakon review-a problematičnih polja
+
+**Datum:** 14.05.2026
+
+**Opis problema:**  
+Potvrda ekstrakcije ne smije biti dozvoljena ako OCR rezultat još uvijek sadrži nepregledana ili nepotpuna polja. Posebno su problematična required polja koja OCR nije prepoznao i polja sa confidence score-om ispod definisanog praga od 70%.
+
+**Razmatrane opcije:**  
+1. Dozvoliti confirm bez dodatnih provjera i osloniti se na korisnika.  
+2. Validirati samo postojanje extraction rezultata.  
+3. Blokirati confirm dok required placeholder polja nisu popunjena i dok low-confidence polja nisu ručno pregledana/editovana.
+
+**Odabrana opcija:**  
+Confirm endpoint poziva backend validaciju koja provjerava required polja, placeholder status, prazne vrijednosti, format vrijednosti i low-confidence polja.
+
+**Razlog izbora:**  
+Confirm akcija predstavlja trenutak u kojem korisnik potvrđuje da su OCR/AI podaci pregledani i spremni za naredni korak procesa. Zbog toga backend mora biti finalna validacijska tačka i ne smije dozvoliti prelazak dokumenta u `READY_FOR_APPROVAL` ako postoje nepregledana ili nepopunjena problematična polja.
+
+**Posljedice odluke:**  
+- Dokument prelazi u `READY_FOR_APPROVAL` samo ako validacija prođe.
+- Required placeholder polja moraju biti ručno popunjena prije confirma.
+- Polja sa confidence score-om ispod praga moraju biti ručno pregledana/editovana prije confirma.
+- Nevalidni formati, npr. pogrešan format za datum ili iznos, blokiraju confirm.
+- Backend vraća strukturirane validation error kodove koje frontend može mapirati u korisničke poruke.
+- Confirm endpoint ne pokreće OCR ponovo i ne briše prethodno ručno korigovana polja.
+
+**Status:** Aktivna
+
+---
+
+### DL-024 – Frontend prikaz review statusa i validacijskih grešaka u extraction tabeli
+
+**Datum:** 14.05.2026
+
+**Opis problema:**  
+Korisniku je trebalo jasno prikazati koja izdvojena polja zahtijevaju ručni review, ali bez pretrpavanja interfejsa velikim brojem tehničkih validation error poruka. Backend može vratiti više validacijskih grešaka odjednom, npr. više missing required polja i više low-confidence polja.
+
+**Razmatrane opcije:**  
+1. Prikazati sve backend validation error poruke direktno u UI tabeli.  
+2. Prikazati samo prvi error koji backend vrati.  
+3. Označiti problematična polja direktno u tabeli, a confirm greške prikazati kroz kratke toastr poruke.  
+4. Prikazati veliki warning blok iznad tabele sa svim detaljima.
+
+**Odabrana opcija:**  
+Frontend označava problematična polja direktno u tabeli kroz review status oznake, dok se validation greške pri pokušaju confirma prikazuju kroz kraći toastr.
+
+**Razlog izbora:**  
+Tabela je najprirodnije mjesto da korisnik vidi koje polje treba pregledati ili popuniti. Istovremeno, preduge i višestruke validation poruke bi nepotrebno opteretile UI. Kraći toastr daje korisniku signal zašto confirm nije prošao, dok tabela pokazuje gdje treba izvršiti izmjenu.
+
+**Posljedice odluke:**  
+- Placeholder required polja se u tabeli označavaju kao `Missing required`.
+- Low-confidence polja se označavaju kao `Review needed`.
+- Ručno pregledana/editovana polja dobijaju status `Reviewed`.
+- Confirm dugme je dostupno na document detail stranici nakon ekstrakcije.
+- Nakon uspješnog confirma dokument dobija status `READY_FOR_APPROVAL`.
+- Validation error poruke se grupišu u kraći toastr umjesto prikaza velikog broja raw backend grešaka.
+- UI ostaje pregledniji i konzistentniji sa postojećim dizajnom aplikacije.
+
+**Status:** Aktivna

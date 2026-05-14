@@ -110,3 +110,23 @@ Napomena: Ovaj AI Usage Log je živi dokument i ažurira se kroz sprintove.
 | Šta je tim odbacio | Nije implementirana stvarna validacija vrijednosti i formata extraction field-a, jer je taj dio izdvojen za drugi backend validacijski task. Nije mijenjana struktura baze dodavanjem nove kolone za tip polja, jer se trenutna validacija može osloniti na postojeći `fieldName`. |
 | Rizici, problemi ili greške koje su uočene | Uočeno je da confirm endpoint ne smije koristiti retry/process logiku, jer retry može zamijeniti postojeća extraction fields i time obrisati ručne korekcije. Također je uočeno da validacije vrijednosti i obaveznih polja trebaju ostati odvojene kroz placeholder metode kako bi ih kolege kasnije mogle implementirati u okviru svog taska. |
 | Ko je koristio alat | Emina Zubetljak |
+
+---
+
+---
+
+## Unos #7
+
+| Polje | Detalji |
+|--------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Datum | 14.05.2026 |
+| Sprint broj | Sprint 7 |
+| Alat koji je korišten | ChatGPT GPT-5.5 Thinking |
+| Svrha korištenja | Pomoć pri proširenju backend i frontend extraction flow-a vezanog za potvrdu ekstrakcije, required polja, placeholder vrijednosti i prikaz validacijskih grešaka korisniku. |
+| Kratak opis zadatka ili upita | Alat je korišten za analizu postojećeg extraction flow-a i planiranje rješenja za slučaj kada OCR/AI servis ne vrati sva required polja. Dodatno je korišten za razradu FE prikaza placeholder polja, confirm dugmeta, validacijskih poruka i statusa dokumenta nakon potvrde ekstrakcije. |
+| Šta je AI predložio ili generisao | AI je predložio da backend nakon ekstrakcije automatski doda missing required polja kao placeholder redove u `extraction_field` tabeli, uz novu kolonu `is_placeholder`. Na FE strani predloženi su prikaz placeholder polja kroz posebne oznake u tabeli. |
+| Šta je tim prihvatio | Prihvaćen je pristup sa placeholder poljima za missing required vrijednosti, dodatna kolona `is_placeholder`, validacija prije confirma, kao i FE prikaz koji korisniku jasno označava polja koja zahtijevaju ručni review. |
+| Šta je tim izmijenio | Implementacija je ručno prilagođena postojećoj arhitekturi projekta, postojećem `ApiResponse`/validation error formatu, DAO/service/controller slojevima i postojećem frontend dizajnu. FE stilizacija je također prilagođena postojećem izgledu sistema. |
+| Šta je tim odbacio | Odbačena je ideja da se uvodi poseban “Add field” endpoint za korisničko dodavanje missing polja, jer je jednostavnije i konzistentnije da backend automatski kreira placeholder redove koje korisnik zatim edituje kroz postojeći edit flow. Odbačen je i prikaz predugih ili višestrukih raw validation error poruka direktno u UI tabeli. |
+| Rizici, problemi ili greške koje su uočene | Uočeno je da postojeća baza mora dobiti novu kolonu `is_placeholder` sa default vrijednošću `false`, posebno zbog već postojećih redova u tabeli. Također je uočeno da FE i BE moraju ostati usklađeni oko `placeholder` polja, statusa `READY_FOR_APPROVAL` i validacijskih kodova koje backend vraća. Posebna pažnja je potrebna da confirm ne obriše ručne korekcije i da retry flow ispravno zamijeni prethodna extraction polja novim OCR rezultatom i placeholder redovima. |
+| Ko je koristio alat | Emina Zubetljak |
