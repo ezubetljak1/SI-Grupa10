@@ -7,6 +7,7 @@ import jakarta.persistence.TypedQuery;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public class ExtractionFieldDAO extends AbstractDAO<ExtractionFieldEntity, Long> {
@@ -43,5 +44,24 @@ public class ExtractionFieldDAO extends AbstractDAO<ExtractionFieldEntity, Long>
         query.setParameter("documentId", documentId);
 
         return query.getResultList();
+    }
+
+    public Optional<ExtractionFieldEntity> findByIdAndExtractionId(
+            Long fieldId, Long extractionId) {
+        String jpql =
+                """
+        SELECT ef
+        FROM ExtractionFieldEntity ef
+        WHERE ef.id = :fieldId
+        AND ef.extraction.id = :extractionId
+        """;
+
+        TypedQuery<ExtractionFieldEntity> query =
+                entityManager.createQuery(jpql, ExtractionFieldEntity.class);
+
+        query.setParameter("fieldId", fieldId);
+        query.setParameter("extractionId", extractionId);
+
+        return query.getResultStream().findFirst();
     }
 }

@@ -20,14 +20,34 @@
 .extraction-actions {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 12px;
   flex-wrap: wrap;
   margin-bottom: 12px;
 }
 
+.extraction-actions__left,
+.extraction-actions__right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.extraction-actions__right {
+  margin-left: auto;
+}
+
 .message-card--error {
-  border: 1px solid rgba(220, 53, 69, 0.35);
-  background: rgba(220, 53, 69, 0.08);
+  border: 1px solid rgba(220, 53, 69, 0.22);
+  background: rgba(220, 53, 69, 0.05);
+}
+
+.message-card--success {
+  border: 1px solid rgba(25, 135, 84, 0.18);
+  background: rgba(25, 135, 84, 0.05);
+  color: var(--text-main);
+  margin-bottom: 14px;
 }
 
 .extraction-table-wrapper {
@@ -42,15 +62,177 @@
 
 .extraction-table th,
 .extraction-table td {
-  padding: 10px 12px;
+  padding: 11px 12px;
   border-bottom: 1px solid var(--border);
   text-align: left;
-  vertical-align: top;
+  vertical-align: middle;
+}
+
+.extraction-table th {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.row--editing {
+  background: var(--primary-soft);
+
+  td {
+    border-bottom-color: var(--primary-border);
+  }
+}
+
+.row--placeholder {
+  background: rgba(245, 158, 11, 0.035);
+}
+
+.row--warning {
+  background: rgba(15, 23, 42, 0.025);
 }
 
 .mono {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
     'Courier New', monospace;
+}
+
+.field-cell {
+  min-width: 190px;
+}
+
+.field-cell__content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.field-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.field-pill--required {
+  color: #9a6700;
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.18);
+}
+
+.value-cell {
+  min-width: 220px;
+}
+
+.value--missing {
+  color: #9a6700;
+  font-style: italic;
+}
+
+.confidence--low {
+  color: #8b5e00;
+  font-weight: 600;
+}
+
+.edit-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.edit-input {
+  min-height: 36px !important;
+  border-radius: 8px !important;
+  font-size: 13px;
+  padding: 0 10px !important;
+}
+
+.validation-error {
+  font-size: 12px;
+  color: var(--error);
+  line-height: 1.4;
+}
+
+.review-cell {
+  min-width: 150px;
+}
+
+.review-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+
+.review-badge--missing {
+  color: #9a6700;
+  background: rgba(245, 158, 11, 0.08);
+  border-color: rgba(245, 158, 11, 0.18);
+}
+
+.review-badge--warning {
+  color: var(--text-main);
+  background: rgba(15, 23, 42, 0.04);
+  border-color: rgba(15, 23, 42, 0.08);
+}
+
+.review-badge--reviewed {
+  color: var(--success);
+  background: rgba(25, 135, 84, 0.06);
+  border-color: rgba(25, 135, 84, 0.14);
+}
+
+.review-badge--ok {
+  color: var(--text-muted);
+  background: rgba(15, 23, 42, 0.03);
+  border-color: var(--border);
+}
+
+.actions-cell {
+  white-space: nowrap;
+  width: 1%;
+}
+
+.edit-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.icon-btn--confirm {
+  color: var(--success);
+  border-color: var(--success-border);
+  background: var(--success-soft);
+
+  &:hover:not(:disabled) {
+    background: var(--success-soft);
+    border-color: var(--success);
+    color: var(--success);
+  }
+}
+
+.icon-btn--cancel {
+  color: var(--error);
+  border-color: var(--error-border);
+  background: var(--error-soft);
+
+  &:hover:not(:disabled) {
+    background: var(--error-soft);
+    border-color: var(--error);
+    color: var(--error);
+  }
 }
 
 .loading-state {
@@ -130,6 +312,12 @@
     color: var(--text-muted);
     border-color: var(--border);
   }
+
+  &--ok {
+    background: var(--success-soft);
+    color: var(--success);
+    border-color: var(--success-border);
+  }
 }
 
 .meta-grid {
@@ -203,4 +391,17 @@ iframe {
 img {
   max-height: 600px;
   object-fit: contain;
+}
+
+@media (max-width: 900px) {
+  .extraction-table th,
+  .extraction-table td {
+    padding: 9px 10px;
+  }
+
+  .review-cell,
+  .value-cell,
+  .field-cell {
+    min-width: 160px;
+  }
 }

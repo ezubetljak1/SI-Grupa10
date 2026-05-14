@@ -1,16 +1,26 @@
 package ba.unsa.si.docflow.service.extraction;
 
+import ba.unsa.si.docflow.dto.extraction.ExtractionFieldResponse;
+import ba.unsa.si.docflow.dto.extraction.ExtractionResponse;
+import ba.unsa.si.docflow.dto.extraction.UpdateExtractionFieldRequest;
 import ba.unsa.si.docflow.response.ApiResponse;
+
+import java.util.List;
 
 public interface ExtractionService {
 
-    ApiResponse process(Long documentId);
+    ApiResponse<ExtractionResponse> process(Long documentId);
 
-    ApiResponse retry(Long documentId);
+    ApiResponse<ExtractionResponse> retry(Long documentId);
 
-    ApiResponse findByDocumentId(Long documentId);
+    ApiResponse<ExtractionResponse> findByDocumentId(Long documentId);
 
-    ApiResponse findFieldsByDocumentId(Long documentId);
+    ApiResponse<List<ExtractionFieldResponse>> findFieldsByDocumentId(Long documentId);
 
-    ApiResponse findFieldsByExtractionId(Long extractionId);
+    ApiResponse<List<ExtractionFieldResponse>> findFieldsByExtractionId(Long extractionId);
+
+    ApiResponse<ExtractionFieldResponse> updateField(
+            Long extractionId, Long fieldId, UpdateExtractionFieldRequest request);
+
+    ApiResponse<ExtractionResponse> confirmExtraction(Long documentId);
 }

@@ -21,6 +21,7 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.ActiveProfiles;
@@ -272,8 +273,21 @@ class ExtractionIntegrationTest {
                         String.class,
                         retryExtractionId);
 
+        Integer placeholderCount =
+                jdbcTemplate.queryForObject(
+                        """
+                        SELECT COUNT(*)
+                        FROM extraction_field
+                        WHERE extraction_id = ?
+                          AND is_placeholder = true
+                          AND field_name IN ('invoice_id', 'invoice_date')
+                        """,
+                        Integer.class,
+                        retryExtractionId);
+
         assertEquals(firstExtractionId, retryExtractionId);
-        assertEquals(3, retryFieldCount);
+        assertEquals(5, retryFieldCount);
+        assertEquals(2, placeholderCount);
         assertEquals("250.00", totalAmount);
         verify(ocrProvider, times(2)).process(any(byte[].class), eq("application/pdf"));
     }
@@ -376,6 +390,842 @@ class ExtractionIntegrationTest {
         assertFalse(Files.exists(storedFile));
     }
 
+    @Test
+    void updateExtractionFieldThenChangesValueAndMarksFieldAsCorrected() throws Exception {
+        Long documentId = uploadPdf("Editable extraction invoice");
+
+        when(ocrProvider.process(any(byte[].class), eq("application/pdf")))
+                .thenReturn(sampleOcrResult());
+
+        MvcResult processResult =
+                mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
+                        .andExpect(status().isOk())
+                        .andReturn();
+
+        JsonNode processResponse =
+                objectMapper.readTree(processResult.getResponse().getContentAsString());
+        Long extractionId = processResponse.get("payload").get("id").asLong();
+
+        Long fieldId =
+                jdbcTemplate.queryForObject(
+                        """
+                        SELECT ef.id
+                        FROM extraction_field ef
+                        WHERE ef.extraction_id = ?
+                          AND ef.field_name = 'total_amount'
+                        """,
+                        Long.class,
+                        extractionId);
+
+        mockMvc.perform(
+                        patch(
+                                        "/api/extractions/{extractionId}/fields/{fieldId}",
+                                        extractionId,
+                                        fieldId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                                        {
+                                          "value": "125.50"
+                                        }
+                                        """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("OK"))
+                .andExpect(jsonPath("$.payload.id").value(fieldId))
+                .andExpect(jsonPath("$.payload.value").value("125.50"))
+                .andExpect(jsonPath("$.payload.corrected").value(true));
+
+        Map<String, Object> updatedField =
+                jdbcTemplate.queryForMap(
+                        """
+                        SELECT "value", is_corrected, is_placeholder
+                        FROM extraction_field
+                        WHERE id = ?
+                        """,
+                        fieldId);
+
+        assertEquals("125.50", updatedField.get("value"));
+        assertEquals(true, updatedField.get("is_corrected"));
+        assertEquals(false, updatedField.get("is_placeholder"));
+    }
+
+    @Test
+    void updateExtractionFieldWithWrongExtractionIdThenReturnsNotFoundAndKeepsOldValue()
+            throws Exception {
+        Long firstDocumentId = uploadPdf("First editable extraction invoice");
+        Long secondDocumentId = uploadPdf("Second editable extraction invoice");
+
+        when(ocrProvider.process(any(byte[].class), eq("application/pdf")))
+                .thenReturn(sampleOcrResult())
+                .thenReturn(sampleOcrResult());
+
+        MvcResult firstProcessResult =
+                mockMvc.perform(post("/api/documents/{documentId}/extraction", firstDocumentId))
+                        .andExpect(status().isOk())
+                        .andReturn();
+
+        MvcResult secondProcessResult =
+                mockMvc.perform(post("/api/documents/{documentId}/extraction", secondDocumentId))
+                        .andExpect(status().isOk())
+                        .andReturn();
+
+        JsonNode firstResponse =
+                objectMapper.readTree(firstProcessResult.getResponse().getContentAsString());
+        JsonNode secondResponse =
+                objectMapper.readTree(secondProcessResult.getResponse().getContentAsString());
+
+        Long firstExtractionId = firstResponse.get("payload").get("id").asLong();
+        Long secondExtractionId = secondResponse.get("payload").get("id").asLong();
+
+        Long firstFieldId =
+                jdbcTemplate.queryForObject(
+                        """
+                        SELECT ef.id
+                        FROM extraction_field ef
+                        WHERE ef.extraction_id = ?
+                          AND ef.field_name = 'total_amount'
+                        """,
+                        Long.class,
+                        firstExtractionId);
+
+        mockMvc.perform(
+                        patch(
+                                        "/api/extractions/{extractionId}/fields/{fieldId}",
+                                        secondExtractionId,
+                                        firstFieldId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                                        {
+                                          "value": "999.99"
+                                        }
+                                        """))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("NOT_FOUND"));
+
+        Map<String, Object> unchangedField =
+                jdbcTemplate.queryForMap(
+                        """
+                        SELECT "value", is_corrected
+                        FROM extraction_field
+                        WHERE id = ?
+                        """,
+                        firstFieldId);
+
+        assertEquals("117.00", unchangedField.get("value"));
+        assertEquals(false, unchangedField.get("is_corrected"));
+    }
+
+    @Test
+    void updateDecimalFieldWithEmptyValueThenReturnsBadRequest() throws Exception {
+        long[] ids = uploadAndExtractWith(sampleOcrResult());
+        long extractionId = ids[0];
+        long fieldId = ids[1];
+
+        mockMvc.perform(
+                        patch(
+                                        "/api/extractions/{extractionId}/fields/{fieldId}",
+                                        extractionId,
+                                        fieldId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"value\": \"\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$[0].code").value("EXTRACTION_FIELD_AMOUNT_INVALID"));
+
+        assertFieldUnchanged(extractionId, fieldId, "117.00", false);
+    }
+
+    @Test
+    void updateDecimalFieldWithNonNumericValueThenReturnsBadRequest() throws Exception {
+        long[] ids = uploadAndExtractWith(sampleOcrResult());
+        long extractionId = ids[0];
+        long fieldId = ids[1];
+
+        mockMvc.perform(
+                        patch(
+                                        "/api/extractions/{extractionId}/fields/{fieldId}",
+                                        extractionId,
+                                        fieldId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"value\": \"abc\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$[0].code").value("EXTRACTION_FIELD_AMOUNT_INVALID"));
+
+        assertFieldUnchanged(extractionId, fieldId, "117.00", false);
+    }
+
+    @Test
+    void updateDecimalFieldWithTooManyDecimalsThenReturnsBadRequest() throws Exception {
+        long[] ids = uploadAndExtractWith(sampleOcrResult());
+        long extractionId = ids[0];
+        long fieldId = ids[1];
+
+        mockMvc.perform(
+                        patch(
+                                        "/api/extractions/{extractionId}/fields/{fieldId}",
+                                        extractionId,
+                                        fieldId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"value\": \"117.001\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$[0].code").value("EXTRACTION_FIELD_AMOUNT_INVALID"));
+
+        assertFieldUnchanged(extractionId, fieldId, "117.00", false);
+    }
+
+    @Test
+    void updateDecimalFieldWithNegativeValueThenReturnsBadRequest() throws Exception {
+        long[] ids = uploadAndExtractWith(sampleOcrResult());
+        long extractionId = ids[0];
+        long fieldId = ids[1];
+
+        mockMvc.perform(
+                        patch(
+                                        "/api/extractions/{extractionId}/fields/{fieldId}",
+                                        extractionId,
+                                        fieldId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"value\": \"-1.00\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$[0].code").value("EXTRACTION_FIELD_AMOUNT_INVALID"));
+
+        assertFieldUnchanged(extractionId, fieldId, "117.00", false);
+    }
+
+    @Test
+    void updateDecimalFieldWithCommaAsDecimalSeparatorThenSucceeds() throws Exception {
+        long[] ids = uploadAndExtractWith(sampleOcrResult());
+        long extractionId = ids[0];
+        long fieldId = ids[1];
+
+        mockMvc.perform(
+                        patch(
+                                        "/api/extractions/{extractionId}/fields/{fieldId}",
+                                        extractionId,
+                                        fieldId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"value\": \"125,50\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.payload.value").value("125,50"))
+                .andExpect(jsonPath("$.payload.corrected").value(true));
+    }
+
+    @Test
+    void updateDateFieldWithInvalidFormatThenReturnsBadRequestAndKeepsOldValue() throws Exception {
+        long[] ids = uploadAndExtractFieldWith(sampleOcrResult(), "invoice_date");
+        long extractionId = ids[0];
+        long fieldId = ids[1];
+
+        mockMvc.perform(
+                        patch(
+                                        "/api/extractions/{extractionId}/fields/{fieldId}",
+                                        extractionId,
+                                        fieldId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"value\": \"06-05-2026\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$[0].code").value("EXTRACTION_FIELD_DATE_FORMAT_INVALID"));
+
+        assertFieldUnchanged(extractionId, fieldId, "2026-05-06", false);
+    }
+
+    @Test
+    void updateDateFieldWithSupportedFormatThenSucceeds() throws Exception {
+        long[] ids = uploadAndExtractFieldWith(sampleOcrResult(), "invoice_date");
+        long extractionId = ids[0];
+        long fieldId = ids[1];
+
+        mockMvc.perform(
+                        patch(
+                                        "/api/extractions/{extractionId}/fields/{fieldId}",
+                                        extractionId,
+                                        fieldId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"value\": \"06.05.2026\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.payload.value").value("06.05.2026"))
+                .andExpect(jsonPath("$.payload.corrected").value(true));
+    }
+
+    @Test
+    void updateTotalAmountWhenInconsistentWithNetPlusVatThenReturnsBadRequest() throws Exception {
+        long[] ids = uploadAndExtractWith(sampleOcrResultWithNetVatTotal());
+        long extractionId = ids[0];
+        long totalFieldId = ids[1];
+
+        mockMvc.perform(
+                        patch(
+                                        "/api/extractions/{extractionId}/fields/{fieldId}",
+                                        extractionId,
+                                        totalFieldId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"value\": \"200.00\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$[0].code").value("EXTRACTION_FIELD_AMOUNT_INCONSISTENT"));
+
+        assertFieldUnchanged(extractionId, totalFieldId, "117.00", false);
+    }
+
+    @Test
+    void confirmExtractionThenMarksDocumentReadyForApprovalAndKeepsCorrectedFields()
+            throws Exception {
+        Long documentId = uploadPdf("Confirm extraction invoice");
+
+        when(ocrProvider.process(any(byte[].class), eq("application/pdf")))
+                .thenReturn(sampleOcrResult());
+
+        MvcResult processResult =
+                mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
+                        .andExpect(status().isOk())
+                        .andReturn();
+
+        JsonNode processResponse =
+                objectMapper.readTree(processResult.getResponse().getContentAsString());
+        Long extractionId = processResponse.get("payload").get("id").asLong();
+
+        Long fieldId =
+                jdbcTemplate.queryForObject(
+                        """
+                        SELECT ef.id
+                        FROM extraction_field ef
+                        WHERE ef.extraction_id = ?
+                          AND ef.field_name = 'total_amount'
+                        """,
+                        Long.class,
+                        extractionId);
+
+        mockMvc.perform(
+                        patch(
+                                        "/api/extractions/{extractionId}/fields/{fieldId}",
+                                        extractionId,
+                                        fieldId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                                        {
+                                          "value": "125.50"
+                                        }
+                                        """))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction/confirm", documentId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("OK"))
+                .andExpect(jsonPath("$.payload.documentId").value(documentId));
+
+        String documentStatus =
+                jdbcTemplate.queryForObject(
+                        "SELECT document_status FROM document WHERE id = ?",
+                        String.class,
+                        documentId);
+
+        Integer fieldCount =
+                jdbcTemplate.queryForObject(
+                        "SELECT COUNT(*) FROM extraction_field WHERE extraction_id = ?",
+                        Integer.class,
+                        extractionId);
+
+        Map<String, Object> correctedField =
+                jdbcTemplate.queryForMap(
+                        """
+                        SELECT "value", is_corrected
+                        FROM extraction_field
+                        WHERE id = ?
+                        """,
+                        fieldId);
+
+        assertEquals("READY_FOR_APPROVAL", documentStatus);
+        assertEquals(5, fieldCount);
+        assertEquals("125.50", correctedField.get("value"));
+        assertEquals(true, correctedField.get("is_corrected"));
+
+        verify(ocrProvider, times(1)).process(any(byte[].class), eq("application/pdf"));
+    }
+
+    @Test
+    void confirmExtractionBeforeProcessingThenReturnsNotFound() throws Exception {
+        Long documentId = uploadPdf("Confirm without extraction invoice");
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction/confirm", documentId))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("NOT_FOUND"));
+
+        verifyNoInteractions(ocrProvider);
+    }
+
+    @Test
+    void confirmExtractionWithLowConfidenceUncorrectedFieldThenReturnsBadRequest()
+            throws Exception {
+        Long documentId = uploadPdf("Low confidence invoice");
+
+        when(ocrProvider.process(any(byte[].class), eq("application/pdf")))
+                .thenReturn(sampleLowConfidenceOcrResult());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction/confirm", documentId))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$[0].code").value("EXTRACTION_FIELD_LOW_CONFIDENCE"));
+
+        String documentStatus =
+                jdbcTemplate.queryForObject(
+                        "SELECT document_status FROM document WHERE id = ?",
+                        String.class,
+                        documentId);
+
+        assertEquals("EXTRACTED", documentStatus);
+    }
+
+    @Test
+    void confirmExtractionWithLowConfidenceCorrectedFieldThenSucceeds() throws Exception {
+        Long documentId = uploadPdf("Corrected low confidence invoice");
+
+        when(ocrProvider.process(any(byte[].class), eq("application/pdf")))
+                .thenReturn(sampleLowConfidenceOcrResult());
+
+        MvcResult processResult =
+                mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
+                        .andExpect(status().isOk())
+                        .andReturn();
+
+        JsonNode processResponse =
+                objectMapper.readTree(processResult.getResponse().getContentAsString());
+        Long extractionId = processResponse.get("payload").get("id").asLong();
+
+        Long lowConfidenceFieldId =
+                jdbcTemplate.queryForObject(
+                        """
+                        SELECT ef.id
+                        FROM extraction_field ef
+                        WHERE ef.extraction_id = ?
+                          AND ef.field_name = 'total_amount'
+                        """,
+                        Long.class,
+                        extractionId);
+
+        mockMvc.perform(
+                        patch(
+                                        "/api/extractions/{extractionId}/fields/{fieldId}",
+                                        extractionId,
+                                        lowConfidenceFieldId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                                        {
+                                          "value": "117.00"
+                                        }
+                                        """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.payload.corrected").value(true));
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction/confirm", documentId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("OK"))
+                .andExpect(jsonPath("$.payload.documentId").value(documentId));
+
+        String documentStatus =
+                jdbcTemplate.queryForObject(
+                        "SELECT document_status FROM document WHERE id = ?",
+                        String.class,
+                        documentId);
+
+        assertEquals("READY_FOR_APPROVAL", documentStatus);
+    }
+
+    @Test
+    void confirmInvoiceExtractionWithoutRequiredFieldThenReturnsBadRequest() throws Exception {
+        Long documentId = uploadPdf("Missing required field invoice");
+
+        when(ocrProvider.process(any(byte[].class), eq("application/pdf")))
+                .thenReturn(sampleOcrResultWithoutInvoiceId());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction/confirm", documentId))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$[0].code").value("EXTRACTION_REQUIRED_FIELD_MISSING"));
+
+        String documentStatus =
+                jdbcTemplate.queryForObject(
+                        "SELECT document_status FROM document WHERE id = ?",
+                        String.class,
+                        documentId);
+
+        assertEquals("EXTRACTED", documentStatus);
+    }
+
+    @Test
+    void confirmInvoiceExtractionWithBlankFieldThenReturnsBadRequest() throws Exception {
+        Long documentId = uploadPdf("Blank required field invoice");
+
+        when(ocrProvider.process(any(byte[].class), eq("application/pdf")))
+                .thenReturn(sampleOcrResultWithBlankSupplierName());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction/confirm", documentId))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$[0].code").value("EXTRACTION_FIELD_EMPTY"));
+
+        String documentStatus =
+                jdbcTemplate.queryForObject(
+                        "SELECT document_status FROM document WHERE id = ?",
+                        String.class,
+                        documentId);
+
+        assertEquals("EXTRACTED", documentStatus);
+    }
+
+    @Test
+    void confirmInvoiceExtractionWithRequiredFieldsThenSucceeds() throws Exception {
+        Long documentId = uploadPdf("Valid required fields invoice");
+
+        when(ocrProvider.process(any(byte[].class), eq("application/pdf")))
+                .thenReturn(sampleOcrResult());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction/confirm", documentId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("OK"))
+                .andExpect(jsonPath("$.payload.documentId").value(documentId));
+
+        String documentStatus =
+                jdbcTemplate.queryForObject(
+                        "SELECT document_status FROM document WHERE id = ?",
+                        String.class,
+                        documentId);
+
+        assertEquals("READY_FOR_APPROVAL", documentStatus);
+    }
+
+    @Test
+    void confirmInvoiceExtractionWithInvalidDateFormatThenReturnsBadRequest() throws Exception {
+        Long documentId = uploadPdf("Invalid date format invoice");
+
+        when(ocrProvider.process(any(byte[].class), eq("application/pdf")))
+                .thenReturn(sampleOcrResultWithInvalidDateFormat());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction/confirm", documentId))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$[0].code").value("EXTRACTION_FIELD_DATE_FORMAT_INVALID"));
+
+        String documentStatus =
+                jdbcTemplate.queryForObject(
+                        "SELECT document_status FROM document WHERE id = ?",
+                        String.class,
+                        documentId);
+
+        assertEquals("EXTRACTED", documentStatus);
+    }
+
+    @Test
+    void confirmInvoiceExtractionWithDifferentFieldNameCaseThenSucceeds() throws Exception {
+        Long documentId = uploadPdf("Normalized field names invoice");
+
+        when(ocrProvider.process(any(byte[].class), eq("application/pdf")))
+                .thenReturn(sampleOcrResultWithMixedCaseFieldNames());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction/confirm", documentId))
+                .andExpect(status().isOk());
+
+        String documentStatus =
+                jdbcTemplate.queryForObject(
+                        "SELECT document_status FROM document WHERE id = ?",
+                        String.class,
+                        documentId);
+
+        assertEquals("READY_FOR_APPROVAL", documentStatus);
+    }
+
+    @Test
+    void processExtractionWhenRequiredFieldsAreMissingThenCreatesPlaceholderFields()
+            throws Exception {
+        Long documentId = uploadPdf("Missing placeholders invoice");
+
+        when(ocrProvider.process(any(byte[].class), eq("application/pdf")))
+                .thenReturn(sampleOcrResultMissingSupplierAndCurrency());
+
+        MvcResult processResult =
+                mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
+                        .andExpect(status().isOk())
+                        .andExpect(jsonPath("$.code").value("OK"))
+                        .andExpect(jsonPath("$.payload.fields.length()").value(5))
+                        .andExpect(
+                                jsonPath(
+                                                "$.payload.fields[?(@.fieldName == 'supplier_name')].placeholder")
+                                        .value(true))
+                        .andExpect(
+                                jsonPath(
+                                                "$.payload.fields[?(@.fieldName == 'currency')].placeholder")
+                                        .value(true))
+                        .andReturn();
+
+        JsonNode processResponse =
+                objectMapper.readTree(processResult.getResponse().getContentAsString());
+        Long extractionId = processResponse.get("payload").get("id").asLong();
+
+        Integer placeholderCount =
+                jdbcTemplate.queryForObject(
+                        """
+                        SELECT COUNT(*)
+                        FROM extraction_field
+                        WHERE extraction_id = ?
+                          AND is_placeholder = true
+                          AND field_name IN ('supplier_name', 'currency')
+                        """,
+                        Integer.class,
+                        extractionId);
+
+        Integer realFieldCount =
+                jdbcTemplate.queryForObject(
+                        """
+                        SELECT COUNT(*)
+                        FROM extraction_field
+                        WHERE extraction_id = ?
+                          AND is_placeholder = false
+                        """,
+                        Integer.class,
+                        extractionId);
+
+        assertEquals(2, placeholderCount);
+        assertEquals(3, realFieldCount);
+    }
+
+    @Test
+    void confirmExtractionWithRequiredPlaceholderFieldsThenReturnsBadRequest() throws Exception {
+        Long documentId = uploadPdf("Confirm placeholder invoice");
+
+        when(ocrProvider.process(any(byte[].class), eq("application/pdf")))
+                .thenReturn(sampleOcrResultMissingSupplierAndCurrency());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction/confirm", documentId))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$[0].code").value("EXTRACTION_REQUIRED_FIELD_MISSING"));
+
+        String documentStatus =
+                jdbcTemplate.queryForObject(
+                        "SELECT document_status FROM document WHERE id = ?",
+                        String.class,
+                        documentId);
+
+        assertEquals("EXTRACTED", documentStatus);
+    }
+
+    @Test
+    void updatePlaceholderFieldThenSetsCorrectedTrueAndPlaceholderFalse() throws Exception {
+        Long documentId = uploadPdf("Edit placeholder invoice");
+
+        when(ocrProvider.process(any(byte[].class), eq("application/pdf")))
+                .thenReturn(sampleOcrResultMissingSupplierAndCurrency());
+
+        MvcResult processResult =
+                mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
+                        .andExpect(status().isOk())
+                        .andReturn();
+
+        JsonNode processResponse =
+                objectMapper.readTree(processResult.getResponse().getContentAsString());
+        Long extractionId = processResponse.get("payload").get("id").asLong();
+
+        Long supplierFieldId =
+                jdbcTemplate.queryForObject(
+                        """
+                        SELECT id
+                        FROM extraction_field
+                        WHERE extraction_id = ?
+                          AND field_name = 'supplier_name'
+                          AND is_placeholder = true
+                        """,
+                        Long.class,
+                        extractionId);
+
+        mockMvc.perform(
+                        patch(
+                                        "/api/extractions/{extractionId}/fields/{fieldId}",
+                                        extractionId,
+                                        supplierFieldId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                                        {
+                                          "value": "Manual Supplier d.o.o."
+                                        }
+                                        """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("OK"))
+                .andExpect(jsonPath("$.payload.value").value("Manual Supplier d.o.o."))
+                .andExpect(jsonPath("$.payload.corrected").value(true))
+                .andExpect(jsonPath("$.payload.placeholder").value(false));
+
+        Map<String, Object> updatedField =
+                jdbcTemplate.queryForMap(
+                        """
+                        SELECT "value", is_corrected, is_placeholder
+                        FROM extraction_field
+                        WHERE id = ?
+                        """,
+                        supplierFieldId);
+
+        assertEquals("Manual Supplier d.o.o.", updatedField.get("value"));
+        assertEquals(true, updatedField.get("is_corrected"));
+        assertEquals(false, updatedField.get("is_placeholder"));
+    }
+
+    @Test
+    void confirmExtractionAfterFillingPlaceholderFieldsThenSucceeds() throws Exception {
+        Long documentId = uploadPdf("Filled placeholders invoice");
+
+        when(ocrProvider.process(any(byte[].class), eq("application/pdf")))
+                .thenReturn(sampleOcrResultMissingSupplierAndCurrency());
+
+        MvcResult processResult =
+                mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
+                        .andExpect(status().isOk())
+                        .andReturn();
+
+        JsonNode processResponse =
+                objectMapper.readTree(processResult.getResponse().getContentAsString());
+        Long extractionId = processResponse.get("payload").get("id").asLong();
+
+        Long supplierFieldId = findFieldId(extractionId, "supplier_name");
+        Long currencyFieldId = findFieldId(extractionId, "currency");
+
+        updateField(extractionId, supplierFieldId, "Manual Supplier d.o.o.");
+        updateField(extractionId, currencyFieldId, "EUR");
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction/confirm", documentId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("OK"))
+                .andExpect(jsonPath("$.payload.documentId").value(documentId));
+
+        String documentStatus =
+                jdbcTemplate.queryForObject(
+                        "SELECT document_status FROM document WHERE id = ?",
+                        String.class,
+                        documentId);
+
+        Integer placeholderCount =
+                jdbcTemplate.queryForObject(
+                        """
+                        SELECT COUNT(*)
+                        FROM extraction_field
+                        WHERE extraction_id = ?
+                          AND is_placeholder = true
+                        """,
+                        Integer.class,
+                        extractionId);
+
+        assertEquals("READY_FOR_APPROVAL", documentStatus);
+        assertEquals(0, placeholderCount);
+    }
+
+    private Long findFieldId(Long extractionId, String fieldName) {
+        return jdbcTemplate.queryForObject(
+                """
+                SELECT id
+                FROM extraction_field
+                WHERE extraction_id = ?
+                  AND field_name = ?
+                """,
+                Long.class,
+                extractionId,
+                fieldName);
+    }
+
+    private void updateField(Long extractionId, Long fieldId, String value) throws Exception {
+        mockMvc.perform(
+                        patch(
+                                        "/api/extractions/{extractionId}/fields/{fieldId}",
+                                        extractionId,
+                                        fieldId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                                        {
+                                          "value": "%s"
+                                        }
+                                        """
+                                                .formatted(value)))
+                .andExpect(status().isOk());
+    }
+
+    private OcrResult sampleOcrResultMissingSupplierAndCurrency() {
+        return new OcrResult(
+                "INVOICE\nInvoice: INV-001\nDate: 2026-05-06\nTotal: 117.00\n",
+                List.of(
+                        field("invoice_id", "INV-001", null, "0.97"),
+                        field("invoice_date", "2026-05-06", "2026-05-06", "0.96"),
+                        field("total_amount", "117.00", "117", "0.95")));
+    }
+
+    private OcrResult sampleOcrResultWithMixedCaseFieldNames() {
+        return new OcrResult(
+                "INVOICE\nSupplier: Test Company d.o.o.\nTotal: 117.00 EUR\n",
+                List.of(
+                        field(" Supplier_Name ", "Test Company d.o.o.", null, "0.91"),
+                        field("Invoice_ID", "INV-001", null, "0.97"),
+                        field("INVOICE_DATE", "2026-05-06", "2026-05-06", "0.96"),
+                        field("Total_Amount", "117.00", "117", "0.95"),
+                        field("Currency", "EUR", "EUR", "0.89")));
+    }
+
+    private OcrResult sampleOcrResultWithoutInvoiceId() {
+        return new OcrResult(
+                "INVOICE\nSupplier: Test Company d.o.o.\nTotal: 117.00 EUR\n",
+                List.of(
+                        field("supplier_name", "Test Company d.o.o.", null, "0.91"),
+                        field("invoice_date", "2026-05-06", "2026-05-06", "0.96"),
+                        field("total_amount", "117.00", "117", "0.95"),
+                        field("currency", "EUR", "EUR", "0.89")));
+    }
+
+    private OcrResult sampleOcrResultWithBlankSupplierName() {
+        return new OcrResult(
+                "INVOICE\nSupplier:\nTotal: 117.00 EUR\n",
+                List.of(
+                        field("supplier_name", "   ", null, "0.91"),
+                        field("invoice_id", "INV-001", null, "0.97"),
+                        field("invoice_date", "2026-05-06", "2026-05-06", "0.96"),
+                        field("total_amount", "117.00", "117", "0.95"),
+                        field("currency", "EUR", "EUR", "0.89")));
+    }
+
+    private OcrResult sampleOcrResultWithInvalidDateFormat() {
+        return new OcrResult(
+                "INVOICE\nSupplier: Test Company d.o.o.\nTotal: 117.00 EUR\n",
+                List.of(
+                        field("supplier_name", "Test Company d.o.o.", null, "0.91"),
+                        field("invoice_id", "INV-001", null, "0.97"),
+                        field("invoice_date", "06-05-2026", null, "0.96"),
+                        field("total_amount", "117.00", "117", "0.95"),
+                        field("currency", "EUR", "EUR", "0.89")));
+    }
+
+    private OcrResult sampleLowConfidenceOcrResult() {
+        return new OcrResult(
+                "INVOICE\nSupplier: Test Company d.o.o.\nTotal: 117.00 EUR\n",
+                List.of(
+                        field("supplier_name", "Test Company d.o.o.", null, "0.91"),
+                        field("invoice_id", "INV-001", null, "0.97"),
+                        field("invoice_date", "2026-05-06", "2026-05-06", "0.96"),
+                        field("total_amount", "117.00", "117", "0.26"),
+                        field("currency", "EUR", "EUR", "0.89")));
+    }
+
     private Long uploadPdf(String name) throws Exception {
         MockMultipartFile file =
                 new MockMultipartFile(
@@ -408,6 +1258,70 @@ class ExtractionIntegrationTest {
                         field("invoice_date", "2026-05-06", "2026-05-06", "0.96"),
                         field("total_amount", "117.00", "117", "0.95"),
                         field("currency", "EUR", "EUR", "0.89")));
+    }
+
+    private OcrResult sampleOcrResultWithNetVatTotal() {
+        return new OcrResult(
+                "INVOICE\nNet 100 + VAT 17 = 117\n",
+                List.of(
+                        field("net_amount", "100.00", "100", "0.94"),
+                        field("vat_amount", "17.00", "17", "0.93"),
+                        field("total_amount", "117.00", "117", "0.95"),
+                        field("currency", "EUR", "EUR", "0.89")));
+    }
+
+    /**
+     * @return { extractionId, total_amount field id }
+     */
+    private long[] uploadAndExtractWith(OcrResult ocrResult) throws Exception {
+        return uploadAndExtractFieldWith(ocrResult, "total_amount");
+    }
+
+    private long[] uploadAndExtractFieldWith(OcrResult ocrResult, String fieldName)
+            throws Exception {
+        Long documentId = uploadPdf("Decimal validation invoice");
+
+        when(ocrProvider.process(any(byte[].class), eq("application/pdf"))).thenReturn(ocrResult);
+
+        MvcResult processResult =
+                mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
+                        .andExpect(status().isOk())
+                        .andReturn();
+
+        JsonNode processResponse =
+                objectMapper.readTree(processResult.getResponse().getContentAsString());
+        long extractionId = processResponse.get("payload").get("id").asLong();
+
+        long fieldId =
+                jdbcTemplate.queryForObject(
+                        """
+                        SELECT ef.id
+                        FROM extraction_field ef
+                        WHERE ef.extraction_id = ?
+                          AND ef.field_name = ?
+                        """,
+                        Long.class,
+                        extractionId,
+                        fieldName);
+
+        return new long[] {extractionId, fieldId};
+    }
+
+    private void assertFieldUnchanged(
+            long extractionId, long fieldId, String expectedValue, boolean expectedCorrected)
+            throws Exception {
+        Map<String, Object> row =
+                jdbcTemplate.queryForMap(
+                        """
+                        SELECT ef."value", ef.is_corrected
+                        FROM extraction_field ef
+                        WHERE ef.id = ? AND ef.extraction_id = ?
+                        """,
+                        fieldId,
+                        extractionId);
+
+        assertEquals(expectedValue, row.get("value"));
+        assertEquals(expectedCorrected, row.get("is_corrected"));
     }
 
     private OcrResult sampleRetryOcrResult() {

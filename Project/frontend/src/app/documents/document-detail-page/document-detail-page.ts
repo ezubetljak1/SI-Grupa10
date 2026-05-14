@@ -1,6 +1,7 @@
 import {CommonModule} from '@angular/common';
 import {HttpErrorResponse} from '@angular/common/http';
 import {Component, inject, OnInit} from '@angular/core';
+import {FormsModule} from '@angular/forms';
 import {ActivatedRoute, RouterLink} from '@angular/router';
 
 import {DocumentApiService} from '../../services/document-api.service';
@@ -12,14 +13,28 @@ import {
 } from '../../shared/components';
 import {DocflowDocument} from '../models/document.models';
 import {DomSanitizer, SafeResourceUrl} from '@angular/platform-browser';
-import { ToastrService } from 'ngx-toastr';
-import { ExtractionField } from '../models/extraction.models';
+import {ToastrService} from 'ngx-toastr';
+import {Extraction, ExtractionField} from '../models/extraction.models';
+
+interface EditState {
+  fieldId: number;
+  editValue: string;
+  saving: boolean;
+  validationError: string | null;
+}
+
+interface BackendValidationError {
+  code?: string;
+  message?: string;
+  payload?: string;
+}
 
 @Component({
   selector: 'app-document-detail-page',
   standalone: true,
   imports: [
     CommonModule,
+    FormsModule,
     RouterLink,
     PageHeaderComponent,
     UiCardComponent,
@@ -50,15 +65,17 @@ export class DocumentDetailPageComponent implements OnInit {
   extractionRunning = false;
   extractionError: string | null = null;
 
+  extractionId: number | null = null;
+  editState: EditState | null = null;
+  confirmingExtraction = false;
+
   ngOnInit(): void {
     this.route.paramMap.subscribe((params) => {
       const id = Number(params.get('id'));
-
       if (!Number.isFinite(id) || id <= 0) {
         this.toastr.error('Invalid document id.', 'Error');
         return;
       }
-
       this.resetDocumentState();
       this.loadDocument(id);
     });
@@ -66,22 +83,18 @@ export class DocumentDetailPageComponent implements OnInit {
 
   loadDocument(id: number): void {
     this.loading = true;
-
     this.documentApiService.getById(id).subscribe({
       next: (response) => {
         this.loading = false;
         this.document = response.payload;
-
         const rawUrl = `/api/documents/${this.document.id}/preview`;
         this.fileUrl = this.sanitizer.bypassSecurityTrustResourceUrl(rawUrl);
-
         this.isPdf = this.document.fileType === 'application/pdf';
         this.isImage = this.document.fileType?.startsWith('image/');
-
         this.extractionError = null;
         this.extractionFields = [];
-        if (this.document.documentStatus === 'EXTRACTED') {
-          this.loadExtractionFields();
+        if (this.shouldLoadExtractionForStatus(this.document.documentStatus)) {
+          this.loadExtraction();
         }
       },
       error: (err: HttpErrorResponse) => {
@@ -96,12 +109,26 @@ export class DocumentDetailPageComponent implements OnInit {
     });
   }
 
-  loadExtractionFields(): void {
+  loadExtraction(): void {
     if (!this.document) return;
-
     this.extractionLoading = true;
     this.extractionError = null;
+    this.documentApiService.getExtraction(this.document.id).subscribe({
+      next: (response) => {
+        const extraction: Extraction = response.payload;
+        this.extractionId = extraction?.id ?? null;
+        this.loadExtractionFields();
+      },
+      error: () => {
+        this.loadExtractionFields();
+      },
+    });
+  }
 
+  loadExtractionFields(): void {
+    if (!this.document) return;
+    this.extractionLoading = true;
+    this.extractionError = null;
     this.documentApiService.getExtractionFields(this.document.id).subscribe({
       next: (response) => {
         this.extractionLoading = false;
@@ -118,18 +145,15 @@ export class DocumentDetailPageComponent implements OnInit {
 
   runExtraction(): void {
     if (!this.document) return;
-
     const documentId = this.document.id;
-
     this.extractionRunning = true;
     this.extractionError = null;
-
     this.documentApiService.processExtraction(this.document.id).subscribe({
       next: (response) => {
         this.extractionRunning = false;
+        this.extractionId = response.payload?.id ?? null;
         this.extractionFields = response.payload?.fields ?? [];
         this.toastr.success('Extraction completed.', 'Success');
-
         this.loadDocument(documentId);
       },
       error: (err: HttpErrorResponse) => {
@@ -138,7 +162,6 @@ export class DocumentDetailPageComponent implements OnInit {
         this.extractionError = message;
         this.extractionFields = [];
         this.toastr.error(message, 'Error');
-
         this.loadDocument(documentId);
       },
     });
@@ -146,18 +169,15 @@ export class DocumentDetailPageComponent implements OnInit {
 
   retryExtraction(): void {
     if (!this.document) return;
-
     const documentId = this.document.id;
-
     this.extractionRunning = true;
     this.extractionError = null;
-
     this.documentApiService.retryExtraction(this.document.id).subscribe({
       next: (response) => {
         this.extractionRunning = false;
+        this.extractionId = response.payload?.id ?? null;
         this.extractionFields = response.payload?.fields ?? [];
         this.toastr.success('Extraction retried.', 'Success');
-
         this.loadDocument(documentId);
       },
       error: (err: HttpErrorResponse) => {
@@ -166,8 +186,144 @@ export class DocumentDetailPageComponent implements OnInit {
         this.extractionError = message;
         this.extractionFields = [];
         this.toastr.error(message, 'Error');
-
         this.loadDocument(documentId);
+      },
+    });
+  }
+
+  startEdit(field: ExtractionField): void {
+    if (this.editState && this.editState.fieldId !== field.id) {
+      this.cancelEdit();
+    }
+    this.editState = {
+      fieldId: field.id,
+      editValue: field.value ?? '',
+      saving: false,
+      validationError: null,
+    };
+  }
+
+  cancelEdit(): void {
+    this.editState = null;
+  }
+
+  isEditing(field: ExtractionField): boolean {
+    return this.editState?.fieldId === field.id;
+  }
+
+  validateEditValue(field: ExtractionField, value: string): string | null {
+    const trimmed = value.trim();
+
+    if (trimmed === '') {
+      return 'Field value cannot be empty.';
+    }
+
+    const name = field.fieldName.toLowerCase();
+
+    if (name.includes('date') || name.includes('datum')) {
+      if (!this.isValidDateValue(trimmed)) {
+        return 'Invalid date format. Accepted formats: YYYY-MM-DD, DD.MM.YYYY, DD/MM/YYYY.';
+      }
+    }
+
+    if (
+      name.includes('amount') ||
+      name.includes('iznos') ||
+      name.includes('cijena') ||
+      name.endsWith('_price') ||
+      name.endsWith('_quantity') ||
+      ['net_amount', 'vat_amount', 'total_amount', 'total_tax_amount', 'tax_amount', 'subtotal_amount', 'amount', 'price', 'unit_price', 'quantity', 'qty'].includes(name)
+    ) {
+      if (!this.isValidNumericValue(trimmed)) {
+        return 'Field must be a non-negative number with up to 2 decimals (e.g. 1234.56 or 1234,56).';
+      }
+    }
+
+    return null;
+  }
+
+  private isValidDateValue(value: string): boolean {
+    const matchers = [
+      {
+        pattern: /^(\d{4})-(\d{2})-(\d{2})$/,
+        parts: (match: RegExpMatchArray) => [Number(match[1]), Number(match[2]), Number(match[3])],
+      },
+      {
+        pattern: /^(\d{2})\.(\d{2})\.(\d{4})$/,
+        parts: (match: RegExpMatchArray) => [Number(match[3]), Number(match[2]), Number(match[1])],
+      },
+      {
+        pattern: /^(\d{2})\/(\d{2})\/(\d{4})$/,
+        parts: (match: RegExpMatchArray) => [Number(match[3]), Number(match[2]), Number(match[1])],
+      },
+    ];
+
+    for (const matcher of matchers) {
+      const match = value.match(matcher.pattern);
+      if (!match) {
+        continue;
+      }
+
+      const [year, month, day] = matcher.parts(match);
+      const parsed = new Date(Date.UTC(year, month - 1, day));
+      return (
+        parsed.getUTCFullYear() === year &&
+        parsed.getUTCMonth() === month - 1 &&
+        parsed.getUTCDate() === day
+      );
+    }
+
+    return false;
+  }
+
+  private isValidNumericValue(value: string): boolean {
+    if (value.includes(' ') || value.includes('\t') || (value.includes(',') && value.includes('.'))) {
+      return false;
+    }
+
+    return /^\d+([.,]\d{1,2})?$/.test(value);
+  }
+
+  confirmEdit(field: ExtractionField): void {
+    if (!this.editState || this.editState.fieldId !== field.id) return;
+
+    const value = this.editState.editValue;
+    const validationError = this.validateEditValue(field, value);
+
+    if (validationError) {
+      this.editState.validationError = validationError;
+      return;
+    }
+
+    if (!this.extractionId) {
+      this.toastr.error('Extraction ID not available. Please refresh the page.', 'Error');
+      return;
+    }
+
+    this.editState.saving = true;
+    this.editState.validationError = null;
+
+    this.documentApiService.updateExtractionField(this.extractionId, field.id, value).subscribe({
+      next: (response) => {
+        const updated = response.payload;
+        const idx = this.extractionFields.findIndex((f) => f.id === field.id);
+        if (idx !== -1) {
+          this.extractionFields[idx] = {
+            ...this.extractionFields[idx],
+            value: updated.value,
+            corrected: updated.corrected,
+            placeholder: updated.placeholder,
+          };
+        }
+        this.editState = null;
+        this.toastr.success('Changes saved successfully.', 'Success');
+      },
+      error: (err: HttpErrorResponse) => {
+        if (this.editState) {
+          this.editState.saving = false;
+          this.editState.validationError =
+            this.extractErrorMessage(err.error) ?? 'Failed to save. Please try again.';
+        }
       },
     });
   }
@@ -181,9 +337,7 @@ export class DocumentDetailPageComponent implements OnInit {
 
   downloadDocument(): void {
     if (!this.document) return;
-
     this.downloading = true;
-
     this.documentApiService.downloadFile(this.document.id).subscribe({
       next: (blob) => {
         this.downloading = false;
@@ -197,6 +351,59 @@ export class DocumentDetailPageComponent implements OnInit {
       error: (err: HttpErrorResponse) => {
         this.downloading = false;
         const message = this.extractErrorMessage(err.error) ?? 'Failed to download file.';
+        this.toastr.error(message, 'Error');
+      },
+    });
+  }
+
+  confirmExtraction(): void {
+    if (!this.document) return;
+
+    if (this.editState) {
+      this.toastr.warning(
+        'Save or cancel the current field edit before confirming extraction.',
+        'Review required'
+      );
+      return;
+    }
+
+    const documentId = this.document.id;
+    this.confirmingExtraction = true;
+    this.extractionError = null;
+
+    this.documentApiService.confirmExtraction(documentId).subscribe({
+      next: (response) => {
+        this.confirmingExtraction = false;
+        this.extractionId = response.payload?.id ?? this.extractionId;
+        this.extractionFields = response.payload?.fields ?? this.extractionFields;
+
+        this.toastr.success(
+          'Extraction confirmed. Document is ready for approval.',
+          'Success'
+        );
+
+        this.loadDocument(documentId);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.confirmingExtraction = false;
+
+        if (this.hasValidationErrors(err.error)) {
+          const message = this.buildExtractionValidationMessage(
+            err.error,
+            'Review highlighted fields before confirming.'
+          );
+
+          this.extractionError = null;
+          this.toastr.warning(message, 'Review required');
+          return;
+        }
+
+        const message = this.extractExtractionErrorMessage(
+          err.error,
+          'Extraction confirmation failed.'
+        );
+
+        this.extractionError = message;
         this.toastr.error(message, 'Error');
       },
     });
@@ -220,6 +427,90 @@ export class DocumentDetailPageComponent implements OnInit {
     });
   }
 
+  isPlaceholderField(field: ExtractionField): boolean {
+    return field.placeholder === true;
+  }
+
+  isLowConfidenceField(field: ExtractionField): boolean {
+    if (field.placeholder) return false;
+    if (field.confidence === null || field.confidence === undefined) return false;
+
+    const confidencePercent = field.confidence <= 1 ? field.confidence * 100 : field.confidence;
+    return confidencePercent < 70;
+  }
+
+  needsManualReview(field: ExtractionField): boolean {
+    return this.isPlaceholderField(field)
+      || (this.isLowConfidenceField(field) && !field.corrected);
+  }
+
+  get missingRequiredFields(): ExtractionField[] {
+    return this.extractionFields.filter((field) => this.isPlaceholderField(field));
+  }
+
+  get lowConfidenceUnreviewedFields(): ExtractionField[] {
+    return this.extractionFields.filter(
+      (field) => this.isLowConfidenceField(field) && !field.corrected
+    );
+  }
+
+  get missingRequiredFieldNames(): string {
+    return this.missingRequiredFields
+      .map((field) => field.fieldName)
+      .join(', ');
+  }
+
+  get lowConfidenceUnreviewedFieldNames(): string {
+    return this.lowConfidenceUnreviewedFields
+      .map((field) => field.fieldName)
+      .join(', ');
+  }
+
+  hasPendingFieldIssues(): boolean {
+    return this.missingRequiredFields.length > 0
+      || this.lowConfidenceUnreviewedFields.length > 0;
+  }
+
+  getFieldReviewLabel(field: ExtractionField): string {
+    if (this.isPlaceholderField(field)) {
+      return 'Missing required';
+    }
+
+    if (this.isLowConfidenceField(field) && !field.corrected) {
+      return 'Review needed';
+    }
+
+    if (field.corrected) {
+      return 'Reviewed';
+    }
+
+    return 'OK';
+  }
+
+  getFieldReviewClass(field: ExtractionField): string {
+    if (this.isPlaceholderField(field)) {
+      return 'review-badge--missing';
+    }
+
+    if (this.isLowConfidenceField(field) && !field.corrected) {
+      return 'review-badge--warning';
+    }
+
+    if (field.corrected) {
+      return 'review-badge--reviewed';
+    }
+
+    return 'review-badge--ok';
+  }
+
+  displayFieldValue(field: ExtractionField): string {
+    if (this.isPlaceholderField(field)) {
+      return 'Missing value';
+    }
+
+    return field.value?.trim() || '—';
+  }
+
   private resolveDownloadFileName(doc: DocflowDocument): string {
     if (doc.name.includes('.')) return doc.name;
     const ext = this.resolveExtension(doc);
@@ -237,54 +528,32 @@ export class DocumentDetailPageComponent implements OnInit {
   private extractErrorMessage(errorBody: unknown): string | null {
     if (Array.isArray(errorBody)) {
       const firstError = errorBody[0];
-
-      if (firstError?.message) {
-        return firstError.message;
-      }
-
-      if (firstError?.payload) {
-        return firstError.payload;
-      }
-
-      if (firstError?.code) {
-        return firstError.code;
-      }
-
+      if (firstError?.message) return firstError.message;
+      if (firstError?.payload) return firstError.payload;
+      if (firstError?.code) return firstError.code;
       return null;
     }
-
-    if (typeof errorBody === 'string') {
-      return errorBody;
-    }
-
+    if (typeof errorBody === 'string') return errorBody;
     if (errorBody && typeof errorBody === 'object') {
-      const body = errorBody as { message?: string; payload?: string; code?: string };
-
+      const body = errorBody as {message?: string; payload?: string; code?: string};
       return body.message ?? body.payload ?? body.code ?? null;
     }
-
     return null;
   }
 
   private extractErrorCode(errorBody: unknown): string | null {
     if (errorBody && typeof errorBody === 'object') {
-      const body = errorBody as { code?: string };
-
-      if (typeof body.code === 'string') {
-        return body.code;
-      }
+      const body = errorBody as {code?: string};
+      if (typeof body.code === 'string') return body.code;
     }
-
     return null;
   }
 
   private extractExtractionErrorMessage(errorBody: unknown, fallback: string): string {
     const code = this.extractErrorCode(errorBody);
-
     if (code === 'EXTRACTION_FAILED') {
       return 'Document extraction could not be completed. Please check OCR/AI setup or try again later.';
     }
-
     return this.extractErrorMessage(errorBody) ?? fallback;
   }
 
@@ -294,8 +563,118 @@ export class DocumentDetailPageComponent implements OnInit {
     this.isPdf = false;
     this.isImage = false;
     this.extractionFields = [];
+    this.extractionId = null;
     this.extractionError = null;
     this.extractionLoading = false;
     this.extractionRunning = false;
+    this.editState = null;
+    this.confirmingExtraction = false;
+  }
+
+  private shouldLoadExtractionForStatus(status: string | null | undefined): boolean {
+    return status === 'EXTRACTED' || status === 'READY_FOR_APPROVAL';
+  }
+
+  private hasValidationErrors(errorBody: unknown): boolean {
+    return this.extractValidationErrors(errorBody).length > 0;
+  }
+
+  private extractValidationErrors(errorBody: unknown): BackendValidationError[] {
+    if (Array.isArray(errorBody)) {
+      return errorBody
+        .filter((item) => item && typeof item === 'object')
+        .map((item) => item as BackendValidationError);
+    }
+
+    if (errorBody && typeof errorBody === 'object') {
+      const body = errorBody as BackendValidationError;
+
+      if (body.code || body.message || body.payload) {
+        return [body];
+      }
+    }
+
+    return [];
+  }
+
+  private buildExtractionValidationMessage(errorBody: unknown, fallback: string): string {
+    const errors = this.extractValidationErrors(errorBody);
+
+    if (errors.length === 0) {
+      return this.extractExtractionErrorMessage(errorBody, fallback);
+    }
+
+    const codes = new Set(errors.map((error) => error.code).filter(Boolean));
+    const parts: string[] = [];
+
+    if (codes.has('EXTRACTION_REQUIRED_FIELD_MISSING')) {
+      const fields = this.extractFieldNamesFromErrors(errors, 'EXTRACTION_REQUIRED_FIELD_MISSING');
+
+      parts.push(
+        fields.length > 0
+          ? `Missing: ${fields.join(', ')}.`
+          : 'Some required fields are missing.'
+      );
+    }
+
+    if (codes.has('EXTRACTION_FIELD_EMPTY')) {
+      const fields = this.extractFieldNamesFromErrors(errors, 'EXTRACTION_FIELD_EMPTY');
+
+      parts.push(
+        fields.length > 0
+          ? `Empty: ${fields.join(', ')}.`
+          : 'Some required fields are empty.'
+      );
+    }
+
+    if (codes.has('EXTRACTION_FIELD_LOW_CONFIDENCE')) {
+      const count = errors.filter(
+        (error) => error.code === 'EXTRACTION_FIELD_LOW_CONFIDENCE'
+      ).length;
+
+      parts.push(
+        count > 1
+          ? `${count} low-confidence fields need review.`
+          : 'One low-confidence field needs review.'
+      );
+    }
+
+    if (
+      codes.has('EXTRACTION_FIELD_DATE_FORMAT_INVALID')
+      || codes.has('EXTRACTION_FIELD_NUMERIC_FORMAT_INVALID')
+      || codes.has('EXTRACTION_FIELD_AMOUNT_INVALID')
+    ) {
+      parts.push('Fix invalid date or amount formats.');
+    }
+
+    if (codes.has('EXTRACTION_FIELD_AMOUNT_INCONSISTENT')) {
+      parts.push('Check amount consistency.');
+    }
+
+    if (codes.has('EXTRACTION_FIELDS_MISSING')) {
+      parts.push('Run extraction again before confirming.');
+    }
+
+    if (parts.length === 0) {
+      return 'Review highlighted fields before confirming.';
+    }
+
+    return parts.join(' ');
+  }
+
+  private extractFieldNamesFromErrors(
+    errors: BackendValidationError[],
+    code: string
+  ): string[] {
+    const names = errors
+      .filter((error) => error.code === code)
+      .map((error) => error.message ?? error.payload ?? '')
+      .map((message) => {
+        const match = message.match(/'([^']+)'/);
+        return match?.[1] ?? null;
+      })
+      .filter((value): value is string => Boolean(value));
+
+    return Array.from(new Set(names));
   }
 }

@@ -18,6 +18,7 @@ import { Extraction, ExtractionField } from '../documents/models/extraction.mode
 export class DocumentApiService {
   private readonly http = inject(HttpClient);
   private readonly baseUrl = '/api/documents';
+  private readonly extractionsBaseUrl = '/api/extractions';
 
   getAll(params: DocumentFilterRequest = {}): Observable<PagedResponse<DocflowDocument>> {
     return this.http.get<PagedResponse<DocflowDocument>>(this.baseUrl, {
@@ -80,6 +81,24 @@ export class DocumentApiService {
   getExtractionFields(documentId: number): Observable<ApiResponse<ExtractionField[]>> {
     return this.http.get<ApiResponse<ExtractionField[]>>(
       `${this.baseUrl}/${documentId}/extraction/fields`
+    );
+  }
+
+  updateExtractionField(
+    extractionId: number,
+    fieldId: number,
+    value: string
+  ): Observable<ApiResponse<ExtractionField>> {
+    return this.http.patch<ApiResponse<ExtractionField>>(
+      `${this.extractionsBaseUrl}/${extractionId}/fields/${fieldId}`,
+      { value }
+    );
+  }
+
+  confirmExtraction(documentId: number): Observable<ApiResponse<Extraction>> {
+    return this.http.post<ApiResponse<Extraction>>(
+      `${this.baseUrl}/${documentId}/extraction/confirm`,
+      {}
     );
   }
 
