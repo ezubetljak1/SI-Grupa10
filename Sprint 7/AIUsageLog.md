@@ -113,9 +113,25 @@ Napomena: Ovaj AI Usage Log je živi dokument i ažurira se kroz sprintove.
 
 ---
 
+## Unos #7
+
+| Polje | Detalji                                                                                                                                                                                                                                                                                                                                            |
+|--------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Datum | 13.05.2026                                                                                                                                                                                                                                                                                                                                         |
+| Sprint broj | Sprint 7                                                                                                                                                                                                                                                                                                                                           |
+| Alat koji je korišten | ChatGPT GPT-5.5                                                                                                                                                                                                                                                                                                                                    |
+| Svrha korištenja | Pomoć pri implementaciji validacije ekstraktovanih OCR polja prije potvrde ekstrakcije dokumenta.                                                                                                                                                                                                                                                  |
+| Kratak opis zadatka ili upita | Korišten AI za analizu postojećeg extraction validation flow-a (ExtractionValidation, ExtractionFieldEntity, DocumentType, frontend prikaz extraction fields) i definisanje pravila validacije za Sprint 7 User Story 7.2. Cilj je bio implementirati validaciju obaveznih polja, praznih vrijednosti i low-confidence polja prije confirm akcije. |
+| Šta je AI predložio ili generisao | AI je predložio backend validacijski pristup kroz proširenje postojeće ExtractionValidation klase, uključujući provjeru obaveznih invoice polja (invoice_id, invoice_date, supplier_name, total_amount, currency), validaciju da nijedno ekstraktovano polje ne ostane prazno, te provjeru low-confidence polja ispod 70% confidence threshold-a.  |
+| Šta je tim prihvatio | Prihvaćen je pristup da se sva validacija izvršava centralizovano kroz postojeći validation layer prije confirm extraction koraka, bez uvođenja dodatnih schema/model slojeva ili izmjena OCR extraction pipeline-a.                                                                                                                               |
+| Šta je tim izmijenio | Validacijska pravila su prilagođena stvarnoj arhitekturi projekta i postojećem extraction flow-u. Dodatno su izmijenjeni AI prijedlozi za frontend kako bi se izbjeglo uvođenje novih UI obrazaca i zadržao postojeći dizajn aplikacije.                                                                                                           |
+| Šta je tim odbacio | Odbačeni su prijedlozi koji su uvodili warning sisteme za prazna polja, dodatne DTO modele i kompleksnije schema-based validacije koje nisu bile usklađene sa trenutnim scope-om i arhitekturom projekta.                                                                                                                                          |
+| Rizici, problemi ili greške koje su uočene | AI je u pojedinim iteracijama predlagao previše generičku semantičku validaciju (amount, date) koja nije bila dovoljno precizna za finalna poslovna pravila projekta. Također je bilo potrebno ručno uskladiti validaciju sa postojećim confidence review mehanizmom i status flow-om ekstrakcije.                                                 |
+| Ko je koristio alat | Irhad Žiga  |
+
 ---
 
-## Unos #7
+## Unos #8
 
 | Polje | Detalji |
 |--------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
