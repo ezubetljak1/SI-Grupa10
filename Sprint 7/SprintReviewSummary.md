@@ -46,7 +46,7 @@ Detaljniji opis navedenih odluka se nalazi u DecisionLog dokuemtnu, počevši od
 
 # 7. Povratna informacija Product Ownera
 
-Poroduct Owner je izrazio zadovoljstvo nakon demonstracije funkcionalnosti i artefakata koji su realizovani u sprintu 7.
+Product Owner je izrazio zadovoljstvo nakon demonstracije funkcionalnosti i artefakata koji su realizovani u sprintu 7.
 Također, naveo je tri napomene koje bi tim trebao da doradi, a to su:
 
 - Format datuma - potrebno je korisniku koji ručno prepravlja podatke jasno naznačiti koji format datuma je podržan.
