@@ -77,12 +77,16 @@
                 </div>
               </td>
 
-              <td>{{ formatDocumentTypeLabel(document.documentType) }}
+              <td>
+                <div class="document-type-cell">
+                  <span class="document-type-cell__label">
+                    {{ formatDocumentTypeLabel(document.documentType) }}
+                  </span>
 
-                @if (needsClassificationReview(document)) {
-                  <span class="review-hint">Review type</span>
-                }
-                
+                  @if (needsClassificationReview(document)) {
+                    <span class="review-hint">Review type</span>
+                  }
+                </div>
               </td>
 
               <td>
