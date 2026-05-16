@@ -43,7 +43,7 @@
 
             <div class="doc-header__meta">
               <app-status-badge [status]="document.documentStatus"></app-status-badge>
-              <span class="meta-chip">{{ document.documentType }}</span>
+              <span class="meta-chip">{{ formatDocumentTypeLabel(document.documentType) }}</span>
             </div>
           </div>
         </div>
@@ -56,7 +56,7 @@
 
           <div class="meta-item">
             <span class="meta-item__label">Document type</span>
-            <strong class="meta-item__value">{{ document.documentType }}</strong>
+            <strong class="meta-item__value">{{ formatDocumentTypeLabel(document.documentType) }}</strong>
           </div>
 
           <div class="meta-item">
@@ -67,6 +67,27 @@
           <div class="meta-item">
             <span class="meta-item__label">Upload date</span>
             <strong class="meta-item__value">{{ formatDate(document.uploadDate) }}</strong>
+          </div>
+
+          <div class="meta-item">
+            <span class="meta-item__label">AI detected type</span>
+            <span class="meta-item__value">
+              {{ formatDocumentTypeLabel(document.detectedDocumentType) }}
+            </span>
+          </div>
+
+          <div class="meta-item">
+            <span class="meta-item__label">Classification confidence</span>
+            <span class="meta-item__value">
+              {{ formatClassificationConfidence(document.classificationConfidence) }}
+            </span>
+          </div>
+
+          <div class="meta-item">
+            <span class="meta-item__label">Processor used</span>
+            <span class="meta-item__value">
+              {{ formatProcessorId(document.processorIdUsed) }}
+            </span>
           </div>
         </div>
       </app-ui-card>
@@ -99,6 +120,54 @@
           }
         </div>
       </app-ui-card>
+
+      @if (isClassificationReviewRequired()) {
+        <app-ui-card
+          title="Classification review required"
+          subtitle="The document was uploaded as Other, but AI could not classify it with enough confidence."
+          badgeText="Review required"
+          badgeVariant="warning">
+          <div class="classification-review">
+            <div class="classification-review__summary">
+              <div>
+                <span class="meta-item__label">AI detected type</span>
+                <strong>{{ formatDocumentTypeLabel(document.detectedDocumentType) }}</strong>
+              </div>
+
+              <div>
+                <span class="meta-item__label">Confidence</span>
+                <strong>{{ formatClassificationConfidence(document.classificationConfidence) }}</strong>
+              </div>
+            </div>
+
+            <div class="classification-review__form">
+              <div class="field">
+                <label for="manualDocumentType">Confirm correct document type</label>
+                <select
+                  id="manualDocumentType"
+                  class="select"
+                  name="manualDocumentType"
+                  [(ngModel)]="selectedManualDocumentType">
+                  @for (type of manualClassificationTypeOptions; track type.value) {
+                    <option [value]="type.value">{{ type.label }}</option>
+                  }
+                </select>
+                <span class="helper">
+                  After confirmation, the document returns to Uploaded and extraction can be run again.
+                </span>
+              </div>
+
+              <button
+                type="button"
+                class="btn btn-primary"
+                [disabled]="confirmingDocumentType"
+                (click)="confirmDocumentType()">
+                {{ confirmingDocumentType ? 'Confirming...' : 'Confirm document type' }}
+              </button>
+            </div>
+          </div>
+        </app-ui-card>
+      }
 
       <app-ui-card
         title="Extracted fields"
@@ -140,15 +209,19 @@
               [disabled]="extractionLoading || extractionRunning || confirmingExtraction">
               {{ extractionLoading ? 'Refreshing...' : 'Refresh fields' }}
             </button>
+          } @else if (document.documentStatus === 'NEEDS_CLASSIFICATION_REVIEW') {
+              <span class="classification-review-hint">
+                Confirm the document type before running extraction again.
+              </span>
           } @else {
-            <button
-              type="button"
-              class="btn btn-primary"
-              (click)="runExtraction()"
-              [disabled]="extractionRunning || extractionLoading || confirmingExtraction">
-              {{ extractionRunning ? 'Running extraction...' : 'Run extraction' }}
-            </button>
-          }
+              <button
+                type="button"
+                class="btn btn-primary"
+                [disabled]="extractionRunning"
+                (click)="runExtraction()">
+                {{ extractionRunning ? 'Running extraction...' : 'Run extraction' }}
+              </button>
+            }
         </div>
 
         @if (document.documentStatus === 'READY_FOR_APPROVAL') {
