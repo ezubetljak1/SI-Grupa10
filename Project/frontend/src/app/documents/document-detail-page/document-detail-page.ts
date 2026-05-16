@@ -334,16 +334,31 @@ export class DocumentDetailPageComponent implements OnInit {
     return `${Math.round(normalized)}%`;
   }
 
-  formatProcessorId(processorId: string | null | undefined): string {
-    if (!processorId) {
+  formatProcessorLabel(document: DocflowDocument | null | undefined): string {
+    if (!document?.processorIdUsed) {
       return '—';
     }
 
-    if (processorId.length <= 10) {
-      return processorId;
+    if (document.documentStatus === 'NEEDS_CLASSIFICATION_REVIEW') {
+      return 'AI classifier';
     }
 
-    return `${processorId.slice(0, 6)}...${processorId.slice(-4)}`;
+    const typeForProcessor = document.documentType ?? document.detectedDocumentType;
+
+    switch (typeForProcessor) {
+      case 'INVOICE':
+        return 'Invoice parser';
+      case 'RECEIPT':
+        return 'Expense parser';
+      case 'BANK_STATEMENT':
+        return 'Bank statement parser';
+      case 'FORM':
+        return 'Form parser';
+      case 'OTHER':
+        return 'AI classifier';
+      default:
+        return 'Document AI processor';
+    }
   }
 
   private resolveDefaultManualDocumentType(
