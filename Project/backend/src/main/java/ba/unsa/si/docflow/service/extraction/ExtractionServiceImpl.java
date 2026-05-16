@@ -19,7 +19,9 @@ import ba.unsa.si.docflow.response.ApiResponse;
 import ba.unsa.si.docflow.response.ValidationErrors;
 import ba.unsa.si.docflow.service.document.DocumentValidation;
 import ba.unsa.si.docflow.service.ocr.DocumentAiProcessorRouter;
+import ba.unsa.si.docflow.service.ocr.DocumentClassificationService;
 import ba.unsa.si.docflow.service.ocr.OcrProvider;
+import ba.unsa.si.docflow.service.ocr.model.DocumentClassificationResult;
 import ba.unsa.si.docflow.service.ocr.model.OcrExtractedField;
 import ba.unsa.si.docflow.service.ocr.model.OcrResult;
 import ba.unsa.si.docflow.service.storage.StorageService;
@@ -68,6 +70,7 @@ public class ExtractionServiceImpl implements ExtractionService {
                     "qty");
 
     private static final BigDecimal AMOUNT_TOTAL_TOLERANCE = new BigDecimal("0.01");
+    private static final BigDecimal CLASSIFICATION_CONFIDENCE_THRESHOLD = new BigDecimal("0.70");
 
     private final ExtractionDAO extractionDAO;
     private final ExtractionFieldDAO extractionFieldDAO;
@@ -79,6 +82,7 @@ public class ExtractionServiceImpl implements ExtractionService {
     private final ObjectMapper objectMapper;
     private final ExtractionValidation extractionValidation;
     private final DocumentAiProcessorRouter processorRouter;
+    private final DocumentClassificationService documentClassificationService;
 
     @Override
     public ApiResponse<ExtractionResponse> process(Long documentId) {
@@ -88,17 +92,27 @@ public class ExtractionServiceImpl implements ExtractionService {
             byte[] fileContent = readDocumentContent(document);
             String mimeType = resolveMimeType(document);
 
-            DocumentType documentType = document.getDocumentType();
+            DocumentType documentType =
+                    resolveDocumentTypeForProcessing(document, fileContent, mimeType);
             String processorId = processorRouter.resolveProcessorId(documentType);
 
             OcrResult ocrResult = ocrProvider.process(fileContent, mimeType, processorId);
             ExtractionEntity extraction = upsertExtraction(document, ocrResult, documentType);
 
+            document.setDocumentType(documentType);
             document.setDocumentStatus(DocumentStatus.EXTRACTED);
             documentDAO.merge(document);
 
             ExtractionResponse response = extractionMapper.entityToDto(extraction);
             return new ApiResponse<>("OK", response);
+
+        } catch (ExtractionException exception) {
+            if (document.getDocumentStatus() != DocumentStatus.NEEDS_CLASSIFICATION_REVIEW) {
+                document.setDocumentStatus(DocumentStatus.PROCESSING_FAILED);
+                documentDAO.merge(document);
+            }
+
+            throw exception;
 
         } catch (Exception exception) {
             document.setDocumentStatus(DocumentStatus.PROCESSING_FAILED);
@@ -201,6 +215,39 @@ public class ExtractionServiceImpl implements ExtractionService {
         ExtractionFieldEntity updatedField = extractionFieldDAO.merge(field);
 
         return new ApiResponse<>("OK", extractionMapper.fieldToDto(updatedField));
+    }
+
+    private DocumentType resolveDocumentTypeForProcessing(
+            DocumentEntity document, byte[] fileContent, String mimeType) {
+        DocumentType currentType = document.getDocumentType();
+
+        if (currentType != DocumentType.OTHER) {
+            return currentType;
+        }
+
+        DocumentClassificationResult classification =
+                documentClassificationService.classify(fileContent, mimeType);
+
+        DocumentType detectedType = classification.documentType();
+        BigDecimal confidence =
+                classification.confidence() != null ? classification.confidence() : BigDecimal.ZERO;
+
+        boolean supportedDetectedType =
+                detectedType == DocumentType.INVOICE
+                        || detectedType == DocumentType.RECEIPT
+                        || detectedType == DocumentType.BANK_STATEMENT
+                        || detectedType == DocumentType.FORM;
+
+        if (!supportedDetectedType
+                || confidence.compareTo(CLASSIFICATION_CONFIDENCE_THRESHOLD) < 0) {
+            document.setDocumentStatus(DocumentStatus.NEEDS_CLASSIFICATION_REVIEW);
+            documentDAO.merge(document);
+
+            throw new ExtractionException(
+                    "Document classification confidence is too low. Manual classification review is required.");
+        }
+
+        return detectedType;
     }
 
     private void validateUpdatedFieldValue(ExtractionFieldEntity field, String newValue) {
