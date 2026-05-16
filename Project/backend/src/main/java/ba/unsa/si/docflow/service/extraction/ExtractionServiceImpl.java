@@ -18,6 +18,7 @@ import ba.unsa.si.docflow.mapper.ExtractionMapper;
 import ba.unsa.si.docflow.response.ApiResponse;
 import ba.unsa.si.docflow.response.ValidationErrors;
 import ba.unsa.si.docflow.service.document.DocumentValidation;
+import ba.unsa.si.docflow.service.ocr.DocumentAiProcessorRouter;
 import ba.unsa.si.docflow.service.ocr.OcrProvider;
 import ba.unsa.si.docflow.service.ocr.model.OcrExtractedField;
 import ba.unsa.si.docflow.service.ocr.model.OcrResult;
@@ -77,6 +78,7 @@ public class ExtractionServiceImpl implements ExtractionService {
     private final ExtractionMapper extractionMapper;
     private final ObjectMapper objectMapper;
     private final ExtractionValidation extractionValidation;
+    private final DocumentAiProcessorRouter processorRouter;
 
     @Override
     public ApiResponse<ExtractionResponse> process(Long documentId) {
@@ -86,14 +88,13 @@ public class ExtractionServiceImpl implements ExtractionService {
             byte[] fileContent = readDocumentContent(document);
             String mimeType = resolveMimeType(document);
 
-            OcrResult ocrResult = ocrProvider.process(fileContent, mimeType);
-            DocumentType resolvedDocumentType = resolveDocumentType(ocrResult);
+            DocumentType documentType = document.getDocumentType();
+            String processorId = processorRouter.resolveProcessorId(documentType);
 
-            ExtractionEntity extraction =
-                    upsertExtraction(document, ocrResult, resolvedDocumentType);
+            OcrResult ocrResult = ocrProvider.process(fileContent, mimeType, processorId);
+            ExtractionEntity extraction = upsertExtraction(document, ocrResult, documentType);
 
             document.setDocumentStatus(DocumentStatus.EXTRACTED);
-            document.setDocumentType(resolvedDocumentType);
             documentDAO.merge(document);
 
             ExtractionResponse response = extractionMapper.entityToDto(extraction);
@@ -448,30 +449,5 @@ public class ExtractionServiceImpl implements ExtractionService {
         } catch (JsonProcessingException exception) {
             throw new IllegalStateException("Could not serialize OCR result.", exception);
         }
-    }
-
-    private DocumentType resolveDocumentType(OcrResult ocrResult) {
-        boolean hasInvoiceField =
-                ocrResult.getFields().stream()
-                        .map(OcrExtractedField::getType)
-                        .filter(StringUtils::hasText)
-                        .anyMatch(
-                                type ->
-                                        type.startsWith("invoice")
-                                                || type.equals("supplier_name")
-                                                || type.equals("total_amount")
-                                                || type.equals("net_amount")
-                                                || type.equals("total_tax_amount")
-                                                || type.equals("currency"));
-
-        boolean rawTextLooksLikeInvoice =
-                StringUtils.hasText(ocrResult.getRawText())
-                        && ocrResult.getRawText().toLowerCase().contains("invoice");
-
-        if (hasInvoiceField || rawTextLooksLikeInvoice) {
-            return DocumentType.INVOICE;
-        }
-
-        return DocumentType.OTHER;
     }
 }

@@ -2,5 +2,9 @@ package ba.unsa.si.docflow.entity.enums;
 
 public enum DocumentType {
     INVOICE,
-    OTHER
+    RECEIPT,
+    BANK_STATEMENT,
+    FORM,
+    OTHER,
+    UNKNOWN
 }

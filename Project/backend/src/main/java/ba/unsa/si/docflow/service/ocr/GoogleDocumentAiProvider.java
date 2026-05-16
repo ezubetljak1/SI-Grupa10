@@ -29,8 +29,8 @@ public class GoogleDocumentAiProvider implements OcrProvider {
     private final OcrProperties ocrProperties;
 
     @Override
-    public OcrResult process(byte[] fileContent, String mimeType) {
-        validateConfiguration();
+    public OcrResult process(byte[] fileContent, String mimeType, String processorId) {
+        validateConfiguration(processorId);
 
         try {
             DocumentProcessorServiceSettings settings =
@@ -45,7 +45,7 @@ public class GoogleDocumentAiProvider implements OcrProvider {
                         ProcessorName.of(
                                         ocrProperties.getProjectId(),
                                         ocrProperties.getLocation(),
-                                        ocrProperties.getProcessorId())
+                                        processorId)
                                 .toString();
 
                 RawDocument rawDocument =
@@ -87,13 +87,15 @@ public class GoogleDocumentAiProvider implements OcrProvider {
                 .toList();
     }
 
-    private void validateConfiguration() {
+    private void validateConfiguration(String processorId) {
         if (!StringUtils.hasText(ocrProperties.getProjectId())
                 || !StringUtils.hasText(ocrProperties.getLocation())
-                || !StringUtils.hasText(ocrProperties.getProcessorId())
-                || !StringUtils.hasText(ocrProperties.getEndpoint())) {
+                || !StringUtils.hasText(ocrProperties.getEndpoint())
+                || !StringUtils.hasText(processorId)) {
             throw new IllegalStateException(
-                    "Google Document AI configuration is missing. Check GOOGLE_CLOUD_PROJECT_ID, GOOGLE_DOCUMENT_AI_LOCATION, GOOGLE_DOCUMENT_AI_PROCESSOR_ID and GOOGLE_DOCUMENT_AI_ENDPOINT.");
+                    "Google Document AI configuration is missing. "
+                            + "Check GOOGLE_CLOUD_PROJECT_ID, GOOGLE_DOCUMENT_AI_LOCATION, "
+                            + "GOOGLE_DOCUMENT_AI_ENDPOINT and the selected processor ID.");
         }
     }
 }

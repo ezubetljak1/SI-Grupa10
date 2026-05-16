@@ -51,6 +51,7 @@ class ExtractionIntegrationTest {
             "%PDF-1.4 fake invoice content".getBytes(StandardCharsets.UTF_8);
 
     private static final Path UPLOAD_ROOT = createTempDirectory();
+    private static final String TEST_INVOICE_PROCESSOR_ID = "test-invoice-processor-id";
 
     @Autowired private MockMvc mockMvc;
 
@@ -63,6 +64,14 @@ class ExtractionIntegrationTest {
     @DynamicPropertySource
     static void registerProperties(DynamicPropertyRegistry registry) {
         registry.add("docflow.storage.root-dir", () -> UPLOAD_ROOT.toString());
+
+        registry.add("docflow.ocr.invoice-processor-id", () -> TEST_INVOICE_PROCESSOR_ID);
+        registry.add("docflow.ocr.receipt-processor-id", () -> "test-receipt-processor-id");
+        registry.add(
+                "docflow.ocr.bank-statement-processor-id",
+                () -> "test-bank-statement-processor-id");
+        registry.add("docflow.ocr.form-processor-id", () -> "test-form-processor-id");
+        registry.add("docflow.ocr.classifier-processor-id", () -> "test-classifier-processor-id");
     }
 
     @BeforeEach
@@ -86,7 +95,8 @@ class ExtractionIntegrationTest {
     void processExtractionThenStoresExtractionFieldsAndUpdatesDocumentStatus() throws Exception {
         Long documentId = uploadPdf("Invoice for extraction");
 
-        when(ocrProvider.process(any(byte[].class), eq("application/pdf")))
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_INVOICE_PROCESSOR_ID)))
                 .thenReturn(sampleOcrResult());
 
         mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
@@ -132,7 +142,9 @@ class ExtractionIntegrationTest {
         assertEquals("INVOICE", document.get("document_type"));
 
         ArgumentCaptor<byte[]> fileCaptor = ArgumentCaptor.forClass(byte[].class);
-        verify(ocrProvider).process(fileCaptor.capture(), eq("application/pdf"));
+        verify(ocrProvider)
+                .process(
+                        fileCaptor.capture(), eq("application/pdf"), eq(TEST_INVOICE_PROCESSOR_ID));
         assertArrayEquals(PDF_CONTENT, fileCaptor.getValue());
     }
 
@@ -140,7 +152,8 @@ class ExtractionIntegrationTest {
     void findExtractionByDocumentIdThenReturnsPersistedResult() throws Exception {
         Long documentId = uploadPdf("Find extraction invoice");
 
-        when(ocrProvider.process(any(byte[].class), eq("application/pdf")))
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_INVOICE_PROCESSOR_ID)))
                 .thenReturn(sampleOcrResult());
 
         mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
@@ -158,7 +171,8 @@ class ExtractionIntegrationTest {
     void findExtractionFieldsByDocumentIdThenReturnsOnlyFields() throws Exception {
         Long documentId = uploadPdf("Fields by document invoice");
 
-        when(ocrProvider.process(any(byte[].class), eq("application/pdf")))
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_INVOICE_PROCESSOR_ID)))
                 .thenReturn(sampleOcrResult());
 
         mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
@@ -194,7 +208,8 @@ class ExtractionIntegrationTest {
     void findExtractionFieldsByExtractionIdThenReturnsFields() throws Exception {
         Long documentId = uploadPdf("Fields by extraction invoice");
 
-        when(ocrProvider.process(any(byte[].class), eq("application/pdf")))
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_INVOICE_PROCESSOR_ID)))
                 .thenReturn(sampleOcrResult());
 
         MvcResult result =
@@ -225,7 +240,8 @@ class ExtractionIntegrationTest {
     void retryExtractionThenReusesSameExtractionAndReplacesFields() throws Exception {
         Long documentId = uploadPdf("Retry invoice");
 
-        when(ocrProvider.process(any(byte[].class), eq("application/pdf")))
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_INVOICE_PROCESSOR_ID)))
                 .thenReturn(sampleOcrResult())
                 .thenReturn(sampleRetryOcrResult());
 
@@ -289,7 +305,8 @@ class ExtractionIntegrationTest {
         assertEquals(5, retryFieldCount);
         assertEquals(2, placeholderCount);
         assertEquals("250.00", totalAmount);
-        verify(ocrProvider, times(2)).process(any(byte[].class), eq("application/pdf"));
+        verify(ocrProvider, times(2))
+                .process(any(byte[].class), eq("application/pdf"), eq(TEST_INVOICE_PROCESSOR_ID));
     }
 
     @Test
@@ -316,7 +333,8 @@ class ExtractionIntegrationTest {
     void processExtractionWhenOcrFailsThenMarksDocumentAsProcessingFailed() throws Exception {
         Long documentId = uploadPdf("Failed extraction invoice");
 
-        when(ocrProvider.process(any(byte[].class), eq("application/pdf")))
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_INVOICE_PROCESSOR_ID)))
                 .thenThrow(new IllegalStateException("OCR provider unavailable"));
 
         mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
@@ -346,7 +364,8 @@ class ExtractionIntegrationTest {
     void deleteExtractedDocumentThenRemovesDocumentExtractionFieldsAndFile() throws Exception {
         Long documentId = uploadPdf("Delete extracted invoice");
 
-        when(ocrProvider.process(any(byte[].class), eq("application/pdf")))
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_INVOICE_PROCESSOR_ID)))
                 .thenReturn(sampleOcrResult());
 
         mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
@@ -394,7 +413,8 @@ class ExtractionIntegrationTest {
     void updateExtractionFieldThenChangesValueAndMarksFieldAsCorrected() throws Exception {
         Long documentId = uploadPdf("Editable extraction invoice");
 
-        when(ocrProvider.process(any(byte[].class), eq("application/pdf")))
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_INVOICE_PROCESSOR_ID)))
                 .thenReturn(sampleOcrResult());
 
         MvcResult processResult =
@@ -455,7 +475,8 @@ class ExtractionIntegrationTest {
         Long firstDocumentId = uploadPdf("First editable extraction invoice");
         Long secondDocumentId = uploadPdf("Second editable extraction invoice");
 
-        when(ocrProvider.process(any(byte[].class), eq("application/pdf")))
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_INVOICE_PROCESSOR_ID)))
                 .thenReturn(sampleOcrResult())
                 .thenReturn(sampleOcrResult());
 
@@ -671,7 +692,8 @@ class ExtractionIntegrationTest {
             throws Exception {
         Long documentId = uploadPdf("Confirm extraction invoice");
 
-        when(ocrProvider.process(any(byte[].class), eq("application/pdf")))
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_INVOICE_PROCESSOR_ID)))
                 .thenReturn(sampleOcrResult());
 
         MvcResult processResult =
@@ -739,7 +761,8 @@ class ExtractionIntegrationTest {
         assertEquals("125.50", correctedField.get("value"));
         assertEquals(true, correctedField.get("is_corrected"));
 
-        verify(ocrProvider, times(1)).process(any(byte[].class), eq("application/pdf"));
+        verify(ocrProvider, times(1))
+                .process(any(byte[].class), eq("application/pdf"), eq(TEST_INVOICE_PROCESSOR_ID));
     }
 
     @Test
@@ -758,7 +781,8 @@ class ExtractionIntegrationTest {
             throws Exception {
         Long documentId = uploadPdf("Low confidence invoice");
 
-        when(ocrProvider.process(any(byte[].class), eq("application/pdf")))
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_INVOICE_PROCESSOR_ID)))
                 .thenReturn(sampleLowConfidenceOcrResult());
 
         mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
@@ -781,7 +805,8 @@ class ExtractionIntegrationTest {
     void confirmExtractionWithLowConfidenceCorrectedFieldThenSucceeds() throws Exception {
         Long documentId = uploadPdf("Corrected low confidence invoice");
 
-        when(ocrProvider.process(any(byte[].class), eq("application/pdf")))
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_INVOICE_PROCESSOR_ID)))
                 .thenReturn(sampleLowConfidenceOcrResult());
 
         MvcResult processResult =
@@ -837,7 +862,8 @@ class ExtractionIntegrationTest {
     void confirmInvoiceExtractionWithoutRequiredFieldThenReturnsBadRequest() throws Exception {
         Long documentId = uploadPdf("Missing required field invoice");
 
-        when(ocrProvider.process(any(byte[].class), eq("application/pdf")))
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_INVOICE_PROCESSOR_ID)))
                 .thenReturn(sampleOcrResultWithoutInvoiceId());
 
         mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
@@ -860,7 +886,8 @@ class ExtractionIntegrationTest {
     void confirmInvoiceExtractionWithBlankFieldThenReturnsBadRequest() throws Exception {
         Long documentId = uploadPdf("Blank required field invoice");
 
-        when(ocrProvider.process(any(byte[].class), eq("application/pdf")))
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_INVOICE_PROCESSOR_ID)))
                 .thenReturn(sampleOcrResultWithBlankSupplierName());
 
         mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
@@ -883,7 +910,8 @@ class ExtractionIntegrationTest {
     void confirmInvoiceExtractionWithRequiredFieldsThenSucceeds() throws Exception {
         Long documentId = uploadPdf("Valid required fields invoice");
 
-        when(ocrProvider.process(any(byte[].class), eq("application/pdf")))
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_INVOICE_PROCESSOR_ID)))
                 .thenReturn(sampleOcrResult());
 
         mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
@@ -907,7 +935,8 @@ class ExtractionIntegrationTest {
     void confirmInvoiceExtractionWithInvalidDateFormatThenReturnsBadRequest() throws Exception {
         Long documentId = uploadPdf("Invalid date format invoice");
 
-        when(ocrProvider.process(any(byte[].class), eq("application/pdf")))
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_INVOICE_PROCESSOR_ID)))
                 .thenReturn(sampleOcrResultWithInvalidDateFormat());
 
         mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
@@ -930,7 +959,8 @@ class ExtractionIntegrationTest {
     void confirmInvoiceExtractionWithDifferentFieldNameCaseThenSucceeds() throws Exception {
         Long documentId = uploadPdf("Normalized field names invoice");
 
-        when(ocrProvider.process(any(byte[].class), eq("application/pdf")))
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_INVOICE_PROCESSOR_ID)))
                 .thenReturn(sampleOcrResultWithMixedCaseFieldNames());
 
         mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
@@ -953,7 +983,8 @@ class ExtractionIntegrationTest {
             throws Exception {
         Long documentId = uploadPdf("Missing placeholders invoice");
 
-        when(ocrProvider.process(any(byte[].class), eq("application/pdf")))
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_INVOICE_PROCESSOR_ID)))
                 .thenReturn(sampleOcrResultMissingSupplierAndCurrency());
 
         MvcResult processResult =
@@ -1006,7 +1037,8 @@ class ExtractionIntegrationTest {
     void confirmExtractionWithRequiredPlaceholderFieldsThenReturnsBadRequest() throws Exception {
         Long documentId = uploadPdf("Confirm placeholder invoice");
 
-        when(ocrProvider.process(any(byte[].class), eq("application/pdf")))
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_INVOICE_PROCESSOR_ID)))
                 .thenReturn(sampleOcrResultMissingSupplierAndCurrency());
 
         mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
@@ -1029,7 +1061,8 @@ class ExtractionIntegrationTest {
     void updatePlaceholderFieldThenSetsCorrectedTrueAndPlaceholderFalse() throws Exception {
         Long documentId = uploadPdf("Edit placeholder invoice");
 
-        when(ocrProvider.process(any(byte[].class), eq("application/pdf")))
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_INVOICE_PROCESSOR_ID)))
                 .thenReturn(sampleOcrResultMissingSupplierAndCurrency());
 
         MvcResult processResult =
@@ -1089,7 +1122,8 @@ class ExtractionIntegrationTest {
     void confirmExtractionAfterFillingPlaceholderFieldsThenSucceeds() throws Exception {
         Long documentId = uploadPdf("Filled placeholders invoice");
 
-        when(ocrProvider.process(any(byte[].class), eq("application/pdf")))
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_INVOICE_PROCESSOR_ID)))
                 .thenReturn(sampleOcrResultMissingSupplierAndCurrency());
 
         MvcResult processResult =
@@ -1281,7 +1315,9 @@ class ExtractionIntegrationTest {
             throws Exception {
         Long documentId = uploadPdf("Decimal validation invoice");
 
-        when(ocrProvider.process(any(byte[].class), eq("application/pdf"))).thenReturn(ocrResult);
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_INVOICE_PROCESSOR_ID)))
+                .thenReturn(ocrResult);
 
         MvcResult processResult =
                 mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
