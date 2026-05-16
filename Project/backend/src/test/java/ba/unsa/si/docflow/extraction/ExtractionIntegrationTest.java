@@ -488,6 +488,190 @@ class ExtractionIntegrationTest {
     }
 
     @Test
+    void confirmReceiptExtractionWithRequiredFieldsAndDateAliasThenSucceeds() throws Exception {
+        Long documentId =
+                processDocumentWithTypeAndResult(
+                        "Valid receipt for confirmation",
+                        "RECEIPT",
+                        TEST_RECEIPT_PROCESSOR_ID,
+                        sampleReceiptOcrResult());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction/confirm", documentId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("OK"))
+                .andExpect(jsonPath("$.payload.documentId").value(documentId));
+
+        assertDocumentStatus(documentId, "READY_FOR_APPROVAL");
+    }
+
+    @Test
+    void confirmReceiptExtractionWithoutDateAliasThenReturnsBadRequest() throws Exception {
+        Long documentId =
+                processDocumentWithTypeAndResult(
+                        "Receipt without date",
+                        "RECEIPT",
+                        TEST_RECEIPT_PROCESSOR_ID,
+                        sampleReceiptOcrResultWithoutDateAlias());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction/confirm", documentId))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$[0].code").value("EXTRACTION_REQUIRED_FIELD_MISSING"));
+
+        assertDocumentStatus(documentId, "EXTRACTED");
+    }
+
+    @Test
+    void confirmReceiptExtractionWithLowConfidenceRequiredFieldThenReturnsBadRequest()
+            throws Exception {
+        Long documentId =
+                processDocumentWithTypeAndResult(
+                        "Receipt with low confidence total",
+                        "RECEIPT",
+                        TEST_RECEIPT_PROCESSOR_ID,
+                        sampleReceiptOcrResultWithLowConfidenceRequiredField());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction/confirm", documentId))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$[0].code").value("EXTRACTION_FIELD_LOW_CONFIDENCE"));
+
+        assertDocumentStatus(documentId, "EXTRACTED");
+    }
+
+    @Test
+    void confirmReceiptExtractionWithLowConfidenceOptionalFieldThenSucceeds() throws Exception {
+        Long documentId =
+                processDocumentWithTypeAndResult(
+                        "Receipt with low confidence optional field",
+                        "RECEIPT",
+                        TEST_RECEIPT_PROCESSOR_ID,
+                        sampleReceiptOcrResultWithLowConfidenceOptionalField());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction/confirm", documentId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("OK"))
+                .andExpect(jsonPath("$.payload.documentId").value(documentId));
+
+        assertDocumentStatus(documentId, "READY_FOR_APPROVAL");
+    }
+
+    @Test
+    void confirmBankStatementExtractionWithRequiredFieldsAndBasicStructureThenSucceeds()
+            throws Exception {
+        Long documentId =
+                processDocumentWithTypeAndResult(
+                        "Valid bank statement for confirmation",
+                        "BANK_STATEMENT",
+                        TEST_BANK_STATEMENT_PROCESSOR_ID,
+                        sampleBankStatementOcrResult());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction/confirm", documentId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("OK"))
+                .andExpect(jsonPath("$.payload.documentId").value(documentId));
+
+        assertDocumentStatus(documentId, "READY_FOR_APPROVAL");
+    }
+
+    @Test
+    void confirmBankStatementWithoutIdentityFieldThenReturnsBadRequest() throws Exception {
+        Long documentId =
+                processDocumentWithTypeAndResult(
+                        "Bank statement without identity",
+                        "BANK_STATEMENT",
+                        TEST_BANK_STATEMENT_PROCESSOR_ID,
+                        sampleBankStatementOcrResultWithoutIdentityField());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction/confirm", documentId))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$[0].code").value("EXTRACTION_REQUIRED_FIELD_MISSING"));
+
+        assertDocumentStatus(documentId, "EXTRACTED");
+    }
+
+    @Test
+    void confirmBankStatementWithoutActivityFieldThenReturnsBadRequest() throws Exception {
+        Long documentId =
+                processDocumentWithTypeAndResult(
+                        "Bank statement without activity",
+                        "BANK_STATEMENT",
+                        TEST_BANK_STATEMENT_PROCESSOR_ID,
+                        sampleBankStatementOcrResultWithoutActivityField());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction/confirm", documentId))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$[0].code").value("EXTRACTION_REQUIRED_FIELD_MISSING"));
+
+        assertDocumentStatus(documentId, "EXTRACTED");
+    }
+
+    @Test
+    void confirmBankStatementWithLowConfidenceRequiredFieldThenReturnsBadRequest()
+            throws Exception {
+        Long documentId =
+                processDocumentWithTypeAndResult(
+                        "Bank statement with low confidence account",
+                        "BANK_STATEMENT",
+                        TEST_BANK_STATEMENT_PROCESSOR_ID,
+                        sampleBankStatementOcrResultWithLowConfidenceRequiredField());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction/confirm", documentId))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$[0].code").value("EXTRACTION_FIELD_LOW_CONFIDENCE"));
+
+        assertDocumentStatus(documentId, "EXTRACTED");
+    }
+
+    @Test
+    void confirmBankStatementWithLowConfidenceOptionalFieldThenSucceeds() throws Exception {
+        Long documentId =
+                processDocumentWithTypeAndResult(
+                        "Bank statement with low confidence optional field",
+                        "BANK_STATEMENT",
+                        TEST_BANK_STATEMENT_PROCESSOR_ID,
+                        sampleBankStatementOcrResultWithLowConfidenceOptionalField());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction/confirm", documentId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("OK"))
+                .andExpect(jsonPath("$.payload.documentId").value(documentId));
+
+        assertDocumentStatus(documentId, "READY_FOR_APPROVAL");
+    }
+
+    @Test
+    void confirmBankStatementWithInvalidBalanceFormatThenReturnsBadRequest() throws Exception {
+        Long documentId =
+                processDocumentWithTypeAndResult(
+                        "Bank statement with invalid balance",
+                        "BANK_STATEMENT",
+                        TEST_BANK_STATEMENT_PROCESSOR_ID,
+                        sampleBankStatementOcrResultWithInvalidBalanceFormat());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction/confirm", documentId))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$[0].code").value("EXTRACTION_FIELD_NUMERIC_FORMAT_INVALID"));
+
+        assertDocumentStatus(documentId, "EXTRACTED");
+    }
+
+    @Test
+    void confirmFormExtractionWithLowConfidenceFieldsThenSucceeds() throws Exception {
+        Long documentId =
+                processDocumentWithTypeAndResult(
+                        "Form with low confidence fields",
+                        "FORM",
+                        TEST_FORM_PROCESSOR_ID,
+                        sampleFormOcrResultWithLowConfidenceFields());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction/confirm", documentId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("OK"))
+                .andExpect(jsonPath("$.payload.documentId").value(documentId));
+
+        assertDocumentStatus(documentId, "READY_FOR_APPROVAL");
+    }
+
+    @Test
     void findExtractionByDocumentIdThenReturnsPersistedResult() throws Exception {
         Long documentId = uploadPdf("Find extraction invoice");
 
@@ -1659,6 +1843,118 @@ class ExtractionIntegrationTest {
                         field("applicant_name", "Test User", null, "0.91"),
                         field("approval_date", "2026-05-06", "2026-05-06", "0.87"),
                         field("approved", "yes", null, "0.85")));
+    }
+
+    private Long processDocumentWithTypeAndResult(
+            String name, String documentType, String processorId, OcrResult ocrResult)
+            throws Exception {
+        Long documentId = uploadPdfWithType(name, documentType);
+
+        when(ocrProvider.process(any(byte[].class), eq("application/pdf"), eq(processorId)))
+                .thenReturn(ocrResult);
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("OK"));
+
+        return documentId;
+    }
+
+    private void assertDocumentStatus(Long documentId, String expectedStatus) {
+        String documentStatus =
+                jdbcTemplate.queryForObject(
+                        "SELECT document_status FROM document WHERE id = ?",
+                        String.class,
+                        documentId);
+
+        assertEquals(expectedStatus, documentStatus);
+    }
+
+    private OcrResult sampleReceiptOcrResultWithoutDateAlias() {
+        return new OcrResult(
+                "RECEIPT\nMerchant: Test Shop\nTotal: 20.00 EUR\n",
+                List.of(
+                        field("supplier_name", "Test Shop", null, "0.90"),
+                        field("total_amount", "20.00", "20", "0.93"),
+                        field("currency", "EUR", "EUR", "0.89")));
+    }
+
+    private OcrResult sampleReceiptOcrResultWithLowConfidenceRequiredField() {
+        return new OcrResult(
+                "RECEIPT\nMerchant: Test Shop\nTotal: 20.00 EUR\n",
+                List.of(
+                        field("supplier_name", "Test Shop", null, "0.90"),
+                        field("expense_date", "2026-05-06", "2026-05-06", "0.88"),
+                        field("total_amount", "20.00", "20", "0.26"),
+                        field("currency", "EUR", "EUR", "0.89")));
+    }
+
+    private OcrResult sampleReceiptOcrResultWithLowConfidenceOptionalField() {
+        return new OcrResult(
+                "RECEIPT\nMerchant: Test Shop\nTotal: 20.00 EUR\nPayment: card\n",
+                List.of(
+                        field("supplier_name", "Test Shop", null, "0.90"),
+                        field("expense_date", "2026-05-06", "2026-05-06", "0.88"),
+                        field("total_amount", "20.00", "20", "0.93"),
+                        field("currency", "EUR", "EUR", "0.89"),
+                        field("payment_type", "card", null, "0.25")));
+    }
+
+    private OcrResult sampleBankStatementOcrResultWithoutIdentityField() {
+        return new OcrResult(
+                "BANK STATEMENT\nAccount: BA000123\nPeriod: 2026-05-01 - 2026-05-31\n",
+                List.of(
+                        field("account_number", "BA000123", null, "0.91"),
+                        field("statement_start_date", "2026-05-01", "2026-05-01", "0.89"),
+                        field("statement_end_date", "2026-05-31", "2026-05-31", "0.89")));
+    }
+
+    private OcrResult sampleBankStatementOcrResultWithoutActivityField() {
+        return new OcrResult(
+                "BANK STATEMENT\nBank: Test Bank\nAccount: BA000123\n",
+                List.of(
+                        field("bank_name", "Test Bank", null, "0.92"),
+                        field("account_number", "BA000123", null, "0.91")));
+    }
+
+    private OcrResult sampleBankStatementOcrResultWithLowConfidenceRequiredField() {
+        return new OcrResult(
+                "BANK STATEMENT\nBank: Test Bank\nAccount: BA000123\n",
+                List.of(
+                        field("bank_name", "Test Bank", null, "0.92"),
+                        field("account_number", "BA000123", null, "0.26"),
+                        field("statement_start_date", "2026-05-01", "2026-05-01", "0.89"),
+                        field("statement_end_date", "2026-05-31", "2026-05-31", "0.89")));
+    }
+
+    private OcrResult sampleBankStatementOcrResultWithLowConfidenceOptionalField() {
+        return new OcrResult(
+                "BANK STATEMENT\nBank: Test Bank\nAccount: BA000123\nType: checking\n",
+                List.of(
+                        field("bank_name", "Test Bank", null, "0.92"),
+                        field("account_number", "BA000123", null, "0.91"),
+                        field("statement_start_date", "2026-05-01", "2026-05-01", "0.89"),
+                        field("statement_end_date", "2026-05-31", "2026-05-31", "0.89"),
+                        field("account_type", "checking", null, "0.25")));
+    }
+
+    private OcrResult sampleBankStatementOcrResultWithInvalidBalanceFormat() {
+        return new OcrResult(
+                "BANK STATEMENT\nBank: Test Bank\nAccount: BA000123\nBalance: 1 000.00\n",
+                List.of(
+                        field("bank_name", "Test Bank", null, "0.92"),
+                        field("account_number", "BA000123", null, "0.91"),
+                        field("statement_start_date", "2026-05-01", "2026-05-01", "0.89"),
+                        field("starting_balance", "1 000.00", null, "0.90")));
+    }
+
+    private OcrResult sampleFormOcrResultWithLowConfidenceFields() {
+        return new OcrResult(
+                "FORM\nApplicant: Test User\nApproved: yes\n",
+                List.of(
+                        field("applicant_name", "Test User", null, "0.25"),
+                        field("approval_date", "2026-05-06", "2026-05-06", "0.30"),
+                        field("approved", "yes", null, "0.20")));
     }
 
     private Map<String, Object> findDocumentClassificationMetadata(Long documentId) {
