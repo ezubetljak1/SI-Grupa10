@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -489,7 +490,191 @@ class DocumentUploadIntegrationTest {
         assertEquals("Second document", secondDocumentName);
     }
 
+    @Test
+    void confirmDocumentTypeWhenReviewRequiredThenUpdatesTypeAndStatus() throws Exception {
+        Long documentId = uploadPdfWithType("Manual classification form", 1L, "OTHER");
+
+        jdbcTemplate.update(
+                """
+                UPDATE document
+                SET document_status = 'NEEDS_CLASSIFICATION_REVIEW',
+                    detected_document_type = 'INVOICE',
+                    classification_confidence = 0.400000,
+                    processor_id_used = 'old-processor-id'
+                WHERE id = ?
+                """,
+                documentId);
+
+        mockMvc.perform(
+                        patch("/api/documents/{id}/classification", documentId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                                        {
+                                          "documentType": "FORM"
+                                        }
+                                        """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("OK"))
+                .andExpect(jsonPath("$.payload.id").value(documentId))
+                .andExpect(jsonPath("$.payload.documentType").value("FORM"))
+                .andExpect(jsonPath("$.payload.documentStatus").value("UPLOADED"))
+                .andExpect(jsonPath("$.payload.detectedDocumentType").value("INVOICE"));
+
+        Map<String, Object> document =
+                jdbcTemplate.queryForMap(
+                        """
+                        SELECT document_type, document_status, detected_document_type,
+                               classification_confidence, processor_id_used
+                        FROM document
+                        WHERE id = ?
+                        """,
+                        documentId);
+
+        assertEquals("FORM", document.get("document_type"));
+        assertEquals("UPLOADED", document.get("document_status"));
+        assertEquals("INVOICE", document.get("detected_document_type"));
+        assertEquals(null, document.get("processor_id_used"));
+    }
+
+    @Test
+    void confirmDocumentTypeWithLowerCaseBankStatementThenNormalizesType() throws Exception {
+        Long documentId = uploadPdfWithType("Manual classification bank statement", 1L, "OTHER");
+
+        jdbcTemplate.update(
+                "UPDATE document SET document_status = 'NEEDS_CLASSIFICATION_REVIEW' WHERE id = ?",
+                documentId);
+
+        mockMvc.perform(
+                        patch("/api/documents/{id}/classification", documentId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                                        {
+                                          "documentType": "bank_statement"
+                                        }
+                                        """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("OK"))
+                .andExpect(jsonPath("$.payload.documentType").value("BANK_STATEMENT"))
+                .andExpect(jsonPath("$.payload.documentStatus").value("UPLOADED"));
+
+        Map<String, Object> document =
+                jdbcTemplate.queryForMap(
+                        "SELECT document_type, document_status FROM document WHERE id = ?",
+                        documentId);
+
+        assertEquals("BANK_STATEMENT", document.get("document_type"));
+        assertEquals("UPLOADED", document.get("document_status"));
+    }
+
+    @Test
+    void confirmDocumentTypeWhenDocumentIsNotWaitingForReviewThenReturnsValidationError()
+            throws Exception {
+        Long documentId = uploadPdfWithType("Not waiting for classification", 1L, "OTHER");
+
+        mockMvc.perform(
+                        patch("/api/documents/{id}/classification", documentId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                                        {
+                                          "documentType": "INVOICE"
+                                        }
+                                        """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$[0].code").value("DOCUMENT_STATUS_INVALID"));
+
+        Map<String, Object> document =
+                jdbcTemplate.queryForMap(
+                        "SELECT document_type, document_status FROM document WHERE id = ?",
+                        documentId);
+
+        assertEquals("OTHER", document.get("document_type"));
+        assertEquals("UPLOADED", document.get("document_status"));
+    }
+
+    @Test
+    void confirmDocumentTypeWithUnsupportedManualTypeThenReturnsValidationError() throws Exception {
+        Long documentId = uploadPdfWithType("Unsupported manual classification", 1L, "OTHER");
+
+        jdbcTemplate.update(
+                "UPDATE document SET document_status = 'NEEDS_CLASSIFICATION_REVIEW' WHERE id = ?",
+                documentId);
+
+        mockMvc.perform(
+                        patch("/api/documents/{id}/classification", documentId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                                        {
+                                          "documentType": "OTHER"
+                                        }
+                                        """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$[0].code").value("DOCUMENT_TYPE_INVALID"));
+
+        Map<String, Object> document =
+                jdbcTemplate.queryForMap(
+                        "SELECT document_type, document_status FROM document WHERE id = ?",
+                        documentId);
+
+        assertEquals("OTHER", document.get("document_type"));
+        assertEquals("NEEDS_CLASSIFICATION_REVIEW", document.get("document_status"));
+    }
+
+    @Test
+    void confirmDocumentTypeWithUnknownTypeThenReturnsValidationError() throws Exception {
+        Long documentId = uploadPdfWithType("Unknown manual classification", 1L, "OTHER");
+
+        jdbcTemplate.update(
+                "UPDATE document SET document_status = 'NEEDS_CLASSIFICATION_REVIEW' WHERE id = ?",
+                documentId);
+
+        mockMvc.perform(
+                        patch("/api/documents/{id}/classification", documentId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                                        {
+                                          "documentType": "CONTRACT"
+                                        }
+                                        """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$[0].code").value("DOCUMENT_TYPE_INVALID"));
+
+        Map<String, Object> document =
+                jdbcTemplate.queryForMap(
+                        "SELECT document_type, document_status FROM document WHERE id = ?",
+                        documentId);
+
+        assertEquals("OTHER", document.get("document_type"));
+        assertEquals("NEEDS_CLASSIFICATION_REVIEW", document.get("document_status"));
+    }
+
+    @Test
+    void confirmDocumentTypeForMissingDocumentThenReturnsNotFound() throws Exception {
+        mockMvc.perform(
+                        patch("/api/documents/{id}/classification", 999999L)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                                        {
+                                          "documentType": "INVOICE"
+                                        }
+                                        """))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("NOT_FOUND"))
+                .andExpect(
+                        jsonPath("$.payload").value("Document with the given id does not exist."));
+    }
+
     private Long uploadPdf(String name, Long companyId) throws Exception {
+        return uploadPdfWithType(name, companyId, "INVOICE");
+    }
+
+    private Long uploadPdfWithType(String name, Long companyId, String documentType)
+            throws Exception {
         MockMultipartFile file =
                 new MockMultipartFile(
                         "file",
@@ -503,7 +688,7 @@ class DocumentUploadIntegrationTest {
                                         .file(file)
                                         .param("companyId", String.valueOf(companyId))
                                         .param("createdByUserId", "1")
-                                        .param("documentType", "INVOICE")
+                                        .param("documentType", documentType)
                                         .param("name", name))
                         .andExpect(status().isOk())
                         .andReturn();

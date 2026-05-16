@@ -1,10 +1,6 @@
 package ba.unsa.si.docflow.controller;
 
-import ba.unsa.si.docflow.dto.document.Document;
-import ba.unsa.si.docflow.dto.document.DocumentCreateRequest;
-import ba.unsa.si.docflow.dto.document.DocumentFileResponse;
-import ba.unsa.si.docflow.dto.document.DocumentFilterRequest;
-import ba.unsa.si.docflow.dto.document.DocumentUpdateRequest;
+import ba.unsa.si.docflow.dto.document.*;
 import ba.unsa.si.docflow.response.ApiResponse;
 import ba.unsa.si.docflow.response.PagedResponse;
 import ba.unsa.si.docflow.service.document.DocumentService;
@@ -90,5 +86,11 @@ public class DocumentController {
     @DeleteMapping("/{id}")
     public ApiResponse<String> delete(@PathVariable Long id) {
         return documentService.delete(id);
+    }
+
+    @PatchMapping("/{id}/classification")
+    public ApiResponse<Document> confirmDocumentType(
+            @PathVariable Long id, @Valid @RequestBody ConfirmDocumentTypeRequest request) {
+        return documentService.confirmDocumentType(id, request);
     }
 }

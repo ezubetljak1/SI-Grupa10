@@ -102,6 +102,15 @@ public class GlobalExceptionHandler {
                 .body(new ApiResponse<>("EXTRACTION_FAILED", ex.getMessage()));
     }
 
+    @ExceptionHandler(DocumentClassificationReviewRequiredException.class)
+    public ResponseEntity<ApiResponse<String>> handleDocumentClassificationReviewRequired(
+            DocumentClassificationReviewRequiredException exception) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(
+                        new ApiResponse<>(
+                                "DOCUMENT_CLASSIFICATION_REVIEW_REQUIRED", exception.getMessage()));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<String>> handleGeneric(Exception ex) {
         log.error("Unexpected application error", ex);

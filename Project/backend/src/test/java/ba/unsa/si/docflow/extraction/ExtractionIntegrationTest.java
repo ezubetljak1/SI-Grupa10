@@ -52,6 +52,11 @@ class ExtractionIntegrationTest {
 
     private static final Path UPLOAD_ROOT = createTempDirectory();
     private static final String TEST_INVOICE_PROCESSOR_ID = "test-invoice-processor-id";
+    private static final String TEST_RECEIPT_PROCESSOR_ID = "test-receipt-processor-id";
+    private static final String TEST_BANK_STATEMENT_PROCESSOR_ID =
+            "test-bank-statement-processor-id";
+    private static final String TEST_FORM_PROCESSOR_ID = "test-form-processor-id";
+    private static final String TEST_CLASSIFIER_PROCESSOR_ID = "test-classifier-processor-id";
 
     @Autowired private MockMvc mockMvc;
 
@@ -66,12 +71,11 @@ class ExtractionIntegrationTest {
         registry.add("docflow.storage.root-dir", () -> UPLOAD_ROOT.toString());
 
         registry.add("docflow.ocr.invoice-processor-id", () -> TEST_INVOICE_PROCESSOR_ID);
-        registry.add("docflow.ocr.receipt-processor-id", () -> "test-receipt-processor-id");
+        registry.add("docflow.ocr.receipt-processor-id", () -> TEST_RECEIPT_PROCESSOR_ID);
         registry.add(
-                "docflow.ocr.bank-statement-processor-id",
-                () -> "test-bank-statement-processor-id");
-        registry.add("docflow.ocr.form-processor-id", () -> "test-form-processor-id");
-        registry.add("docflow.ocr.classifier-processor-id", () -> "test-classifier-processor-id");
+                "docflow.ocr.bank-statement-processor-id", () -> TEST_BANK_STATEMENT_PROCESSOR_ID);
+        registry.add("docflow.ocr.form-processor-id", () -> TEST_FORM_PROCESSOR_ID);
+        registry.add("docflow.ocr.classifier-processor-id", () -> TEST_CLASSIFIER_PROCESSOR_ID);
     }
 
     @BeforeEach
@@ -146,6 +150,341 @@ class ExtractionIntegrationTest {
                 .process(
                         fileCaptor.capture(), eq("application/pdf"), eq(TEST_INVOICE_PROCESSOR_ID));
         assertArrayEquals(PDF_CONTENT, fileCaptor.getValue());
+    }
+
+    @Test
+    void processReceiptDocumentThenUsesReceiptProcessorWithoutClassifier() throws Exception {
+        Long documentId = uploadPdfWithType("Receipt for extraction", "RECEIPT");
+
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_RECEIPT_PROCESSOR_ID)))
+                .thenReturn(sampleReceiptOcrResult());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("OK"))
+                .andExpect(jsonPath("$.payload.documentId").value(documentId));
+
+        Map<String, Object> document = findDocumentClassificationMetadata(documentId);
+
+        assertEquals("EXTRACTED", document.get("document_status"));
+        assertEquals("RECEIPT", document.get("document_type"));
+        assertNull(document.get("detected_document_type"));
+        assertNull(document.get("classification_confidence"));
+        assertEquals(TEST_RECEIPT_PROCESSOR_ID, document.get("processor_id_used"));
+
+        verify(ocrProvider, times(1))
+                .process(any(byte[].class), eq("application/pdf"), eq(TEST_RECEIPT_PROCESSOR_ID));
+        verify(ocrProvider, never())
+                .process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_CLASSIFIER_PROCESSOR_ID));
+    }
+
+    @Test
+    void processBankStatementDocumentThenUsesBankStatementProcessorWithoutClassifier()
+            throws Exception {
+        Long documentId = uploadPdfWithType("Bank statement for extraction", "BANK_STATEMENT");
+
+        when(ocrProvider.process(
+                        any(byte[].class),
+                        eq("application/pdf"),
+                        eq(TEST_BANK_STATEMENT_PROCESSOR_ID)))
+                .thenReturn(sampleBankStatementOcrResult());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("OK"))
+                .andExpect(jsonPath("$.payload.documentId").value(documentId));
+
+        Map<String, Object> document = findDocumentClassificationMetadata(documentId);
+
+        assertEquals("EXTRACTED", document.get("document_status"));
+        assertEquals("BANK_STATEMENT", document.get("document_type"));
+        assertNull(document.get("detected_document_type"));
+        assertNull(document.get("classification_confidence"));
+        assertEquals(TEST_BANK_STATEMENT_PROCESSOR_ID, document.get("processor_id_used"));
+
+        verify(ocrProvider, times(1))
+                .process(
+                        any(byte[].class),
+                        eq("application/pdf"),
+                        eq(TEST_BANK_STATEMENT_PROCESSOR_ID));
+        verify(ocrProvider, never())
+                .process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_CLASSIFIER_PROCESSOR_ID));
+    }
+
+    @Test
+    void processFormDocumentThenUsesFormProcessorWithoutClassifier() throws Exception {
+        Long documentId = uploadPdfWithType("Form for extraction", "FORM");
+
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_FORM_PROCESSOR_ID)))
+                .thenReturn(sampleFormOcrResult());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("OK"))
+                .andExpect(jsonPath("$.payload.documentId").value(documentId));
+
+        Map<String, Object> document = findDocumentClassificationMetadata(documentId);
+
+        assertEquals("EXTRACTED", document.get("document_status"));
+        assertEquals("FORM", document.get("document_type"));
+        assertNull(document.get("detected_document_type"));
+        assertNull(document.get("classification_confidence"));
+        assertEquals(TEST_FORM_PROCESSOR_ID, document.get("processor_id_used"));
+
+        verify(ocrProvider, times(1))
+                .process(any(byte[].class), eq("application/pdf"), eq(TEST_FORM_PROCESSOR_ID));
+        verify(ocrProvider, never())
+                .process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_CLASSIFIER_PROCESSOR_ID));
+    }
+
+    @Test
+    void processOtherDocumentWhenClassifierDetectsInvoiceThenUsesInvoiceProcessor()
+            throws Exception {
+        Long documentId = uploadPdfWithType("Unknown invoice document", "OTHER");
+
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_CLASSIFIER_PROCESSOR_ID)))
+                .thenReturn(classifierResult("INVOICE", "0.92"));
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_INVOICE_PROCESSOR_ID)))
+                .thenReturn(sampleOcrResult());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("OK"))
+                .andExpect(jsonPath("$.payload.documentId").value(documentId));
+
+        Map<String, Object> document = findDocumentClassificationMetadata(documentId);
+
+        assertEquals("EXTRACTED", document.get("document_status"));
+        assertEquals("INVOICE", document.get("document_type"));
+        assertEquals("INVOICE", document.get("detected_document_type"));
+        assertBigDecimalEquals("0.92", document.get("classification_confidence"));
+        assertEquals(TEST_INVOICE_PROCESSOR_ID, document.get("processor_id_used"));
+
+        verify(ocrProvider, times(1))
+                .process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_CLASSIFIER_PROCESSOR_ID));
+        verify(ocrProvider, times(1))
+                .process(any(byte[].class), eq("application/pdf"), eq(TEST_INVOICE_PROCESSOR_ID));
+    }
+
+    @Test
+    void processOtherDocumentWhenClassifierDetectsReceiptThenUsesReceiptProcessor()
+            throws Exception {
+        Long documentId = uploadPdfWithType("Unknown receipt document", "OTHER");
+
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_CLASSIFIER_PROCESSOR_ID)))
+                .thenReturn(classifierResult("RECEIPT", "0.91"));
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_RECEIPT_PROCESSOR_ID)))
+                .thenReturn(sampleReceiptOcrResult());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("OK"))
+                .andExpect(jsonPath("$.payload.documentId").value(documentId));
+
+        Map<String, Object> document = findDocumentClassificationMetadata(documentId);
+
+        assertEquals("EXTRACTED", document.get("document_status"));
+        assertEquals("RECEIPT", document.get("document_type"));
+        assertEquals("RECEIPT", document.get("detected_document_type"));
+        assertBigDecimalEquals("0.91", document.get("classification_confidence"));
+        assertEquals(TEST_RECEIPT_PROCESSOR_ID, document.get("processor_id_used"));
+
+        verify(ocrProvider, times(1))
+                .process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_CLASSIFIER_PROCESSOR_ID));
+        verify(ocrProvider, times(1))
+                .process(any(byte[].class), eq("application/pdf"), eq(TEST_RECEIPT_PROCESSOR_ID));
+    }
+
+    @Test
+    void processOtherDocumentWhenClassifierDetectsBankStatementThenUsesBankStatementProcessor()
+            throws Exception {
+        Long documentId = uploadPdfWithType("Unknown bank statement document", "OTHER");
+
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_CLASSIFIER_PROCESSOR_ID)))
+                .thenReturn(classifierResult("BANK_STATEMENT", "0.89"));
+        when(ocrProvider.process(
+                        any(byte[].class),
+                        eq("application/pdf"),
+                        eq(TEST_BANK_STATEMENT_PROCESSOR_ID)))
+                .thenReturn(sampleBankStatementOcrResult());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("OK"))
+                .andExpect(jsonPath("$.payload.documentId").value(documentId));
+
+        Map<String, Object> document = findDocumentClassificationMetadata(documentId);
+
+        assertEquals("EXTRACTED", document.get("document_status"));
+        assertEquals("BANK_STATEMENT", document.get("document_type"));
+        assertEquals("BANK_STATEMENT", document.get("detected_document_type"));
+        assertBigDecimalEquals("0.89", document.get("classification_confidence"));
+        assertEquals(TEST_BANK_STATEMENT_PROCESSOR_ID, document.get("processor_id_used"));
+
+        verify(ocrProvider, times(1))
+                .process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_CLASSIFIER_PROCESSOR_ID));
+        verify(ocrProvider, times(1))
+                .process(
+                        any(byte[].class),
+                        eq("application/pdf"),
+                        eq(TEST_BANK_STATEMENT_PROCESSOR_ID));
+    }
+
+    @Test
+    void processOtherDocumentWhenClassifierDetectsFormThenUsesFormProcessor() throws Exception {
+        Long documentId = uploadPdfWithType("Unknown form document", "OTHER");
+
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_CLASSIFIER_PROCESSOR_ID)))
+                .thenReturn(classifierResult("FORM", "0.86"));
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_FORM_PROCESSOR_ID)))
+                .thenReturn(sampleFormOcrResult());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("OK"))
+                .andExpect(jsonPath("$.payload.documentId").value(documentId));
+
+        Map<String, Object> document = findDocumentClassificationMetadata(documentId);
+
+        assertEquals("EXTRACTED", document.get("document_status"));
+        assertEquals("FORM", document.get("document_type"));
+        assertEquals("FORM", document.get("detected_document_type"));
+        assertBigDecimalEquals("0.86", document.get("classification_confidence"));
+        assertEquals(TEST_FORM_PROCESSOR_ID, document.get("processor_id_used"));
+
+        verify(ocrProvider, times(1))
+                .process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_CLASSIFIER_PROCESSOR_ID));
+        verify(ocrProvider, times(1))
+                .process(any(byte[].class), eq("application/pdf"), eq(TEST_FORM_PROCESSOR_ID));
+    }
+
+    @Test
+    void processOtherDocumentWhenClassifierReturnsOtherThenRequiresManualReview() throws Exception {
+        Long documentId = uploadPdfWithType("Unknown unsupported document", "OTHER");
+
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_CLASSIFIER_PROCESSOR_ID)))
+                .thenReturn(classifierResult("OTHER", "0.88"));
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("DOCUMENT_CLASSIFICATION_REVIEW_REQUIRED"))
+                .andExpect(
+                        jsonPath("$.payload")
+                                .value("Document classification requires manual review."));
+
+        Map<String, Object> document = findDocumentClassificationMetadata(documentId);
+
+        assertEquals("NEEDS_CLASSIFICATION_REVIEW", document.get("document_status"));
+        assertEquals("OTHER", document.get("document_type"));
+        assertEquals("OTHER", document.get("detected_document_type"));
+        assertBigDecimalEquals("0.88", document.get("classification_confidence"));
+        assertNull(document.get("processor_id_used"));
+
+        Integer extractionCount =
+                jdbcTemplate.queryForObject(
+                        "SELECT COUNT(*) FROM extraction WHERE document_id = ?",
+                        Integer.class,
+                        documentId);
+
+        assertEquals(0, extractionCount);
+
+        verify(ocrProvider, times(1))
+                .process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_CLASSIFIER_PROCESSOR_ID));
+        verifyNoParserProcessorWasCalled();
+    }
+
+    @Test
+    void processOtherDocumentWhenClassifierConfidenceIsLowThenRequiresManualReview()
+            throws Exception {
+        Long documentId = uploadPdfWithType("Low confidence unknown document", "OTHER");
+
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_CLASSIFIER_PROCESSOR_ID)))
+                .thenReturn(classifierResult("INVOICE", "0.40"));
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("DOCUMENT_CLASSIFICATION_REVIEW_REQUIRED"))
+                .andExpect(
+                        jsonPath("$.payload")
+                                .value("Document classification requires manual review."));
+
+        Map<String, Object> document = findDocumentClassificationMetadata(documentId);
+
+        assertEquals("NEEDS_CLASSIFICATION_REVIEW", document.get("document_status"));
+        assertEquals("OTHER", document.get("document_type"));
+        assertEquals("INVOICE", document.get("detected_document_type"));
+        assertBigDecimalEquals("0.40", document.get("classification_confidence"));
+        assertNull(document.get("processor_id_used"));
+
+        Integer extractionCount =
+                jdbcTemplate.queryForObject(
+                        "SELECT COUNT(*) FROM extraction WHERE document_id = ?",
+                        Integer.class,
+                        documentId);
+
+        assertEquals(0, extractionCount);
+
+        verify(ocrProvider, times(1))
+                .process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_CLASSIFIER_PROCESSOR_ID));
+        verifyNoParserProcessorWasCalled();
+    }
+
+    @Test
+    void processOtherDocumentWhenClassifierProviderFailsThenMarksDocumentAsProcessingFailed()
+            throws Exception {
+        Long documentId = uploadPdfWithType("Classifier failure document", "OTHER");
+
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_CLASSIFIER_PROCESSOR_ID)))
+                .thenThrow(new IllegalStateException("Classifier unavailable"));
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.code").value("EXTRACTION_FAILED"))
+                .andExpect(
+                        jsonPath("$.payload")
+                                .value("Document extraction failed: Classifier unavailable"));
+
+        Map<String, Object> document = findDocumentClassificationMetadata(documentId);
+
+        assertEquals("PROCESSING_FAILED", document.get("document_status"));
+        assertEquals("OTHER", document.get("document_type"));
+        assertNull(document.get("detected_document_type"));
+        assertNull(document.get("classification_confidence"));
+        assertNull(document.get("processor_id_used"));
+
+        Integer extractionCount =
+                jdbcTemplate.queryForObject(
+                        "SELECT COUNT(*) FROM extraction WHERE document_id = ?",
+                        Integer.class,
+                        documentId);
+
+        assertEquals(0, extractionCount);
+
+        verify(ocrProvider, times(1))
+                .process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_CLASSIFIER_PROCESSOR_ID));
+        verifyNoParserProcessorWasCalled();
     }
 
     @Test
@@ -1261,6 +1600,10 @@ class ExtractionIntegrationTest {
     }
 
     private Long uploadPdf(String name) throws Exception {
+        return uploadPdfWithType(name, "INVOICE");
+    }
+
+    private Long uploadPdfWithType(String name, String documentType) throws Exception {
         MockMultipartFile file =
                 new MockMultipartFile(
                         "file",
@@ -1274,13 +1617,78 @@ class ExtractionIntegrationTest {
                                         .file(file)
                                         .param("companyId", "1")
                                         .param("createdByUserId", "1")
-                                        .param("documentType", "INVOICE")
+                                        .param("documentType", documentType)
                                         .param("name", name))
                         .andExpect(status().isOk())
                         .andReturn();
 
         JsonNode response = objectMapper.readTree(result.getResponse().getContentAsString());
         return response.get("payload").get("id").asLong();
+    }
+
+    private OcrResult classifierResult(String documentType, String confidence) {
+        return new OcrResult(
+                "Classification result: " + documentType,
+                List.of(field(documentType, documentType, documentType, confidence)));
+    }
+
+    private OcrResult sampleReceiptOcrResult() {
+        return new OcrResult(
+                "RECEIPT\nMerchant: Test Shop\nTotal: 20.00 EUR\n",
+                List.of(
+                        field("supplier_name", "Test Shop", null, "0.90"),
+                        field("expense_date", "2026-05-06", "2026-05-06", "0.88"),
+                        field("total_amount", "20.00", "20", "0.93"),
+                        field("currency", "EUR", "EUR", "0.89")));
+    }
+
+    private OcrResult sampleBankStatementOcrResult() {
+        return new OcrResult(
+                "BANK STATEMENT\nBank: Test Bank\nAccount: BA000123\n",
+                List.of(
+                        field("bank_name", "Test Bank", null, "0.92"),
+                        field("account_number", "BA000123", null, "0.91"),
+                        field("statement_start_date", "2026-05-01", "2026-05-01", "0.89"),
+                        field("statement_end_date", "2026-05-31", "2026-05-31", "0.89")));
+    }
+
+    private OcrResult sampleFormOcrResult() {
+        return new OcrResult(
+                "FORM\nApplicant: Test User\nApproved: yes\n",
+                List.of(
+                        field("applicant_name", "Test User", null, "0.91"),
+                        field("approval_date", "2026-05-06", "2026-05-06", "0.87"),
+                        field("approved", "yes", null, "0.85")));
+    }
+
+    private Map<String, Object> findDocumentClassificationMetadata(Long documentId) {
+        return jdbcTemplate.queryForMap(
+                """
+                SELECT document_status, document_type, detected_document_type,
+                       classification_confidence, processor_id_used
+                FROM document
+                WHERE id = ?
+                """,
+                documentId);
+    }
+
+    private void assertBigDecimalEquals(String expected, Object actual) {
+        assertTrue(actual instanceof BigDecimal, "Expected BigDecimal but got: " + actual);
+        assertEquals(0, new BigDecimal(expected).compareTo((BigDecimal) actual));
+    }
+
+    private void verifyNoParserProcessorWasCalled() {
+        verify(ocrProvider, never())
+                .process(any(byte[].class), eq("application/pdf"), eq(TEST_INVOICE_PROCESSOR_ID));
+        verify(ocrProvider, never())
+                .process(any(byte[].class), eq("application/pdf"), eq(TEST_RECEIPT_PROCESSOR_ID));
+        verify(ocrProvider, never())
+                .process(
+                        any(byte[].class),
+                        eq("application/pdf"),
+                        eq(TEST_BANK_STATEMENT_PROCESSOR_ID));
+        verify(ocrProvider, never())
+                .process(any(byte[].class), eq("application/pdf"), eq(TEST_FORM_PROCESSOR_ID));
     }
 
     private OcrResult sampleOcrResult() {

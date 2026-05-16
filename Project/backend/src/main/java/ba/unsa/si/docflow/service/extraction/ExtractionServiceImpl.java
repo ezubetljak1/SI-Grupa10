@@ -13,6 +13,7 @@ import ba.unsa.si.docflow.entity.enums.DocumentStatus;
 import ba.unsa.si.docflow.entity.enums.DocumentType;
 import ba.unsa.si.docflow.exception.ApiNotFoundException;
 import ba.unsa.si.docflow.exception.ApiValidationException;
+import ba.unsa.si.docflow.exception.DocumentClassificationReviewRequiredException;
 import ba.unsa.si.docflow.exception.ExtractionException;
 import ba.unsa.si.docflow.mapper.ExtractionMapper;
 import ba.unsa.si.docflow.response.ApiResponse;
@@ -100,6 +101,7 @@ public class ExtractionServiceImpl implements ExtractionService {
             ExtractionEntity extraction = upsertExtraction(document, ocrResult, documentType);
 
             document.setDocumentType(documentType);
+            document.setProcessorIdUsed(processorId);
             document.setDocumentStatus(DocumentStatus.EXTRACTED);
             documentDAO.merge(document);
 
@@ -222,6 +224,8 @@ public class ExtractionServiceImpl implements ExtractionService {
         DocumentType currentType = document.getDocumentType();
 
         if (currentType != DocumentType.OTHER) {
+            document.setDetectedDocumentType(null);
+            document.setClassificationConfidence(null);
             return currentType;
         }
 
@@ -231,6 +235,9 @@ public class ExtractionServiceImpl implements ExtractionService {
         DocumentType detectedType = classification.documentType();
         BigDecimal confidence =
                 classification.confidence() != null ? classification.confidence() : BigDecimal.ZERO;
+
+        document.setDetectedDocumentType(detectedType);
+        document.setClassificationConfidence(confidence);
 
         boolean supportedDetectedType =
                 detectedType == DocumentType.INVOICE
@@ -243,8 +250,8 @@ public class ExtractionServiceImpl implements ExtractionService {
             document.setDocumentStatus(DocumentStatus.NEEDS_CLASSIFICATION_REVIEW);
             documentDAO.merge(document);
 
-            throw new ExtractionException(
-                    "Document classification confidence is too low. Manual classification review is required.");
+            throw new DocumentClassificationReviewRequiredException(
+                    document.getId(), detectedType, confidence);
         }
 
         return detectedType;
