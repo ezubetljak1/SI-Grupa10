@@ -24,5 +24,7 @@ public interface DocumentService {
             String documentType,
             String name);
 
+    ApiResponse<Document> confirmDocumentType(Long id, ConfirmDocumentTypeRequest request);
+
     DocumentFileResponse downloadFile(Long id);
 }

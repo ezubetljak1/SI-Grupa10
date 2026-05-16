@@ -77,7 +77,17 @@
                 </div>
               </td>
 
-              <td>{{ document.documentType }}</td>
+              <td>
+                <div class="document-type-cell">
+                  <span class="document-type-cell__label">
+                    {{ formatDocumentTypeLabel(document.documentType) }}
+                  </span>
+
+                  @if (needsClassificationReview(document)) {
+                    <span class="review-hint">Review type</span>
+                  }
+                </div>
+              </td>
 
               <td>
                 <app-status-badge [status]="document.documentStatus"></app-status-badge>

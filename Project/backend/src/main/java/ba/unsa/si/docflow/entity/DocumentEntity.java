@@ -8,6 +8,7 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Getter
@@ -34,6 +35,16 @@ public class DocumentEntity {
     @Enumerated(EnumType.STRING)
     @Column(name = "document_type", nullable = false)
     private DocumentType documentType;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "detected_document_type")
+    private DocumentType detectedDocumentType;
+
+    @Column(name = "classification_confidence", precision = 10, scale = 6)
+    private BigDecimal classificationConfidence;
+
+    @Column(name = "processor_id_used")
+    private String processorIdUsed;
 
     @Column(name = "storage_path", nullable = false)
     private String storagePath;

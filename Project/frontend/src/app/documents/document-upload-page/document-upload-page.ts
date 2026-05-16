@@ -8,7 +8,11 @@ import { ToastrService } from 'ngx-toastr';
 import { ValidationError } from '../../models/api.models';
 import { DocumentApiService } from '../../services/document-api.service';
 import { FileTypeIconComponent, PageHeaderComponent, UiCardComponent } from '../../shared/components';
-import { DocflowDocument } from '../models/document.models';
+import {
+  DOCUMENT_TYPE_OPTIONS,
+  DocflowDocument,
+  DocumentType,
+} from '../models/document.models';
 
 @Component({
   selector: 'app-document-upload-page',
@@ -33,7 +37,7 @@ export class DocumentUploadPageComponent {
   readonly maxFileSizeBytes = 10 * 1024 * 1024;
   readonly acceptedFileTypes = '.pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png';
   readonly allowedExtensions = ['pdf', 'jpg', 'jpeg', 'png'];
-  readonly documentTypes = ['INVOICE', 'OTHER'];
+  readonly documentTypeOptions = DOCUMENT_TYPE_OPTIONS;
 
   selectedFile: File | null = null;
   uploadedDocument: DocflowDocument | null = null;
@@ -49,7 +53,7 @@ export class DocumentUploadPageComponent {
   readonly companyId = 1;
   readonly createdByUserId = 1;
   // ***
-  documentType = 'INVOICE';
+  documentType: DocumentType = 'INVOICE';
   name = '';
   loading = false;
   dropzoneActive = false;
@@ -146,6 +150,24 @@ export class DocumentUploadPageComponent {
     if (clearUploadedDocument) {
       this.uploadedDocument = null;
     }
+  }
+
+  formatDocumentTypeLabel(documentType: string | null | undefined): string {
+    if (!documentType) {
+      return '—';
+    }
+
+    return (
+      this.documentTypeOptions.find((type) => type.value === documentType)?.label ??
+      documentType.replaceAll('_', ' ')
+    );
+  }
+
+  getSelectedDocumentTypeDescription(): string {
+    return (
+      this.documentTypeOptions.find((type) => type.value === this.documentType)
+        ?.description ?? ''
+    );
   }
 
   formatFileSize(sizeInBytes: number): string {
