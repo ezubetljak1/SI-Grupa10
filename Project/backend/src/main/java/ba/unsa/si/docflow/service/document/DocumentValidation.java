@@ -251,8 +251,8 @@ public class DocumentValidation {
 
     private boolean isValidDocumentType(String documentType) {
         try {
-            DocumentType.valueOf(documentType.toUpperCase());
-            return true;
+            DocumentType parsedType = DocumentType.valueOf(documentType.trim().toUpperCase());
+            return parsedType != DocumentType.UNKNOWN;
         } catch (Exception exception) {
             return false;
         }

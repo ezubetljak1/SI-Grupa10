@@ -669,6 +669,22 @@ class DocumentUploadIntegrationTest {
                         jsonPath("$.payload").value("Document with the given id does not exist."));
     }
 
+    @Test
+    void uploadUnknownDocumentTypeThenReturnsValidationError() throws Exception {
+        MockMultipartFile file =
+                new MockMultipartFile("file", "unknown.pdf", "application/pdf", PDF_CONTENT);
+
+        mockMvc.perform(
+                        multipart("/api/documents/upload")
+                                .file(file)
+                                .param("companyId", "1")
+                                .param("createdByUserId", "1")
+                                .param("documentType", "UNKNOWN")
+                                .param("name", "Unknown document type"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$[0].code").value("DOCUMENT_TYPE_INVALID"));
+    }
+
     private Long uploadPdf(String name, Long companyId) throws Exception {
         return uploadPdfWithType(name, companyId, "INVOICE");
     }
