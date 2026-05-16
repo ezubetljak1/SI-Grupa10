@@ -1690,6 +1690,93 @@ class ExtractionIntegrationTest {
         assertEquals(0, placeholderCount);
     }
 
+    @Test
+    void confirmInvoiceExtractionWhenTotalAmountIsSmallerThanNetAmountThenReturnsBadRequest()
+            throws Exception {
+        Long documentId = uploadPdf("Invoice total smaller than net");
+
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_INVOICE_PROCESSOR_ID)))
+                .thenReturn(sampleOcrResultWithTotalSmallerThanNet());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction/confirm", documentId))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$[0].code").value("EXTRACTION_FIELD_AMOUNT_INCONSISTENT"));
+
+        String documentStatus =
+                jdbcTemplate.queryForObject(
+                        "SELECT document_status FROM document WHERE id = ?",
+                        String.class,
+                        documentId);
+
+        assertEquals("EXTRACTED", documentStatus);
+    }
+
+    @Test
+    void confirmInvoiceExtractionWhenNetPlusVatDoesNotMatchTotalThenReturnsBadRequest()
+            throws Exception {
+        Long documentId = uploadPdf("Invoice net vat mismatch");
+
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_INVOICE_PROCESSOR_ID)))
+                .thenReturn(sampleOcrResultWithNetVatMismatch());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction/confirm", documentId))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$[0].code").value("EXTRACTION_FIELD_AMOUNT_INCONSISTENT"));
+    }
+
+    @Test
+    void updateDecimalFieldWithCurrencyTextThenReturnsBadRequest() throws Exception {
+        long[] ids = uploadAndExtractWith(sampleOcrResult());
+        long extractionId = ids[0];
+        long fieldId = ids[1];
+
+        mockMvc.perform(
+                        patch(
+                                        "/api/extractions/{extractionId}/fields/{fieldId}",
+                                        extractionId,
+                                        fieldId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"value\": \"1500 KM\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$[0].code").value("EXTRACTION_FIELD_AMOUNT_INVALID"));
+
+        assertFieldUnchanged(extractionId, fieldId, "117.00", false);
+    }
+
+    private OcrResult sampleOcrResultWithTotalSmallerThanNet() {
+        return new OcrResult(
+                "INVOICE\nNet 1500.00\nVAT 255.00\nTotal 1000.00 EUR\n",
+                List.of(
+                        field("supplier_name", "Math Test Company", null, "0.91"),
+                        field("invoice_id", "INV-MATH-001", null, "0.97"),
+                        field("invoice_date", "2026-05-16", "2026-05-16", "0.96"),
+                        field("net_amount", "1500.00", "1500", "0.95"),
+                        field("vat_amount", "255.00", "255", "0.95"),
+                        field("total_amount", "1000.00", "1000", "0.95"),
+                        field("currency", "EUR", "EUR", "0.89")));
+    }
+
+    private OcrResult sampleOcrResultWithNetVatMismatch() {
+        return new OcrResult(
+                "INVOICE\nNet 100.00\nVAT 17.00\nTotal 90.00 EUR\n",
+                List.of(
+                        field("supplier_name", "Mismatch Company", null, "0.91"),
+                        field("invoice_id", "INV-MATH-002", null, "0.97"),
+                        field("invoice_date", "2026-05-16", "2026-05-16", "0.96"),
+                        field("net_amount", "100.00", "100", "0.95"),
+                        field("vat_amount", "17.00", "17", "0.95"),
+                        field("total_amount", "90.00", "90", "0.95"),
+                        field("currency", "EUR", "EUR", "0.89")));
+    }
+
     private Long findFieldId(Long extractionId, String fieldName) {
         return jdbcTemplate.queryForObject(
                 """

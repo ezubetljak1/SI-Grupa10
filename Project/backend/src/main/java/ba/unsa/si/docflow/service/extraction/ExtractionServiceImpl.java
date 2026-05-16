@@ -278,7 +278,7 @@ public class ExtractionServiceImpl implements ExtractionService {
 
         String trimmed = raw.trim();
         if (trimmed.contains(" ") || trimmed.contains("\t")) {
-            throw invalidAmount(fieldName, "Amount must not contain spaces.");
+            throw invalidAmount(fieldName, "Amount must not contain spaces or currency text.");
         }
 
         if (trimmed.contains(",") && trimmed.contains(".")) {
@@ -352,7 +352,7 @@ public class ExtractionServiceImpl implements ExtractionService {
             ValidationErrors errors = new ValidationErrors();
             errors.add(
                     "EXTRACTION_FIELD_AMOUNT_INCONSISTENT",
-                    "total_amount must equal net_amount + vat_amount (within 0.01).");
+                    "total_amount must match net_amount + vat_amount within 0.01 and cannot be smaller than its component amounts.");
             throw new ApiValidationException(errors);
         }
     }
@@ -364,7 +364,12 @@ public class ExtractionServiceImpl implements ExtractionService {
 
     private static ApiValidationException invalidAmount(String fieldName, String message) {
         ValidationErrors errors = new ValidationErrors();
-        errors.add("EXTRACTION_FIELD_AMOUNT_INVALID", fieldName + ": " + message);
+        errors.add(
+                "EXTRACTION_FIELD_AMOUNT_INVALID",
+                fieldName
+                        + ": "
+                        + message
+                        + " Enter only the numeric value, without currency symbols or additional text. Use for example 1500, 1500.50 or 1500,50.");
         return new ApiValidationException(errors);
     }
 

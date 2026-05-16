@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
@@ -24,6 +25,8 @@ import java.util.stream.Collectors;
 public class ExtractionValidation {
 
     private static final BigDecimal MIN_CONFIDENCE_FOR_AUTO_CONFIRM = new BigDecimal("0.70");
+
+    private static final BigDecimal AMOUNT_TOTAL_TOLERANCE = new BigDecimal("0.01");
 
     private static final Set<String> REQUIRED_INVOICE_FIELDS =
             Set.of("invoice_id", "invoice_date", "supplier_name", "total_amount", "currency");
@@ -171,6 +174,102 @@ public class ExtractionValidation {
         }
 
         validateFieldFormats(fields, errors);
+        validateAmountRelationships(fields, errors);
+    }
+
+    private void validateAmountRelationships(
+            List<ExtractionFieldEntity> fields, ValidationErrors errors) {
+        Map<String, ExtractionFieldEntity> fieldsByName =
+                fields.stream()
+                        .filter(field -> StringUtils.hasText(field.getFieldName()))
+                        .collect(
+                                Collectors.toMap(
+                                        field -> normalizeFieldName(field.getFieldName()),
+                                        field -> field,
+                                        (first, second) -> first));
+
+        BigDecimal total = parseAmountForRelationship(fieldsByName.get("total_amount"));
+
+        if (total == null) {
+            return;
+        }
+
+        validateTotalIsNotLessThanComponent(
+                total, fieldsByName.get("net_amount"), "net_amount", errors);
+        validateTotalIsNotLessThanComponent(
+                total, fieldsByName.get("subtotal_amount"), "subtotal_amount", errors);
+        validateTotalIsNotLessThanComponent(
+                total, fieldsByName.get("vat_amount"), "vat_amount", errors);
+        validateTotalIsNotLessThanComponent(
+                total, fieldsByName.get("tax_amount"), "tax_amount", errors);
+        validateTotalIsNotLessThanComponent(
+                total, fieldsByName.get("total_tax_amount"), "total_tax_amount", errors);
+
+        BigDecimal net = parseAmountForRelationship(fieldsByName.get("net_amount"));
+        BigDecimal vat = parseAmountForRelationship(fieldsByName.get("vat_amount"));
+
+        if (net != null && vat != null) {
+            validateTotalMatchesSum(total, net, vat, "net_amount + vat_amount", errors);
+            return;
+        }
+
+        BigDecimal subtotal = parseAmountForRelationship(fieldsByName.get("subtotal_amount"));
+        BigDecimal totalTax = parseAmountForRelationship(fieldsByName.get("total_tax_amount"));
+
+        if (subtotal != null && totalTax != null) {
+            validateTotalMatchesSum(
+                    total, subtotal, totalTax, "subtotal_amount + total_tax_amount", errors);
+        }
+    }
+
+    private void validateTotalIsNotLessThanComponent(
+            BigDecimal total,
+            ExtractionFieldEntity componentField,
+            String componentFieldName,
+            ValidationErrors errors) {
+        BigDecimal component = parseAmountForRelationship(componentField);
+
+        if (component == null) {
+            return;
+        }
+
+        if (total.compareTo(component) < 0) {
+            errors.add(
+                    "EXTRACTION_FIELD_AMOUNT_INCONSISTENT",
+                    "total_amount cannot be smaller than " + componentFieldName + ".");
+        }
+    }
+
+    private void validateTotalMatchesSum(
+            BigDecimal total,
+            BigDecimal baseAmount,
+            BigDecimal taxAmount,
+            String formulaLabel,
+            ValidationErrors errors) {
+        BigDecimal expected = baseAmount.add(taxAmount).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal roundedTotal = total.setScale(2, RoundingMode.HALF_UP);
+
+        if (roundedTotal.subtract(expected).abs().compareTo(AMOUNT_TOTAL_TOLERANCE) > 0) {
+            errors.add(
+                    "EXTRACTION_FIELD_AMOUNT_INCONSISTENT",
+                    "total_amount must match " + formulaLabel + " within 0.01.");
+        }
+    }
+
+    private BigDecimal parseAmountForRelationship(ExtractionFieldEntity field) {
+        if (field == null
+                || Boolean.TRUE.equals(field.getPlaceholder())
+                || !StringUtils.hasText(field.getValue())) {
+            return null;
+        }
+
+        String normalized = field.getValue().trim().replace(',', '.');
+
+        try {
+            return new BigDecimal(normalized).setScale(2, RoundingMode.HALF_UP);
+        } catch (NumberFormatException exception) {
+            return null;
+        }
     }
 
     private void validateRequiredFieldsForDocumentType(
@@ -346,7 +445,7 @@ public class ExtractionValidation {
                 "EXTRACTION_FIELD_DATE_FORMAT_INVALID",
                 "Field '"
                         + fieldName
-                        + "' must be a valid date in YYYY-MM-DD, DD.MM.YYYY or DD/MM/YYYY format.");
+                        + "' must be a valid date. Supported formats are ISO YYYY-MM-DD or European DD.MM.YYYY / DD/MM/YYYY. Ambiguous US format MM/DD/YYYY is not supported.");
     }
 
     private void validateNumericFormat(String fieldName, String value, ValidationErrors errors) {
@@ -397,7 +496,7 @@ public class ExtractionValidation {
                 "EXTRACTION_FIELD_NUMERIC_FORMAT_INVALID",
                 "Field '"
                         + fieldName
-                        + "' must be a non-negative number with at most 2 decimal places.");
+                        + "' must be a numeric value only, without currency symbols or additional text. Use for example 1500, 1500.50 or 1500,50.");
     }
 
     private boolean isDateField(String normalizedFieldName) {

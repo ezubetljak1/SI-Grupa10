@@ -265,7 +265,7 @@ export class DocumentDetailPageComponent implements OnInit {
 
     if (name.includes('date') || name.includes('datum')) {
       if (!this.isValidDateValue(trimmed)) {
-        return 'Invalid date format. Accepted formats: YYYY-MM-DD, DD.MM.YYYY, DD/MM/YYYY.';
+        return 'Invalid date format. Supported formats are ISO YYYY-MM-DD or European DD.MM.YYYY / DD/MM/YYYY. US MM/DD/YYYY format is not supported.';
       }
     }
 
@@ -304,7 +304,7 @@ export class DocumentDetailPageComponent implements OnInit {
       ].includes(name)
     ) {
       if (!this.isValidNumericValue(trimmed)) {
-        return 'Field must be a non-negative number with up to 2 decimals (e.g. 1234.56 or 1234,56).';
+        return 'Field must be a numeric value only, without currency symbols or additional text. Use for example 1500, 1500.50 or 1500,50.';
       }
     }
     return null;
