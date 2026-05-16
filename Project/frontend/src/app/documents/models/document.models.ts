@@ -32,27 +32,32 @@ export const DOCUMENT_TYPE_OPTIONS: DocumentTypeOption[] = [
   {
     value: 'INVOICE',
     label: 'Invoice',
-    description: 'Supplier invoice with invoice number, date, supplier, amount and currency.',
+    description:
+      'Supplier invoice with invoice number, date, supplier, amount and currency.',
   },
   {
     value: 'RECEIPT',
     label: 'Receipt / Expense',
-    description: 'Receipt or expense document proving a completed payment.',
+    description:
+      'Receipt or expense document proving a completed payment.',
   },
   {
     value: 'BANK_STATEMENT',
     label: 'Bank statement',
-    description: 'Bank account statement with account number, balances and transactions.',
+    description:
+      'Bank account statement with account number, balances and transactions.',
   },
   {
     value: 'FORM',
     label: 'Form',
-    description: 'Structured form with labeled fields, tables or checkboxes.',
+    description:
+      'Structured form with labeled fields, tables or checkboxes.',
   },
   {
     value: 'OTHER',
     label: 'Other / Auto classify',
-    description: 'Use classifier first. If confidence is low, manual review will be required.',
+    description:
+      'Use AI classifier first. If confidence is low, manual review will be required.',
   },
 ];
 

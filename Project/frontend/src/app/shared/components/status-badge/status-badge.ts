@@ -34,6 +34,7 @@ export class StatusBadgeComponent {
       REJECTED: 'Rejected',
       PROCESSING_FAILED: 'Processing Failed',
       READY_FOR_APPROVAL: 'Ready For Approval',
+      NEEDS_CLASSIFICATION_REVIEW: 'Needs Classification Review',
       UNKNOWN: 'Unknown'
     };
 
@@ -52,6 +53,7 @@ export class StatusBadgeComponent {
       REJECTED: 'error',
       PROCESSING_FAILED: 'error',
       READY_FOR_APPROVAL: 'approval',
+      NEEDS_CLASSIFICATION_REVIEW: 'warning',
       UNKNOWN: 'neutral'
     };
 

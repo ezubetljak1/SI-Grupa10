@@ -561,8 +561,12 @@ export class DocumentDetailPageComponent implements OnInit {
   }
 
   needsManualReview(field: ExtractionField): boolean {
-    return this.isPlaceholderField(field)
-      || (this.isLowConfidenceField(field) && !field.corrected);
+    return (
+      this.isPlaceholderField(field) ||
+      (this.isLowConfidenceField(field) &&
+        !field.corrected &&
+        this.shouldLowConfidenceBlockConfirmation(field))
+    );
   }
 
   get missingRequiredFields(): ExtractionField[] {
@@ -571,8 +575,58 @@ export class DocumentDetailPageComponent implements OnInit {
 
   get lowConfidenceUnreviewedFields(): ExtractionField[] {
     return this.extractionFields.filter(
-      (field) => this.isLowConfidenceField(field) && !field.corrected
+      (field) =>
+        this.isLowConfidenceField(field) &&
+        !field.corrected &&
+        this.shouldLowConfidenceBlockConfirmation(field)
     );
+  }
+
+  private shouldLowConfidenceBlockConfirmation(field: ExtractionField): boolean {
+    const documentType = this.document?.documentType;
+    const fieldName = field.fieldName?.trim().toLowerCase() ?? '';
+
+    if (documentType === 'INVOICE') {
+      return true;
+    }
+
+    if (documentType === 'RECEIPT') {
+      return (
+        ['supplier_name', 'total_amount', 'currency'].includes(fieldName) ||
+        ['receipt_date', 'expense_date', 'transaction_date', 'purchase_date'].includes(fieldName)
+      );
+    }
+
+    if (documentType === 'BANK_STATEMENT') {
+      return (
+        ['account_number'].includes(fieldName) ||
+        [
+          'bank_name',
+          'client_name',
+          'account_holder_name',
+          'customer_name',
+          'statement_date',
+          'statement_start_date',
+          'statement_end_date',
+          'starting_balance',
+          'ending_balance',
+          'opening_balance',
+          'closing_balance',
+          'current_balance',
+          'table_item',
+          'table_item/transaction_date',
+          'table_item/transaction_deposit',
+          'table_item/transaction_withdrawal',
+          'table_item/transaction_amount',
+          'transaction_date',
+          'transaction_deposit',
+          'transaction_withdrawal',
+          'transaction_amount',
+        ].includes(fieldName)
+      );
+    }
+
+    return false;
   }
 
   get missingRequiredFieldNames(): string {

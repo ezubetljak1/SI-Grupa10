@@ -12,7 +12,7 @@ import {
   StatusBadgeComponent,
   UiCardComponent
 } from '../../shared/components';
-import { DocflowDocument } from '../models/document.models';
+import { DocflowDocument, DOCUMENT_TYPE_OPTIONS } from '../models/document.models';
 import { ToastrService } from 'ngx-toastr';
 
 @Component({
@@ -39,6 +39,23 @@ export class DocumentsPageComponent implements OnInit {
   listLoading = false;
 
   confirmingDeleteId: number | null = null;
+
+  readonly documentTypeOptions = DOCUMENT_TYPE_OPTIONS;
+
+  formatDocumentTypeLabel(documentType: string | null | undefined): string {
+    if (!documentType) {
+      return '—';
+    }
+
+    return (
+      this.documentTypeOptions.find((type) => type.value === documentType)?.label ??
+      documentType.replaceAll('_', ' ')
+    );
+  }
+
+  needsClassificationReview(document: DocflowDocument): boolean {
+    return document.documentStatus === 'NEEDS_CLASSIFICATION_REVIEW';
+  }
 
   ngOnInit(): void {
     this.loadDocuments();
