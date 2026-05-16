@@ -632,6 +632,19 @@ export class DocumentDetailPageComponent implements OnInit {
     return field.value?.trim() || '—';
   }
 
+  hasAiClassificationMetadata(): boolean {
+    if (!this.document) {
+      return false;
+    }
+
+    return (
+      this.document.documentStatus === 'NEEDS_CLASSIFICATION_REVIEW' ||
+      !!this.document.detectedDocumentType ||
+      this.document.classificationConfidence !== null &&
+        this.document.classificationConfidence !== undefined
+    );
+  }
+
   private resolveDownloadFileName(doc: DocflowDocument): string {
     if (doc.name.includes('.')) return doc.name;
     const ext = this.resolveExtension(doc);

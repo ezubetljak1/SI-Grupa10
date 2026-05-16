@@ -68,28 +68,45 @@
             <span class="meta-item__label">Upload date</span>
             <strong class="meta-item__value">{{ formatDate(document.uploadDate) }}</strong>
           </div>
+        </div>
 
-          <div class="meta-item">
-            <span class="meta-item__label">AI detected type</span>
-            <span class="meta-item__value">
-              {{ formatDocumentTypeLabel(document.detectedDocumentType) }}
-            </span>
+      @if (hasAiClassificationMetadata()) {
+  <div class="ai-classification-metadata">
+    <div class="ai-classification-metadata__header">
+      <div>
+        <span class="ai-classification-metadata__eyebrow">AI classification</span>
+        <h3>Automatic classification result</h3>
+      </div>
+
+      @if (document.documentStatus === 'NEEDS_CLASSIFICATION_REVIEW') {
+              <span class="meta-chip meta-chip--warning">Manual review required</span>
+            }
           </div>
 
-          <div class="meta-item">
-            <span class="meta-item__label">Classification confidence</span>
-            <span class="meta-item__value">
-              {{ formatClassificationConfidence(document.classificationConfidence) }}
-            </span>
-          </div>
+          <div class="meta-grid meta-grid--ai">
+            <div class="meta-item meta-item--ai">
+              <span class="meta-item__label">AI detected type</span>
+              <strong class="meta-item__value">
+                {{ formatDocumentTypeLabel(document.detectedDocumentType) }}
+              </strong>
+            </div>
 
-          <div class="meta-item">
-            <span class="meta-item__label">Processor used</span>
-            <span class="meta-item__value">
-              {{ formatProcessorId(document.processorIdUsed) }}
-            </span>
+            <div class="meta-item meta-item--ai">
+              <span class="meta-item__label">Classification confidence</span>
+              <strong class="meta-item__value">
+                {{ formatClassificationConfidence(document.classificationConfidence) }}
+              </strong>
+            </div>
+
+            <div class="meta-item meta-item--ai">
+              <span class="meta-item__label">Processor used</span>
+              <strong class="meta-item__value">
+                {{ formatProcessorId(document.processorIdUsed) }}
+              </strong>
+            </div>
           </div>
         </div>
+      }
       </app-ui-card>
 
       <app-ui-card
