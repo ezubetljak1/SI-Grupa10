@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.MultipartException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.LinkedHashMap;
 import java.util.Locale;
@@ -70,6 +71,14 @@ public class GlobalExceptionHandler {
                 .body(new ApiResponse<>("STORAGE_ERROR", ex.getMessage()));
     }
 
+    @ExceptionHandler(KeycloakIntegrationException.class)
+    public ResponseEntity<ApiResponse<String>> handleKeycloak(KeycloakIntegrationException ex) {
+        log.error("Keycloak integration error occurred", ex);
+
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+                .body(new ApiResponse<>("KEYCLOAK_INTEGRATION_ERROR", ex.getMessage()));
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<?> handleBeanValidation(MethodArgumentNotValidException ex) {
         Map<String, String> errors = new LinkedHashMap<>();
@@ -109,6 +118,12 @@ public class GlobalExceptionHandler {
                 .body(
                         new ApiResponse<>(
                                 "DOCUMENT_CLASSIFICATION_REVIEW_REQUIRED", exception.getMessage()));
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ApiResponse<String>> handleNoResourceFound(NoResourceFoundException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(new ApiResponse<>("NOT_FOUND", "Resource not found: " + ex.getResourcePath()));
     }
 
     @ExceptionHandler(Exception.class)
