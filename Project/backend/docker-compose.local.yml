@@ -1,5 +1,5 @@
 # Local development Docker Compose file.
-# This file starts only the PostgreSQL database.
+# This file starts only local infrastructure needed by the backend.
 # Backend and frontend are run locally from the IDE / Angular CLI.
 #
 # Run from Project/backend:
@@ -21,7 +21,6 @@ services:
     ports:
       - "5432:5432"
 
-    # Persists local database data between container restarts.
     volumes:
       - docflow_local_postgres_data:/var/lib/postgresql/data
 
@@ -31,5 +30,55 @@ services:
       timeout: 5s
       retries: 10
 
+  docflow-keycloak-db:
+    image: postgres:16
+    container_name: docflow-local-keycloak-db
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: keycloak
+
+    volumes:
+      - docflow_local_keycloak_postgres_data:/var/lib/postgresql/data
+
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U keycloak -d keycloak" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  docflow-keycloak:
+    image: quay.io/keycloak/keycloak:26.6.1
+    container_name: docflow-local-keycloak
+    restart: unless-stopped
+    command: [ "start-dev", "--import-realm" ]
+
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://docflow-local-keycloak-db:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: keycloak
+
+      KC_HTTP_ENABLED: "true"
+      KC_HOSTNAME_STRICT: "false"
+
+    ports:
+      - "8081:8080"
+
+    # This path is relative to Project/backend.
+    # It expects the exported realm at Project/keycloak/import/docflow-realm.json.
+    volumes:
+      - ../keycloak/import:/opt/keycloak/data/import
+
+    depends_on:
+      docflow-keycloak-db:
+        condition: service_healthy
+
 volumes:
   docflow_local_postgres_data:
+  docflow_local_keycloak_postgres_data:

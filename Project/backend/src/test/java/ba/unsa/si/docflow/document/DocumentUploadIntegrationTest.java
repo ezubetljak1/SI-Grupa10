@@ -45,7 +45,7 @@ import java.util.Map;
 import java.util.stream.Stream;
 
 @SpringBootTest
-@AutoConfigureMockMvc
+@AutoConfigureMockMvc(addFilters = false)
 @ActiveProfiles("test")
 class DocumentUploadIntegrationTest {
 
