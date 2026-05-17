@@ -7,6 +7,7 @@ import ba.unsa.si.docflow.entity.CompanyEntity;
 import ba.unsa.si.docflow.entity.enums.CompanyStatus;
 import ba.unsa.si.docflow.exception.KeycloakIntegrationException;
 import ba.unsa.si.docflow.service.keycloak.KeycloakAdminService;
+import ba.unsa.si.docflow.service.keycloak.KeycloakUserCreationResult;
 import ba.unsa.si.docflow.service.user.UserProvisioningService;
 
 import lombok.RequiredArgsConstructor;
@@ -42,7 +43,7 @@ public class CompanyRegistrationService {
             keycloakGroupId = keycloakAdminService.createCompanyGroup(request.getCompanyName());
             company = persistCompany(request, keycloakGroupId);
 
-            keycloakUserId =
+            KeycloakUserCreationResult adminUser =
                     keycloakAdminService.createUser(
                             request.getAdminEmail(),
                             request.getAdminFirstName(),
@@ -50,12 +51,14 @@ public class CompanyRegistrationService {
                             keycloakGroupId,
                             true);
 
-            userProvisioningService.provisionFirstAdmin(
-                    company.getId(), keycloakUserId, request);
+            keycloakUserId = adminUser.userId();
+
+            userProvisioningService.provisionFirstAdmin(company.getId(), keycloakUserId, request);
 
             return new CompanyRegisterResponse(
                     company.getId(),
                     company.getName(),
+                    adminUser.temporaryPassword(),
                     messageSource.getMessage(
                             "company.registration.success", null, Locale.getDefault()));
         } catch (RuntimeException ex) {

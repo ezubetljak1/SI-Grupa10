@@ -14,7 +14,6 @@ import org.keycloak.admin.client.resource.RealmResource;
 import org.keycloak.representations.idm.CredentialRepresentation;
 import org.keycloak.representations.idm.GroupRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
-
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -51,7 +50,8 @@ public class KeycloakAdminService {
         } catch (KeycloakIntegrationException ex) {
             throw ex;
         } catch (Exception ex) {
-            throw new KeycloakIntegrationException("Failed to create company group in Keycloak.", ex);
+            throw new KeycloakIntegrationException(
+                    "Failed to create company group in Keycloak.", ex);
         }
     }
 
@@ -60,7 +60,7 @@ public class KeycloakAdminService {
      *
      * @return Keycloak user id (subject)
      */
-    public String createUser(
+    public KeycloakUserCreationResult createUser(
             String email,
             String firstName,
             String lastName,
@@ -80,17 +80,22 @@ public class KeycloakAdminService {
             user.setRequiredActions(List.of("UPDATE_PASSWORD"));
         }
 
+        String userId = null;
+
         try (Response response = realm().users().create(user)) {
             assertSuccessfulResponse(response, "create user");
-            String userId = CreatedResponseUtil.getCreatedId(response);
+            userId = CreatedResponseUtil.getCreatedId(response);
+            String temporaryPassword = generateTemporaryPassword();
 
-            setTemporaryPassword(userId);
+            setTemporaryPassword(userId, temporaryPassword);
             joinGroup(userId, keycloakGroupId);
 
-            return userId;
+            return new KeycloakUserCreationResult(userId, temporaryPassword);
         } catch (KeycloakIntegrationException ex) {
+            deleteUser(userId);
             throw ex;
         } catch (Exception ex) {
+            deleteUser(userId);
             throw new KeycloakIntegrationException("Failed to create user in Keycloak.", ex);
         }
     }
@@ -123,16 +128,17 @@ public class KeycloakAdminService {
         return keycloak.realm(keycloakProperties.getRealm());
     }
 
-    private void setTemporaryPassword(String userId) {
+    private void setTemporaryPassword(String userId, String temporaryPassword) {
         CredentialRepresentation credential = new CredentialRepresentation();
         credential.setType(CredentialRepresentation.PASSWORD);
         credential.setTemporary(true);
-        credential.setValue(generateTemporaryPassword());
+        credential.setValue(temporaryPassword);
 
         try {
             realm().users().get(userId).resetPassword(credential);
         } catch (Exception ex) {
-            throw new KeycloakIntegrationException("Failed to set temporary password in Keycloak.", ex);
+            throw new KeycloakIntegrationException(
+                    "Failed to set temporary password in Keycloak.", ex);
         }
     }
 
@@ -193,8 +199,7 @@ public class KeycloakAdminService {
 
         for (int i = 0; i < 16; i++) {
             builder.append(
-                    PASSWORD_ALPHABET.charAt(
-                            SECURE_RANDOM.nextInt(PASSWORD_ALPHABET.length())));
+                    PASSWORD_ALPHABET.charAt(SECURE_RANDOM.nextInt(PASSWORD_ALPHABET.length())));
         }
 
         return builder.toString();

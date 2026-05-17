@@ -29,16 +29,14 @@ class KeycloakAdminServiceTest {
 
     @Test
     void mockCreatesUserId() {
-        String userId =
+        var result =
                 keycloakAdminService.createUser(
-                        "admin@abc.ba",
-                        "Emina",
-                        "Zubetljak",
-                        "kc-group-test",
-                        true);
+                        "admin@abc.ba", "Emina", "Zubetljak", "kc-group-test", true);
 
-        assertNotNull(userId);
-        assertTrue(userId.startsWith("kc-user-"));
+        assertNotNull(result);
+        assertNotNull(result.userId());
+        assertNotNull(result.temporaryPassword());
+        assertTrue(result.userId().startsWith("kc-user-"));
     }
 
     @Test

@@ -54,7 +54,9 @@ class CompanyRegistrationIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code", equalTo("OK")))
                 .andExpect(jsonPath("$.payload.companyId", notNullValue()))
-                .andExpect(jsonPath("$.payload.companyName", equalTo("Test Company d.o.o.")));
+                .andExpect(jsonPath("$.payload.companyName", equalTo("Test Company d.o.o.")))
+                .andExpect(jsonPath("$.payload.adminTemporaryPassword", equalTo("TempPass123!")));
+        ;
 
         CompanyEntity company = companyDAO.findByEmail(request.getCompanyEmail());
         assertNotNull(company);

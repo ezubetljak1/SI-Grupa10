@@ -11,6 +11,7 @@ import ba.unsa.si.docflow.security.CurrentUserService;
 
 import lombok.AllArgsConstructor;
 
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -29,15 +30,22 @@ public class CompanyServiceImpl implements CompanyService {
     @Transactional(readOnly = true)
     public ApiResponse<CompanyResponse> findById(Long id) {
         CompanyEntity entity =
-                companyValidation.validateTenantAccess(id, currentUserService.getCurrentCompanyId());
+                companyValidation.validateTenantAccess(
+                        id, currentUserService.getCurrentCompanyId());
+
         return new ApiResponse<>("OK", companyMapper.entityToDto(entity));
     }
 
     @Override
     public ApiResponse<CompanyResponse> update(CompanyUpdateRequest request) {
+        if (!"ADMIN".equals(currentUserService.getCurrentRole())) {
+            throw new AccessDeniedException("Only company admin can update company data.");
+        }
+
         CompanyEntity entity =
                 companyValidation.validateTenantAccess(
                         request.getId(), currentUserService.getCurrentCompanyId());
+
         companyValidation.validateUpdate(request);
 
         companyMapper.updateEntityFromRequest(request, entity);
@@ -51,7 +59,6 @@ public class CompanyServiceImpl implements CompanyService {
         }
 
         CompanyEntity saved = companyDAO.merge(entity);
-
         return new ApiResponse<>("OK", companyMapper.entityToDto(saved));
     }
 

@@ -6,6 +6,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import ba.unsa.si.docflow.service.keycloak.KeycloakAdminService;
+import ba.unsa.si.docflow.service.keycloak.KeycloakUserCreationResult;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -24,12 +25,13 @@ public class KeycloakTestConfiguration {
         when(service.createCompanyGroup(anyString()))
                 .thenAnswer(invocation -> "kc-group-" + invocation.getArgument(0).hashCode());
 
-        when(service.createUser(
-                        anyString(), anyString(), anyString(), anyString(), anyBoolean()))
+        when(service.createUser(anyString(), anyString(), anyString(), anyString(), anyBoolean()))
                 .thenAnswer(
                         invocation ->
-                                "kc-user-"
-                                        + invocation.getArgument(0).toString().hashCode());
+                                new KeycloakUserCreationResult(
+                                        "kc-user-"
+                                                + invocation.getArgument(0).toString().hashCode(),
+                                        "TempPass123!"));
 
         return service;
     }
