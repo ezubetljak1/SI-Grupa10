@@ -1,14 +1,14 @@
 package ba.unsa.si.docflow.service.user;
 
 import ba.unsa.si.docflow.dao.UserDAO;
-import ba.unsa.si.docflow.dto.user.UserCreateRequest;
-import ba.unsa.si.docflow.dto.user.UserResponse;
+import ba.unsa.si.docflow.dto.user.*;
 import ba.unsa.si.docflow.entity.RoleEntity;
 import ba.unsa.si.docflow.entity.UserEntity;
 import ba.unsa.si.docflow.entity.enums.AccountStatus;
 import ba.unsa.si.docflow.entity.enums.RoleName;
 import ba.unsa.si.docflow.exception.ApiNotFoundException;
 import ba.unsa.si.docflow.mapper.UserMapper;
+import ba.unsa.si.docflow.response.PagedResponse;
 import ba.unsa.si.docflow.service.role.RoleService;
 
 import lombok.AllArgsConstructor;
@@ -17,6 +17,7 @@ import org.springframework.context.MessageSource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.Locale;
 
 @Service
@@ -81,5 +82,97 @@ public class UserServiceImpl implements UserService {
         user.setAccountStatus(AccountStatus.PENDING_PASSWORD_CHANGE);
 
         return userDAO.persist(user);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PagedResponse<UserResponse> findAll(UserFilterRequest filter, Long companyId) {
+        List<UserEntity> users = userDAO.findByFilter(filter, companyId);
+        long total = userDAO.countByFilter(filter, companyId);
+
+        List<UserResponse> responses = users.stream()
+                .map(user -> {
+                    RoleEntity role = roleService.getById(user.getRoleId());
+                    return userMapper.entityToDto(user, role);
+                })
+                .toList();
+
+        int totalPages = (int) Math.ceil((double) total / filter.getSize());
+
+        return new PagedResponse<>(
+                "OK",
+                responses,
+                filter.getPage(),
+                filter.getSize(),
+                total,
+                totalPages);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public UserResponse findByIdAndCompanyId(Long id, Long companyId) {
+        UserEntity user = userValidation.validateExistsInCompany(id, companyId);
+        RoleEntity role = roleService.getById(user.getRoleId());
+        return userMapper.entityToDto(user, role);
+    }
+
+    @Override
+    public UserResponse createUser(Long companyId, UserCreateApiRequest request, String keycloakUserId) {
+        UserCreateRequest createRequest = new UserCreateRequest();
+        createRequest.setCompanyId(companyId);
+        createRequest.setRole(request.getRole());
+        createRequest.setKeycloakUserId(keycloakUserId);
+        createRequest.setFirstName(request.getFirstName());
+        createRequest.setLastName(request.getLastName());
+        createRequest.setEmail(request.getEmail());
+
+        userValidation.validateCreate(createRequest);
+        RoleEntity role = roleService.getByName(request.getRole());
+
+        UserEntity user = new UserEntity();
+        user.setCompanyId(companyId);
+        user.setRoleId(role.getId());
+        user.setKeycloakUserId(keycloakUserId);
+        user.setFirstName(request.getFirstName().trim());
+        user.setLastName(request.getLastName().trim());
+        user.setEmail(request.getEmail().trim().toLowerCase());
+        user.setAccountStatus(AccountStatus.PENDING_PASSWORD_CHANGE);
+
+        UserEntity saved = userDAO.persist(user);
+        return userMapper.entityToDto(saved, role);
+    }
+
+    @Override
+    public UserResponse update(Long id, UserUpdateRequest request, Long companyId) {
+        UserEntity user = userValidation.validateExistsInCompany(id, companyId);
+
+        user.setFirstName(request.getFirstName().trim());
+        user.setLastName(request.getLastName().trim());
+
+        UserEntity updated = userDAO.merge(user);
+        RoleEntity role = roleService.getById(updated.getRoleId());
+        return userMapper.entityToDto(updated, role);
+    }
+
+    @Override
+    public UserResponse changeRole(Long id, RoleName roleName, Long companyId) {
+        UserEntity user = userValidation.validateExistsInCompany(id, companyId);
+        RoleEntity newRole = roleService.getByName(roleName);
+
+        user.setRoleId(newRole.getId());
+
+        UserEntity updated = userDAO.merge(user);
+        return userMapper.entityToDto(updated, newRole);
+    }
+
+    @Override
+    public UserResponse changeStatus(Long id, AccountStatus status, Long companyId) {
+        UserEntity user = userValidation.validateExistsInCompany(id, companyId);
+
+        user.setAccountStatus(status);
+
+        UserEntity updated = userDAO.merge(user);
+        RoleEntity role = roleService.getById(updated.getRoleId());
+        return userMapper.entityToDto(updated, role);
     }
 }

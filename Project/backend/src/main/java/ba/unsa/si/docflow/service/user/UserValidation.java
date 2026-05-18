@@ -40,6 +40,18 @@ public class UserValidation {
         return entity;
     }
 
+    public UserEntity validateExistsInCompany(Long id, Long companyId) {
+        UserEntity entity = userDAO.findByIdAndCompanyId(id, companyId);
+
+        if (entity == null) {
+            throw new ApiNotFoundException(
+                    messageSource.getMessage(
+                            "user.validation.not_found", null, Locale.getDefault()));
+        }
+
+        return entity;
+    }
+
     public void validateCreate(UserCreateRequest request) {
         ValidationErrors errors = new ValidationErrors();
 
