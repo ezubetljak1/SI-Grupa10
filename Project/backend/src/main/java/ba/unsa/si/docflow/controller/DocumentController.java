@@ -45,11 +45,9 @@ public class DocumentController {
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ApiResponse<Document> upload(
             @RequestParam("file") MultipartFile file,
-            @RequestParam Long companyId,
-            @RequestParam Long createdByUserId,
             @RequestParam String documentType,
             @RequestParam(required = false) String name) {
-        return documentService.upload(file, companyId, createdByUserId, documentType, name);
+        return documentService.upload(file, documentType, name);
     }
 
     @GetMapping("/{id}/file")

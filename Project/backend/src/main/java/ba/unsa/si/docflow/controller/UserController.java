@@ -1,12 +1,9 @@
 package ba.unsa.si.docflow.controller;
 
-import ba.unsa.si.docflow.dto.user.UserFilterRequest;
-import ba.unsa.si.docflow.dto.user.UserResponse;
-import ba.unsa.si.docflow.dto.user.UserUpdateRequest;
+import ba.unsa.si.docflow.dto.user.*;
 import ba.unsa.si.docflow.response.ApiResponse;
 import ba.unsa.si.docflow.response.PagedResponse;
-import ba.unsa.si.docflow.security.CurrentUserService;
-import ba.unsa.si.docflow.service.user.UserService;
+import ba.unsa.si.docflow.service.user.UserCompanyManagementService;
 
 import io.swagger.v3.oas.annotations.tags.Tag;
 
@@ -22,24 +19,43 @@ import org.springframework.web.bind.annotation.*;
 @Tag(name = "User Management API", description = "Admin user management endpoints")
 public class UserController {
 
-    private final UserService userService;
-    private final CurrentUserService currentUserService;
+    private final UserCompanyManagementService userCompanyManagementService;
 
     @GetMapping
     public PagedResponse<UserResponse> findAll(@ModelAttribute UserFilterRequest filter) {
-        Long companyId = currentUserService.getCurrentCompanyId();
-        return userService.findAll(filter, companyId);
+        return userCompanyManagementService.findAll(filter);
     }
 
     @GetMapping("/{id}")
     public ApiResponse<UserResponse> findById(@PathVariable Long id) {
-        Long companyId = currentUserService.getCurrentCompanyId();
-        return new ApiResponse<>("OK", userService.findByIdAndCompanyId(id, companyId));
+        return new ApiResponse<>("OK", userCompanyManagementService.findById(id));
+    }
+
+    @PostMapping
+    public ApiResponse<UserResponse> create(@Valid @RequestBody UserCreateApiRequest request) {
+        return new ApiResponse<>("OK", userCompanyManagementService.createUser(request));
     }
 
     @PatchMapping("/{id}")
-    public ApiResponse<UserResponse> update(@PathVariable Long id, @Valid @RequestBody UserUpdateRequest request) {
-        Long companyId = currentUserService.getCurrentCompanyId();
-        return new ApiResponse<>("OK", userService.update(id, request, companyId));
+    public ApiResponse<UserResponse> update(
+            @PathVariable Long id, @Valid @RequestBody UserUpdateRequest request) {
+        return new ApiResponse<>("OK", userCompanyManagementService.update(id, request));
+    }
+
+    @PatchMapping("/{id}/role")
+    public ApiResponse<UserResponse> changeRole(
+            @PathVariable Long id, @Valid @RequestBody UserRoleChangeRequest request) {
+        return new ApiResponse<>("OK", userCompanyManagementService.changeRole(id, request));
+    }
+
+    @PatchMapping("/{id}/status")
+    public ApiResponse<UserResponse> changeStatus(
+            @PathVariable Long id, @Valid @RequestBody UserStatusChangeRequest request) {
+        return new ApiResponse<>("OK", userCompanyManagementService.changeStatus(id, request));
+    }
+
+    @PostMapping("/{id}/reset-password")
+    public ApiResponse<String> resetPassword(@PathVariable Long id) {
+        return userCompanyManagementService.resetPassword(id);
     }
 }

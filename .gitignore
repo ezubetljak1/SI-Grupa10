@@ -75,3 +75,4 @@ application-local.yml
 # Local deployment secrets
 Project/secrets/
 google-document-ai.json
+/instructions

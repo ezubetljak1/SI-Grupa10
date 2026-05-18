@@ -18,6 +18,8 @@ import ba.unsa.si.docflow.exception.ExtractionException;
 import ba.unsa.si.docflow.mapper.ExtractionMapper;
 import ba.unsa.si.docflow.response.ApiResponse;
 import ba.unsa.si.docflow.response.ValidationErrors;
+import ba.unsa.si.docflow.entity.enums.RoleName;
+import ba.unsa.si.docflow.security.CurrentUserService;
 import ba.unsa.si.docflow.service.document.DocumentValidation;
 import ba.unsa.si.docflow.service.ocr.DocumentAiProcessorRouter;
 import ba.unsa.si.docflow.service.ocr.DocumentClassificationService;
@@ -84,10 +86,12 @@ public class ExtractionServiceImpl implements ExtractionService {
     private final ExtractionValidation extractionValidation;
     private final DocumentAiProcessorRouter processorRouter;
     private final DocumentClassificationService documentClassificationService;
+    private final CurrentUserService currentUserService;
 
     @Override
     public ApiResponse<ExtractionResponse> process(Long documentId) {
-        DocumentEntity document = documentValidation.validateExists(documentId);
+        currentUserService.requireAnyRole(RoleName.ADMIN, RoleName.OPERATOR);
+        DocumentEntity document = requireDocumentInCurrentCompany(documentId);
 
         try {
             byte[] fileContent = readDocumentContent(document);
@@ -133,7 +137,9 @@ public class ExtractionServiceImpl implements ExtractionService {
     @Override
     @Transactional(readOnly = true)
     public ApiResponse<ExtractionResponse> findByDocumentId(Long documentId) {
-        documentValidation.validateExists(documentId);
+        currentUserService.requireAnyRole(
+                RoleName.ADMIN, RoleName.OPERATOR, RoleName.APPROVER, RoleName.MANAGER);
+        requireDocumentInCurrentCompany(documentId);
 
         ExtractionEntity extraction = extractionDAO.findByDocumentId(documentId);
 
@@ -148,7 +154,9 @@ public class ExtractionServiceImpl implements ExtractionService {
     @Override
     @Transactional(readOnly = true)
     public ApiResponse<List<ExtractionFieldResponse>> findFieldsByDocumentId(Long documentId) {
-        documentValidation.validateExists(documentId);
+        currentUserService.requireAnyRole(
+                RoleName.ADMIN, RoleName.OPERATOR, RoleName.APPROVER, RoleName.MANAGER);
+        requireDocumentInCurrentCompany(documentId);
 
         ExtractionEntity extraction = extractionDAO.findByDocumentId(documentId);
 
@@ -165,6 +173,9 @@ public class ExtractionServiceImpl implements ExtractionService {
     @Override
     @Transactional(readOnly = true)
     public ApiResponse<List<ExtractionFieldResponse>> findFieldsByExtractionId(Long extractionId) {
+        currentUserService.requireAnyRole(
+                RoleName.ADMIN, RoleName.OPERATOR, RoleName.APPROVER, RoleName.MANAGER);
+        requireExtractionInCurrentCompany(extractionId);
         List<ExtractionFieldEntity> fields = extractionFieldDAO.findByExtractionId(extractionId);
 
         if (fields.isEmpty()) {
@@ -177,7 +188,8 @@ public class ExtractionServiceImpl implements ExtractionService {
 
     @Override
     public ApiResponse<ExtractionResponse> confirmExtraction(Long documentId) {
-        DocumentEntity document = documentValidation.validateExists(documentId);
+        currentUserService.requireAnyRole(RoleName.ADMIN, RoleName.OPERATOR);
+        DocumentEntity document = requireDocumentInCurrentCompany(documentId);
 
         ExtractionEntity extraction = extractionDAO.findByDocumentId(documentId);
 
@@ -197,6 +209,8 @@ public class ExtractionServiceImpl implements ExtractionService {
     @Override
     public ApiResponse<ExtractionFieldResponse> updateField(
             Long extractionId, Long fieldId, UpdateExtractionFieldRequest request) {
+        currentUserService.requireAnyRole(RoleName.ADMIN, RoleName.OPERATOR);
+        requireExtractionInCurrentCompany(extractionId);
         ExtractionFieldEntity field =
                 extractionFieldDAO
                         .findByIdAndExtractionId(fieldId, extractionId)
@@ -508,5 +522,24 @@ public class ExtractionServiceImpl implements ExtractionService {
         } catch (JsonProcessingException exception) {
             throw new IllegalStateException("Could not serialize OCR result.", exception);
         }
+    }
+
+    private DocumentEntity requireDocumentInCurrentCompany(Long documentId) {
+        return documentValidation.validateExistsInCompany(
+                documentId, currentUserService.getCurrentCompanyId());
+    }
+
+    private ExtractionEntity requireExtractionInCurrentCompany(Long extractionId) {
+        ExtractionEntity extraction = extractionDAO.findByIdWithDocument(extractionId);
+
+        if (extraction == null || extraction.getDocument() == null) {
+            throw new ApiNotFoundException(
+                    "Extraction result was not found for extraction with id: " + extractionId);
+        }
+
+        documentValidation.validateExistsInCompany(
+                extraction.getDocument().getId(), currentUserService.getCurrentCompanyId());
+
+        return extraction;
     }
 }

@@ -11,6 +11,8 @@ import ba.unsa.si.docflow.mapper.DocumentMapper;
 import ba.unsa.si.docflow.response.ApiResponse;
 import ba.unsa.si.docflow.response.PagedResponse;
 import ba.unsa.si.docflow.response.ValidationErrors;
+import ba.unsa.si.docflow.entity.enums.RoleName;
+import ba.unsa.si.docflow.security.CurrentUserService;
 import ba.unsa.si.docflow.service.storage.StorageService;
 import ba.unsa.si.docflow.service.storage.StoredFileInfo;
 
@@ -40,9 +42,15 @@ public class DocumentServiceImpl implements DocumentService {
 
     private final ExtractionDAO extractionDAO;
 
+    private final CurrentUserService currentUserService;
+
     @Override
     @Transactional(readOnly = true)
     public PagedResponse<Document> find(DocumentFilterRequest request) {
+        currentUserService.requireAnyRole(
+                RoleName.ADMIN, RoleName.OPERATOR, RoleName.APPROVER, RoleName.MANAGER);
+        request.setCompanyId(currentUserService.getCurrentCompanyId());
+
         List<DocumentEntity> entities = documentDAO.findByFilter(request);
         long totalElements = documentDAO.countByFilter(request);
         int totalPages = (int) Math.ceil((double) totalElements / request.getSize());
@@ -59,12 +67,20 @@ public class DocumentServiceImpl implements DocumentService {
     @Override
     @Transactional(readOnly = true)
     public ApiResponse<Document> findById(Long id) {
-        DocumentEntity entity = documentValidation.validateExists(id);
+        currentUserService.requireAnyRole(
+                RoleName.ADMIN, RoleName.OPERATOR, RoleName.APPROVER, RoleName.MANAGER);
+        DocumentEntity entity =
+                documentValidation.validateExistsInCompany(
+                        id, currentUserService.getCurrentCompanyId());
         return new ApiResponse<>("OK", documentMapper.entityToDto(entity));
     }
 
     @Override
     public ApiResponse<Document> create(DocumentCreateRequest request) {
+        currentUserService.requireAnyRole(RoleName.ADMIN, RoleName.OPERATOR);
+        request.setCompanyId(currentUserService.getCurrentCompanyId());
+        request.setCreatedByUserId(currentUserService.getCurrentUserId());
+
         documentValidation.validateCreate(request);
 
         DocumentEntity entity = documentMapper.dtoToEntity(request);
@@ -75,11 +91,10 @@ public class DocumentServiceImpl implements DocumentService {
 
     @Override
     public ApiResponse<Document> upload(
-            MultipartFile file,
-            Long companyId,
-            Long createdByUserId,
-            String documentType,
-            String name) {
+            MultipartFile file, String documentType, String name) {
+        currentUserService.requireAnyRole(RoleName.ADMIN, RoleName.OPERATOR);
+        Long companyId = currentUserService.getCurrentCompanyId();
+        Long createdByUserId = currentUserService.getCurrentUserId();
         String documentName = documentValidation.resolveDocumentName(name, file);
 
         documentValidation.validateUpload(
@@ -116,7 +131,11 @@ public class DocumentServiceImpl implements DocumentService {
     @Override
     @Transactional(readOnly = true)
     public DocumentFileResponse downloadFile(Long id) {
-        DocumentEntity entity = documentValidation.validateExists(id);
+        currentUserService.requireAnyRole(
+                RoleName.ADMIN, RoleName.OPERATOR, RoleName.APPROVER, RoleName.MANAGER);
+        DocumentEntity entity =
+                documentValidation.validateExistsInCompany(
+                        id, currentUserService.getCurrentCompanyId());
 
         Resource resource = storageService.loadAsResource(entity.getStoragePath());
 
@@ -126,7 +145,10 @@ public class DocumentServiceImpl implements DocumentService {
 
     @Override
     public ApiResponse<Document> update(DocumentUpdateRequest request) {
-        DocumentEntity entity = documentValidation.validateExists(request.getId());
+        currentUserService.requireAnyRole(RoleName.ADMIN, RoleName.OPERATOR);
+        DocumentEntity entity =
+                documentValidation.validateExistsInCompany(
+                        request.getId(), currentUserService.getCurrentCompanyId());
 
         documentValidation.validateUpdate(request, entity);
 
@@ -137,7 +159,10 @@ public class DocumentServiceImpl implements DocumentService {
 
     @Override
     public ApiResponse<String> delete(Long id) {
-        DocumentEntity entity = documentValidation.validateExists(id);
+        currentUserService.requireAnyRole(RoleName.ADMIN, RoleName.OPERATOR);
+        DocumentEntity entity =
+                documentValidation.validateExistsInCompany(
+                        id, currentUserService.getCurrentCompanyId());
 
         documentValidation.validateDelete(entity);
 
@@ -155,7 +180,10 @@ public class DocumentServiceImpl implements DocumentService {
 
     @Override
     public ApiResponse<Document> confirmDocumentType(Long id, ConfirmDocumentTypeRequest request) {
-        DocumentEntity entity = documentValidation.validateExists(id);
+        currentUserService.requireAnyRole(RoleName.ADMIN, RoleName.OPERATOR);
+        DocumentEntity entity =
+                documentValidation.validateExistsInCompany(
+                        id, currentUserService.getCurrentCompanyId());
 
         DocumentType confirmedType = parseConfirmedDocumentType(request.getDocumentType());
 

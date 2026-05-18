@@ -7,9 +7,17 @@ import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
+import ba.unsa.si.docflow.dao.CompanyDAO;
+import ba.unsa.si.docflow.dao.UserDAO;
+import ba.unsa.si.docflow.entity.CompanyEntity;
+import ba.unsa.si.docflow.entity.UserEntity;
+import ba.unsa.si.docflow.entity.enums.AccountStatus;
+import ba.unsa.si.docflow.entity.enums.CompanyStatus;
+import ba.unsa.si.docflow.entity.enums.RoleName;
 import ba.unsa.si.docflow.service.ocr.OcrProvider;
 import ba.unsa.si.docflow.service.ocr.model.OcrExtractedField;
 import ba.unsa.si.docflow.service.ocr.model.OcrResult;
+import ba.unsa.si.docflow.service.role.RoleService;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -24,12 +32,18 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -37,6 +51,8 @@ import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -57,12 +73,21 @@ class ExtractionIntegrationTest {
             "test-bank-statement-processor-id";
     private static final String TEST_FORM_PROCESSOR_ID = "test-form-processor-id";
     private static final String TEST_CLASSIFIER_PROCESSOR_ID = "test-classifier-processor-id";
+    private static final String KEYCLOAK_USER = "kc-extraction-test-user";
 
     @Autowired private MockMvc mockMvc;
 
     @Autowired private JdbcTemplate jdbcTemplate;
 
     @Autowired private ObjectMapper objectMapper;
+
+    @Autowired private CompanyDAO companyDAO;
+
+    @Autowired private UserDAO userDAO;
+
+    @Autowired private RoleService roleService;
+
+    @Autowired private PlatformTransactionManager transactionManager;
 
     @MockitoBean private OcrProvider ocrProvider;
 
@@ -83,9 +108,14 @@ class ExtractionIntegrationTest {
         jdbcTemplate.execute("DELETE FROM extraction_field");
         jdbcTemplate.execute("DELETE FROM extraction");
         jdbcTemplate.execute("DELETE FROM document");
+        jdbcTemplate.execute("DELETE FROM app_user");
+        jdbcTemplate.execute("DELETE FROM company");
 
         deleteChildren(UPLOAD_ROOT);
         Files.createDirectories(UPLOAD_ROOT);
+
+        setupTestTenant();
+        authenticateAs(KEYCLOAK_USER);
 
         reset(ocrProvider);
     }
@@ -1886,8 +1916,6 @@ class ExtractionIntegrationTest {
                 mockMvc.perform(
                                 multipart("/api/documents/upload")
                                         .file(file)
-                                        .param("companyId", "1")
-                                        .param("createdByUserId", "1")
                                         .param("documentType", documentType)
                                         .param("name", name))
                         .andExpect(status().isOk())
@@ -1895,6 +1923,48 @@ class ExtractionIntegrationTest {
 
         JsonNode response = objectMapper.readTree(result.getResponse().getContentAsString());
         return response.get("payload").get("id").asLong();
+    }
+
+    private void setupTestTenant() {
+        new TransactionTemplate(transactionManager)
+                .executeWithoutResult(
+                        status -> {
+                            CompanyEntity company = new CompanyEntity();
+                            company.setName("Extraction Test Co");
+                            company.setAddress("Address");
+                            company.setEmail("extraction-" + System.nanoTime() + "@test.ba");
+                            company.setRegistrationDate(LocalDateTime.now());
+                            company.setStatus(CompanyStatus.ACTIVE);
+                            company.setKeycloakGroupId("group-extraction");
+                            Long companyId = companyDAO.persist(company).getId();
+
+                            UserEntity user = new UserEntity();
+                            user.setCompanyId(companyId);
+                            user.setRoleId(roleService.getByName(RoleName.OPERATOR).getId());
+                            user.setKeycloakUserId(KEYCLOAK_USER);
+                            user.setFirstName("Extraction");
+                            user.setLastName("Tester");
+                            user.setEmail("extraction-user@test.ba");
+                            user.setAccountStatus(AccountStatus.ACTIVE);
+                            userDAO.persist(user);
+                            userDAO.flush();
+                        });
+    }
+
+    private void authenticateAs(String keycloakUserId) {
+        Jwt jwt =
+                Jwt.withTokenValue("extraction-test-token")
+                        .header("alg", "none")
+                        .subject(keycloakUserId)
+                        .claim("email", keycloakUserId + "@test.ba")
+                        .issuedAt(Instant.now())
+                        .expiresAt(Instant.now().plusSeconds(3600))
+                        .build();
+
+        SecurityContextHolder.getContext()
+                .setAuthentication(
+                        new JwtAuthenticationToken(
+                                jwt, List.of(new SimpleGrantedAuthority("ROLE_USER"))));
     }
 
     private OcrResult classifierResult(String documentType, String confidence) {
