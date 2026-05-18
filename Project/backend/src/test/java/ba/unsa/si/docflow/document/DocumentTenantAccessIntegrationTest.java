@@ -1,7 +1,10 @@
 package ba.unsa.si.docflow.document;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -23,6 +26,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors;
@@ -84,6 +88,59 @@ class DocumentTenantAccessIntegrationTest {
     @Test
     void userCannotReadDocumentFromAnotherCompany() throws Exception {
         mockMvc.perform(get("/api/documents/{id}", documentBId).with(jwtForCurrentUser()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code", equalTo("NOT_FOUND")));
+    }
+
+    @Test
+    void userCannotDownloadDocumentFromAnotherCompany() throws Exception {
+        mockMvc.perform(get("/api/documents/{id}/file", documentBId).with(jwtForCurrentUser()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code", equalTo("NOT_FOUND")));
+    }
+
+    @Test
+    void userCannotPreviewDocumentFromAnotherCompany() throws Exception {
+        mockMvc.perform(get("/api/documents/{id}/preview", documentBId).with(jwtForCurrentUser()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code", equalTo("NOT_FOUND")));
+    }
+
+    @Test
+    void userCannotUpdateDocumentFromAnotherCompany() throws Exception {
+        mockMvc.perform(
+                        put("/api/documents/{id}", documentBId)
+                                .with(jwtForCurrentUser())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                                        {
+                                          "name": "Updated foreign document"
+                                        }
+                                        """))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code", equalTo("NOT_FOUND")));
+    }
+
+    @Test
+    void userCannotDeleteDocumentFromAnotherCompany() throws Exception {
+        mockMvc.perform(delete("/api/documents/{id}", documentBId).with(jwtForCurrentUser()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code", equalTo("NOT_FOUND")));
+    }
+
+    @Test
+    void userCannotConfirmClassificationForDocumentFromAnotherCompany() throws Exception {
+        mockMvc.perform(
+                        patch("/api/documents/{id}/classification", documentBId)
+                                .with(jwtForCurrentUser())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                                        {
+                                          "documentType": "INVOICE"
+                                        }
+                                        """))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code", equalTo("NOT_FOUND")));
     }
