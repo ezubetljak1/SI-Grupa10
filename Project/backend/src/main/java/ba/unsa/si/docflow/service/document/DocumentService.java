@@ -17,12 +17,7 @@ public interface DocumentService {
 
     ApiResponse<String> delete(Long id);
 
-    ApiResponse<Document> upload(
-            MultipartFile file,
-            Long companyId,
-            Long createdByUserId,
-            String documentType,
-            String name);
+    ApiResponse<Document> upload(MultipartFile file, String documentType, String name);
 
     ApiResponse<Document> confirmDocumentType(Long id, ConfirmDocumentTypeRequest request);
 

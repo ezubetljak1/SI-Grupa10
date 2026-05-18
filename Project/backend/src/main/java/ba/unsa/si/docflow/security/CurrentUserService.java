@@ -4,12 +4,14 @@ import ba.unsa.si.docflow.dao.UserDAO;
 import ba.unsa.si.docflow.entity.RoleEntity;
 import ba.unsa.si.docflow.entity.UserEntity;
 import ba.unsa.si.docflow.entity.enums.AccountStatus;
+import ba.unsa.si.docflow.entity.enums.RoleName;
 import ba.unsa.si.docflow.service.role.RoleService;
 
 import lombok.RequiredArgsConstructor;
 
 import org.springframework.context.MessageSource;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -80,6 +82,28 @@ public class CurrentUserService {
 
     public String getCurrentEmail() {
         return getCurrentJwt().getClaimAsString("email");
+    }
+
+    public void requireAdmin() {
+        if (!RoleName.ADMIN.name().equals(getCurrentRole())) {
+            throw new AccessDeniedException(
+                    messageSource.getMessage(
+                            "user.security.admin_required", null, Locale.getDefault()));
+        }
+    }
+
+    public void requireAnyRole(RoleName... allowedRoles) {
+        String currentRole = getCurrentRole();
+
+        for (RoleName role : allowedRoles) {
+            if (role.name().equals(currentRole)) {
+                return;
+            }
+        }
+
+        throw new AccessDeniedException(
+                messageSource.getMessage(
+                        "user.security.role_required", null, Locale.getDefault()));
     }
 
     private String resolveEmail(Jwt jwt, UserEntity user) {

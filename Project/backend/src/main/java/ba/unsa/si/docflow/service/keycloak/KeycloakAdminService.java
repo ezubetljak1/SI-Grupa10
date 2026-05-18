@@ -124,6 +124,41 @@ public class KeycloakAdminService {
         }
     }
 
+    public void setUserEnabled(String keycloakUserId, boolean enabled) {
+        if (!StringUtils.hasText(keycloakUserId)) {
+            return;
+        }
+
+        try {
+            UserRepresentation user = realm().users().get(keycloakUserId).toRepresentation();
+            user.setEnabled(enabled);
+            realm().users().get(keycloakUserId).update(user);
+        } catch (Exception ex) {
+            throw new KeycloakIntegrationException(
+                    "Failed to update user status in Keycloak.", ex);
+        }
+    }
+
+    public void resetUserPassword(String keycloakUserId) {
+        if (!StringUtils.hasText(keycloakUserId)) {
+            throw new KeycloakIntegrationException("Keycloak user id is required for password reset.");
+        }
+
+        try {
+            String temporaryPassword = generateTemporaryPassword();
+            setTemporaryPassword(keycloakUserId, temporaryPassword);
+
+            UserRepresentation user = realm().users().get(keycloakUserId).toRepresentation();
+            user.setRequiredActions(List.of("UPDATE_PASSWORD"));
+            realm().users().get(keycloakUserId).update(user);
+        } catch (KeycloakIntegrationException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new KeycloakIntegrationException(
+                    "Failed to reset user password in Keycloak.", ex);
+        }
+    }
+
     protected RealmResource realm() {
         return keycloak.realm(keycloakProperties.getRealm());
     }

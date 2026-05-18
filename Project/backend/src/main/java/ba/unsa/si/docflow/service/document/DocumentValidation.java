@@ -140,6 +140,18 @@ public class DocumentValidation {
         return entity;
     }
 
+    public DocumentEntity validateExistsInCompany(Long id, Long companyId) {
+        DocumentEntity entity = validateExists(id);
+
+        if (companyId == null || !companyId.equals(entity.getCompanyId())) {
+            throw new ApiNotFoundException(
+                    messageSource.getMessage(
+                            "document.validation.not_found", null, Locale.getDefault()));
+        }
+
+        return entity;
+    }
+
     private void validateRequiredUploadFields(
             ValidationErrors errors,
             MultipartFile file,
