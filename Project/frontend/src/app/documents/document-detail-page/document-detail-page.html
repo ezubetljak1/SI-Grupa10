@@ -190,7 +190,11 @@
         title="Extracted fields"
         subtitle="Automatically extracted fields from OCR/AI processing. Review flagged values before confirming.">
         <div class="extraction-actions">
-          @if (document.documentStatus === 'EXTRACTED') {
+          @if (!canManageExtraction) {
+            <span class="classification-review-hint">
+              Your role can view extracted fields, but extraction actions are restricted.
+            </span>
+          } @else if (document.documentStatus === 'EXTRACTED') {
             <div class="extraction-actions__left">
               <button
                 type="button"
@@ -343,7 +347,9 @@
                     </td>
 
                     <td class="actions-cell">
-                      @if (!isEditing(field)) {
+                      @if (!canManageExtraction) {
+                        <span class="meta-chip meta-chip--muted">View only</span>
+                      } @else if (!isEditing(field)) {
                         <button
                           type="button"
                           class="icon-btn"

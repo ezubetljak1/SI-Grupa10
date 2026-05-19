@@ -13,6 +13,7 @@ public class UserResponse {
     private String lastName;
     private String email;
     private String accountStatus;
+    private String temporaryPassword;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

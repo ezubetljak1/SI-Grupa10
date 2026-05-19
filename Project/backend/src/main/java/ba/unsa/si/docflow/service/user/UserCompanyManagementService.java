@@ -39,6 +39,11 @@ public class UserCompanyManagementService {
         return userService.findByIdAndCompanyId(id, currentUserService.getCurrentCompanyId());
     }
 
+    @Transactional(readOnly = true)
+    public UserResponse currentUserProfile() {
+        return userService.findResponseByKeycloakUserId(currentUserService.getCurrentKeycloakUserId());
+    }
+
     @Transactional
     public UserResponse createUser(UserCreateApiRequest request) {
         currentUserService.requireAdmin();
@@ -53,7 +58,10 @@ public class UserCompanyManagementService {
                         company.getKeycloakGroupId(),
                         true);
 
-        return userService.createUser(companyId, request, keycloakUser.userId());
+        UserResponse response = userService.createUser(companyId, request, keycloakUser.userId());
+        response.setTemporaryPassword(keycloakUser.temporaryPassword());
+
+        return response;
     }
 
     @Transactional
@@ -87,8 +95,8 @@ public class UserCompanyManagementService {
         Long companyId = currentUserService.getCurrentCompanyId();
         UserEntity user = userValidation.validateExistsInCompany(id, companyId);
 
-        keycloakAdminService.resetUserPassword(user.getKeycloakUserId());
+        String temporaryPassword = keycloakAdminService.resetUserPassword(user.getKeycloakUserId());
 
-        return new ApiResponse<>("OK", "Password reset has been initiated for the user.");
+        return new ApiResponse<>("OK", temporaryPassword);
     }
 }

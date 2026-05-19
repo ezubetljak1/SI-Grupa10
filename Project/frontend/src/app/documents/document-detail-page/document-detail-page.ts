@@ -20,6 +20,7 @@ import {
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { ToastrService } from 'ngx-toastr';
 import { Extraction, ExtractionField } from '../models/extraction.models';
+import { AuthService } from '../../auth/services/auth.service';
 
 interface EditState {
   fieldId: number;
@@ -53,6 +54,7 @@ export class DocumentDetailPageComponent implements OnInit {
   private readonly documentApiService = inject(DocumentApiService);
   private readonly route = inject(ActivatedRoute);
   private readonly toastr = inject(ToastrService);
+  private readonly authService = inject(AuthService);
 
   document: DocflowDocument | null = null;
   loading = false;
@@ -79,6 +81,10 @@ export class DocumentDetailPageComponent implements OnInit {
 
   selectedManualDocumentType: ManualClassificationDocumentType = 'FORM';
   confirmingDocumentType = false;
+
+  get canManageExtraction(): boolean {
+    return this.authService.hasRole(['ADMIN', 'OPERATOR']);
+  }
 
   ngOnInit(): void {
     this.route.paramMap.subscribe((params) => {
