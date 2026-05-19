@@ -1,0 +1,89 @@
+<section class="dashboard-page">
+
+  @if (loading) {
+  <div class="loading-state">
+    <div class="loading-spinner"></div>
+    <span>Loading dashboard...</span>
+  </div>
+  }
+
+  @if (!loading && dashboard) {
+
+  <div class="stats-grid">
+
+    <div class="stat-card">
+      <span class="stat-title">Total documents</span>
+      <strong class="stat-value">
+        {{ dashboard.totalDocuments }}
+      </strong>
+    </div>
+
+  </div>
+
+  <div class="dashboard-section">
+
+    <h3>Documents by status</h3>
+
+    <div class="status-grid">
+
+      @for (
+      status of dashboard.documentsByStatus | keyvalue;
+      track status.key
+      ) {
+
+      <div class="status-card">
+            <span class="status-name">
+              {{ status.key }}
+            </span>
+
+        <strong class="status-value">
+          {{ status.value }}
+        </strong>
+      </div>
+
+      }
+
+    </div>
+
+  </div>
+
+  <div class="dashboard-section">
+
+    <h3>Documents by responsible user</h3>
+
+    <div class="table-wrapper">
+
+      <table class="dashboard-table">
+
+        <thead>
+        <tr>
+          <th>User</th>
+          <th>Documents</th>
+        </tr>
+        </thead>
+
+        <tbody>
+
+        @for (
+        user of dashboard.documentsByResponsibleUser;
+        track user.userId
+        ) {
+
+        <tr>
+          <td>{{ user.fullName }}</td>
+          <td>{{ user.documentCount }}</td>
+        </tr>
+
+        }
+
+        </tbody>
+
+      </table>
+
+    </div>
+
+  </div>
+
+  }
+
+</section>
