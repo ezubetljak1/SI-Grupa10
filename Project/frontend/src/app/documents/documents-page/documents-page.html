@@ -4,9 +4,11 @@
     title="Documents"
     description="Browse uploaded files, view document details, download stored content, and remove documents from the archive.">
     <div page-actions class="page-actions">
-      <button type="button" routerLink="/documents/upload" class="btn btn-primary">
-        Upload document
-      </button>
+      @if (canUploadDocuments) {
+        <button type="button" routerLink="/documents/upload" class="btn btn-primary">
+          Upload document
+        </button>
+      }
 
       <button
         type="button"
@@ -41,11 +43,13 @@
           icon="[]"
           title="No documents found"
           description="Uploaded documents will appear here after they are saved.">
+          @if (canUploadDocuments) {
           <div empty-actions>
             <button type="button" routerLink="/documents/upload" class="btn btn-primary">
               Upload document
             </button>
           </div>
+          }
         </app-empty-state>
       </div>
     } @else {

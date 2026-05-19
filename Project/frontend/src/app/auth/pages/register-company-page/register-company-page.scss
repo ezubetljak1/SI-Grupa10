@@ -1,0 +1,150 @@
+.register-page {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.page-intro,
+.register-grid,
+.form-panel,
+.result-panel {
+  width: 100%;
+}
+
+.page-intro {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+h1,
+h2,
+p {
+  margin: 0;
+}
+
+h1 {
+  font-size: 34px;
+  line-height: 1.1;
+}
+
+.page-intro span,
+.panel-heading span,
+.empty-result p,
+.success-block p {
+  color: var(--text-muted);
+}
+
+.register-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(300px, 0.8fr);
+  gap: 20px;
+  align-items: stretch;
+}
+
+.form-panel,
+.result-panel {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.form-panel {
+  padding: 24px;
+}
+
+.panel-heading {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 22px;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.field--wide {
+  grid-column: 1 / -1;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 22px;
+}
+
+.result-panel {
+  padding: 24px;
+  display: grid;
+  align-content: center;
+}
+
+.success-block,
+.empty-result {
+  display: grid;
+  gap: 16px;
+}
+
+.success-mark,
+.empty-icon {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-weight: 900;
+}
+
+.success-mark {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.empty-icon {
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.credential-box {
+  display: grid;
+  gap: 8px;
+  border: 1px solid var(--success-border);
+  border-radius: 8px;
+  padding: 16px;
+  background: var(--success-soft);
+}
+
+.credential-box span {
+  color: var(--success);
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.credential-box strong {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 900px) {
+  .page-intro {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .register-grid,
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+}

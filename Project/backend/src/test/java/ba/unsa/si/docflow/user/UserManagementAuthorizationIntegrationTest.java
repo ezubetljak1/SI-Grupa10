@@ -126,7 +126,18 @@ class UserManagementAuthorizationIntegrationTest {
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.payload.role", equalTo("OPERATOR")));
+                .andExpect(jsonPath("$.payload.role", equalTo("OPERATOR")))
+                .andExpect(jsonPath("$.payload.temporaryPassword", equalTo("TempPass123!")));
+    }
+
+    @Test
+    void authenticatedUserCanReadOwnProfile() throws Exception {
+        mockMvc.perform(get("/api/company/users/me").with(jwtFor(KEYCLOAK_OPERATOR)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.payload.id", equalTo(operatorUserId.intValue())))
+                .andExpect(jsonPath("$.payload.companyId", equalTo(companyId.intValue())))
+                .andExpect(jsonPath("$.payload.role", equalTo("OPERATOR")))
+                .andExpect(jsonPath("$.payload.temporaryPassword").doesNotExist());
     }
 
     @Test
@@ -252,10 +263,7 @@ class UserManagementAuthorizationIntegrationTest {
                         post("/api/company/users/{id}/reset-password", operatorUserId)
                                 .with(jwtFor(KEYCLOAK_ADMIN)))
                 .andExpect(status().isOk())
-                .andExpect(
-                        jsonPath(
-                                "$.payload",
-                                equalTo("Password reset has been initiated for the user.")));
+                .andExpect(jsonPath("$.payload", equalTo("ResetTemp123!")));
 
         verify(keycloakAdminService).resetUserPassword(KEYCLOAK_OPERATOR);
     }

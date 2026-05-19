@@ -19,5 +19,6 @@ public interface UserMapper {
     @Mapping(source = "entity.updatedAt", target = "updatedAt")
     @Mapping(target = "role", expression = "java(role.getName().name())")
     @Mapping(target = "accountStatus", expression = "java(entity.getAccountStatus().name())")
+    @Mapping(target = "temporaryPassword", ignore = true)
     UserResponse entityToDto(UserEntity entity, RoleEntity role);
 }

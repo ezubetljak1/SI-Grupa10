@@ -34,7 +34,7 @@ public class KeycloakTestConfiguration {
                                         "TempPass123!"));
 
         org.mockito.Mockito.doNothing().when(service).setUserEnabled(anyString(), anyBoolean());
-        org.mockito.Mockito.doNothing().when(service).resetUserPassword(anyString());
+        when(service.resetUserPassword(anyString())).thenReturn("ResetTemp123!");
 
         return service;
     }

@@ -1,0 +1,152 @@
+<section class="users-page">
+  <app-page-header
+    eyebrow="Administration"
+    title="Company users"
+    description="Manage access, roles and account status for users in your company.">
+    <div page-actions class="header-actions">
+      <button type="button" class="btn btn-muted" (click)="loadUsers()" [disabled]="loading">
+        {{ loading ? 'Refreshing...' : 'Refresh' }}
+      </button>
+    </div>
+  </app-page-header>
+
+  <div class="users-layout">
+    <app-ui-card title="Add user" subtitle="Create a user in Keycloak and connect it to this company.">
+      <form class="create-form" (ngSubmit)="createUser()" #userForm="ngForm">
+        <div class="field">
+          <label for="firstName">First name</label>
+          <input id="firstName" class="input" name="firstName" [(ngModel)]="newUser.firstName" required />
+        </div>
+
+        <div class="field">
+          <label for="lastName">Last name</label>
+          <input id="lastName" class="input" name="lastName" [(ngModel)]="newUser.lastName" required />
+        </div>
+
+        <div class="field">
+          <label for="email">Email</label>
+          <input id="email" class="input" type="email" name="email" [(ngModel)]="newUser.email" required />
+        </div>
+
+        <div class="field">
+          <label for="role">Role</label>
+          <select id="role" class="select" name="role" [(ngModel)]="newUser.role" required>
+            @for (role of roles; track role) {
+              <option [value]="role">{{ role }}</option>
+            }
+          </select>
+        </div>
+
+        <button type="submit" class="btn btn-primary" [disabled]="saving || userForm.invalid">
+          {{ saving ? 'Creating...' : 'Add user' }}
+        </button>
+      </form>
+
+      @if (passwordResult) {
+        <div class="password-result">
+          <div>
+            <span>Temporary password</span>
+            <strong>{{ passwordResult.email }}</strong>
+          </div>
+
+          <code>{{ passwordResult.temporaryPassword }}</code>
+
+          <p>
+            The user must sign in with this password and update it on first login.
+          </p>
+        </div>
+      }
+    </app-ui-card>
+
+    <app-ui-card title="Users" subtitle="Active and inactive accounts in the current company.">
+      <div class="toolbar">
+        <input
+          class="input"
+          type="search"
+          name="search"
+          placeholder="Search users"
+          [(ngModel)]="search"
+          (keydown.enter)="loadUsers()"
+        />
+
+        <button type="button" class="btn btn-muted" (click)="loadUsers()">Search</button>
+      </div>
+
+      @if (loading) {
+        <div class="loading-state">
+          <div class="loading-spinner"></div>
+          <span>Loading users...</span>
+        </div>
+      }
+
+      @if (!loading && users.length === 0) {
+        <app-empty-state
+          title="No users yet"
+          description="Create the first company user with the form on this page.">
+        </app-empty-state>
+      }
+
+      @if (!loading && users.length > 0) {
+        <div class="table-wrap">
+          <table class="users-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              @for (user of users; track user.id) {
+                <tr>
+                  <td>
+                    <strong>{{ user.firstName }} {{ user.lastName }}</strong>
+                  </td>
+                  <td>{{ user.email }}</td>
+                  <td>
+                    <select
+                      class="select select--compact"
+                      [ngModel]="user.role"
+                      (ngModelChange)="changeRole(user, $event)"
+                      [disabled]="isBusy(user)">
+                      @for (role of roles; track role) {
+                        <option [value]="role">{{ role }}</option>
+                      }
+                    </select>
+                  </td>
+                  <td>
+                    <span class="status-pill" [class.status-pill--inactive]="user.accountStatus === 'INACTIVE'">
+                      {{ statusLabel(user.accountStatus) }}
+                    </span>
+                  </td>
+                  <td>
+                    <div class="row-actions">
+                      <button
+                        type="button"
+                        class="btn btn-muted btn-small"
+                        [disabled]="isBusy(user)"
+                        (click)="changeStatus(user)">
+                        {{ user.accountStatus === 'INACTIVE' ? 'Activate' : 'Deactivate' }}
+                      </button>
+
+                      <button
+                        type="button"
+                        class="btn btn-secondary btn-small"
+                        [disabled]="isBusy(user)"
+                        (click)="resetPassword(user)">
+                        Reset password
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </app-ui-card>
+  </div>
+</section>

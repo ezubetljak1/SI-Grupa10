@@ -26,6 +26,11 @@ public class UserController {
         return userCompanyManagementService.findAll(filter);
     }
 
+    @GetMapping("/me")
+    public ApiResponse<UserResponse> currentUserProfile() {
+        return new ApiResponse<>("OK", userCompanyManagementService.currentUserProfile());
+    }
+
     @GetMapping("/{id}")
     public ApiResponse<UserResponse> findById(@PathVariable Long id) {
         return new ApiResponse<>("OK", userCompanyManagementService.findById(id));
