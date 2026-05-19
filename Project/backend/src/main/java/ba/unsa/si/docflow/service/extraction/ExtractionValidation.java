@@ -364,6 +364,19 @@ public class ExtractionValidation {
                 continue;
             }
 
+            String normalizedFieldName = normalizeFieldName(field.getFieldName());
+
+            if (isDateField(normalizedFieldName)) {
+                if (!Boolean.TRUE.equals(field.getCorrected())) {
+                    errors.add(
+                            "EXTRACTION_FIELD_REQUIRES_REVIEW",
+                            "Date field '"
+                                    + field.getFieldName()
+                                    + "' must be manually reviewed before confirmation. Supported format: DD.MM.YYYY");
+                }
+                continue;
+            }
+
             if (!isLowConfidence(field) || Boolean.TRUE.equals(field.getCorrected())) {
                 continue;
             }

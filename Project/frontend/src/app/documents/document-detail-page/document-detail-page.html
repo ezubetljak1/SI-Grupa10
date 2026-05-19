@@ -290,7 +290,11 @@
                   <tr
                     [class.row--editing]="isEditing(field)"
                     [class.row--placeholder]="isPlaceholderField(field)"
-                    [class.row--warning]="isLowConfidenceField(field) && !field.corrected && !isPlaceholderField(field)">
+                    [class.row--warning]="
+                      (isLowConfidenceField(field) || isDateFieldRequiringReview(field))
+                      && !field.corrected
+                      && !isPlaceholderField(field)
+                    ">
                     <td class="field-cell">
                       <div class="field-cell__content">
                         <span class="mono">{{ field.fieldName }}</span>
@@ -314,6 +318,10 @@
                             autofocus
                           />
 
+                          @if (isDateField(field)) {
+                            <span class="field-hint">{{ getDateFormatHint() }}</span>
+                          }
+
                           @if (editState!.validationError) {
                             <span class="validation-error">{{ editState!.validationError }}</span>
                           }
@@ -326,7 +334,7 @@
                     </td>
 
                     <td>
-                      <span [class.confidence--low]="isLowConfidenceField(field)">
+                      <span [class.confidence--low]="isLowConfidenceField(field) && !isDateField(field)">
                         {{ formatConfidence(field.confidence) }}
                       </span>
                     </td>
@@ -342,7 +350,11 @@
 
                     <td class="review-cell">
                       <span class="review-badge" [ngClass]="getFieldReviewClass(field)">
-                        {{ getFieldReviewLabel(field) }}
+                        @if (isDateFieldRequiringReview(field) && !field.corrected) {
+                          Review needed
+                        } @else {
+                          {{ getFieldReviewLabel(field) }}
+                        }
                       </span>
                     </td>
 

@@ -4,7 +4,6 @@ import ba.unsa.si.docflow.dto.user.*;
 import ba.unsa.si.docflow.entity.CompanyEntity;
 import ba.unsa.si.docflow.entity.UserEntity;
 import ba.unsa.si.docflow.entity.enums.AccountStatus;
-import ba.unsa.si.docflow.entity.enums.RoleName;
 import ba.unsa.si.docflow.response.ApiResponse;
 import ba.unsa.si.docflow.response.PagedResponse;
 import ba.unsa.si.docflow.security.CurrentUserService;
@@ -41,7 +40,20 @@ public class UserCompanyManagementService {
 
     @Transactional(readOnly = true)
     public UserResponse currentUserProfile() {
-        return userService.findResponseByKeycloakUserId(currentUserService.getCurrentKeycloakUserId());
+        String keycloakUserId = currentUserService.getCurrentKeycloakUserId();
+        UserResponse response = userService.findResponseByKeycloakUserId(keycloakUserId);
+
+        // If local status is pending password change but Keycloak no longer requires it,
+        // update local account status to ACTIVE to keep frontend in sync.
+        if (AccountStatus.PENDING_PASSWORD_CHANGE.name().equals(response.getAccountStatus())) {
+            boolean required = keycloakAdminService.isPasswordUpdateRequired(keycloakUserId);
+            if (!required) {
+                Long companyId = currentUserService.getCurrentCompanyId();
+                response = userService.changeStatus(response.getId(), AccountStatus.ACTIVE, companyId);
+            }
+        }
+
+        return response;
     }
 
     @Transactional

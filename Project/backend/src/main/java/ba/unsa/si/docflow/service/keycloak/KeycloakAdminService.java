@@ -161,6 +161,21 @@ public class KeycloakAdminService {
         }
     }
 
+    public boolean isPasswordUpdateRequired(String keycloakUserId) {
+        if (!StringUtils.hasText(keycloakUserId)) {
+            return false;
+        }
+
+        try {
+            UserRepresentation user = realm().users().get(keycloakUserId).toRepresentation();
+            List<String> actions = user.getRequiredActions();
+            return actions != null && actions.contains("UPDATE_PASSWORD");
+        } catch (Exception ex) {
+            log.warn("Failed to read Keycloak user required actions for {}", keycloakUserId, ex);
+            return false;
+        }
+    }
+
     protected RealmResource realm() {
         return keycloak.realm(keycloakProperties.getRealm());
     }

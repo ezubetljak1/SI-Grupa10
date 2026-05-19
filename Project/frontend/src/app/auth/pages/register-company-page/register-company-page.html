@@ -6,7 +6,7 @@
       <span>Create a company workspace and the first administrator account.</span>
     </div>
 
-    <button type="button" class="btn btn-muted" (click)="login()">Login</button>
+    <!-- login button removed from page content; header contains the global login button -->
   </header>
 
   <div class="register-grid">
@@ -67,7 +67,7 @@
             <strong>{{ result.adminTemporaryPassword }}</strong>
           </div>
 
-          <button type="button" class="btn btn-primary" (click)="login()">Login with Keycloak</button>
+            <!-- login with Keycloak button removed from page content; use header Login button -->
         </div>
       } @else {
         <div class="empty-result">
