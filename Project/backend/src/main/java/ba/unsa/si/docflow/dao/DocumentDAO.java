@@ -4,7 +4,11 @@ import ba.unsa.si.docflow.dto.document.DocumentFilterRequest;
 import ba.unsa.si.docflow.entity.DocumentEntity;
 import ba.unsa.si.docflow.entity.enums.DocumentStatus;
 import ba.unsa.si.docflow.entity.enums.DocumentType;
+import ba.unsa.si.docflow.dto.dashboard.DocumentsByResponsibleUserDto;
 
+import jakarta.persistence.Tuple;
+import java.util.HashMap;
+import java.util.Map;
 import jakarta.persistence.TypedQuery;
 import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.CriteriaQuery;
@@ -71,6 +75,76 @@ public class DocumentDAO extends AbstractDAO<DocumentEntity, Long> {
         cq.where(predicates.toArray(new Predicate[0]));
 
         return executeCountQuery(cq);
+    }
+
+    public Long countByCompanyId(Long companyId) {
+
+        String jpql = """
+            SELECT COUNT(d.id)
+            FROM DocumentEntity d
+            WHERE d.companyId = :companyId
+            """;
+
+        return entityManager
+                .createQuery(jpql, Long.class)
+                .setParameter("companyId", companyId)
+                .getSingleResult();
+    }
+
+    public Map<String, Long> countDocumentsByStatus(Long companyId) {
+
+        String jpql = """
+            SELECT d.documentStatus, COUNT(d.id)
+            FROM DocumentEntity d
+            WHERE d.companyId = :companyId
+            GROUP BY d.documentStatus
+            """;
+
+        List<Object[]> results = entityManager
+                .createQuery(jpql, Object[].class)
+                .setParameter("companyId", companyId)
+                .getResultList();
+
+        Map<String, Long> map = new HashMap<>();
+
+        for (Object[] row : results) {
+
+            map.put(
+                    row[0].toString(),
+                    (Long) row[1]
+            );
+        }
+
+        return map;
+    }
+
+    public List<DocumentsByResponsibleUserDto> countDocumentsByResponsibleUser(
+            Long companyId
+    ) {
+
+        String jpql = """
+            SELECT u.id,
+                   CONCAT(u.firstName, ' ', u.lastName),
+                   COUNT(d.id)
+            FROM DocumentEntity d
+            JOIN UserEntity u ON u.id = d.createdBy
+            WHERE d.companyId = :companyId
+            GROUP BY u.id, u.firstName, u.lastName
+            ORDER BY COUNT(d.id) DESC
+            """;
+
+        List<Object[]> results = entityManager
+                .createQuery(jpql, Object[].class)
+                .setParameter("companyId", companyId)
+                .getResultList();
+
+        return results.stream()
+                .map(row -> new DocumentsByResponsibleUserDto(
+                        (Long) row[0],
+                        (String) row[1],
+                        (Long) row[2]
+                ))
+                .toList();
     }
 
     private List<Predicate> buildPredicates(
