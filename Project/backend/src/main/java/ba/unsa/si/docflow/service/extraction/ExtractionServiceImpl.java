@@ -492,12 +492,45 @@ public class ExtractionServiceImpl implements ExtractionService {
 
         entity.setExtraction(extraction);
         entity.setFieldName(field.getType());
-        entity.setValue(resolveFieldValue(field));
+        entity.setValue(sanitizeFieldValue(field));
         entity.setConfidence(scaleConfidence(field.getConfidence()));
         entity.setCorrected(false);
         entity.setPlaceholder(false);
 
         return entity;
+    }
+
+    private String sanitizeFieldValue(OcrExtractedField field) {
+        String value = resolveFieldValue(field);
+        if (!StringUtils.hasText(value)) {
+            return value;
+        }
+
+        String normalizedFieldName = normalizeFieldName(field.getType());
+
+        if (isDecimalField(normalizedFieldName)) {
+            return sanitizeNumericValue(value);
+        }
+
+        return value;
+    }
+
+    private String sanitizeNumericValue(String value) {
+        if (!StringUtils.hasText(value)) {
+            return value;
+        }
+
+        String sanitized = value.trim();
+
+        sanitized = sanitized.replaceAll("[€$£₣₤₥₦₧₨₪฿₱₭₮₵₴]", "");
+        sanitized =
+                sanitized.replaceAll("^[A-Z]{2,3}\\s+", "").replaceAll("\\s+[A-Z]{2,3}$", "");
+        sanitized =
+                sanitized.replaceAll(
+                        "(?i)\\s+(mark|kuna|rupee|dinar|rial|peso|franc|corona|won|baht|dong|rupiah|pound|dollar|euro|cent|pence)?s?$",
+                        "");
+
+        return sanitized.trim();
     }
 
     private String resolveFieldValue(OcrExtractedField field) {

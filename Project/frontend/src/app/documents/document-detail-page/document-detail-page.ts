@@ -63,6 +63,7 @@ export class DocumentDetailPageComponent implements OnInit {
   private readonly sanitizer = inject(DomSanitizer);
 
   fileUrl: SafeResourceUrl | null = null;
+  private previewObjectUrl: string | undefined;
 
   isPdf = false;
   isImage = false;
@@ -105,10 +106,30 @@ export class DocumentDetailPageComponent implements OnInit {
         this.loading = false;
         this.document = response.payload;
         this.selectedManualDocumentType = this.resolveDefaultManualDocumentType(this.document);
-        const rawUrl = `/api/documents/${this.document.id}/preview`;
-        this.fileUrl = this.sanitizer.bypassSecurityTrustResourceUrl(rawUrl);
+        // Fetch preview as a blob so Authorization header is included by interceptor
+        // then create an object URL for the iframe/img src. This avoids 401 on iframe
+        // navigations and X-Frame-Options issues.
         this.isPdf = this.document.fileType === 'application/pdf';
         this.isImage = this.document.fileType?.startsWith('image/');
+
+        // revoke previously created object URL if present
+        if (this.previewObjectUrl) {
+          try {
+            window.URL.revokeObjectURL(this.previewObjectUrl);
+          } catch {}
+          this.previewObjectUrl = undefined;
+        }
+
+        this.documentApiService.getPreview(this.document.id).subscribe({
+          next: (blob) => {
+            this.previewObjectUrl = window.URL.createObjectURL(blob);
+            this.fileUrl = this.sanitizer.bypassSecurityTrustResourceUrl(this.previewObjectUrl);
+          },
+          error: () => {
+            this.fileUrl = null;
+            this.toastr.error('Failed to load document preview.', 'Error');
+          },
+        });
         this.extractionError = null;
         this.extractionFields = [];
         if (this.shouldLoadExtractionForStatus(this.document.documentStatus)) {
@@ -584,6 +605,7 @@ export class DocumentDetailPageComponent implements OnInit {
   needsManualReview(field: ExtractionField): boolean {
     return (
       this.isPlaceholderField(field) ||
+      this.isDateFieldRequiringReview(field) ||
       (this.isLowConfidenceField(field) &&
         !field.corrected &&
         this.shouldLowConfidenceBlockConfirmation(field))
@@ -688,7 +710,10 @@ export class DocumentDetailPageComponent implements OnInit {
       return 'review-badge--missing';
     }
 
-    if (this.isLowConfidenceField(field) && !field.corrected) {
+    if (
+      (this.isLowConfidenceField(field) || this.isDateFieldRequiringReview(field)) &&
+      !field.corrected
+    ) {
       return 'review-badge--warning';
     }
 
@@ -718,6 +743,19 @@ export class DocumentDetailPageComponent implements OnInit {
       this.document.classificationConfidence !== null &&
         this.document.classificationConfidence !== undefined
     );
+  }
+
+  isDateField(field: ExtractionField): boolean {
+    const name = field.fieldName.toLowerCase();
+    return name.includes('date') || name.includes('datum');
+  }
+
+  getDateFormatHint(): string {
+    return 'Supported format: DD.MM.YYYY or YYYY-MM-DD or DD/MM/YYYY';
+  }
+
+  isDateFieldRequiringReview(field: ExtractionField): boolean {
+    return this.isDateField(field) && !field.corrected;
   }
 
   private resolveDownloadFileName(doc: DocflowDocument): string {
@@ -849,6 +887,18 @@ export class DocumentDetailPageComponent implements OnInit {
         count > 1
           ? `${count} low-confidence fields need review.`
           : 'One low-confidence field needs review.'
+      );
+    }
+
+    if (codes.has('EXTRACTION_FIELD_REQUIRES_REVIEW')) {
+      const count = errors.filter(
+        (error) => error.code === 'EXTRACTION_FIELD_REQUIRES_REVIEW'
+      ).length;
+
+      parts.push(
+        count > 1
+          ? `${count} date fields need review confirmation.`
+          : 'One date field needs review confirmation.'
       );
     }
 

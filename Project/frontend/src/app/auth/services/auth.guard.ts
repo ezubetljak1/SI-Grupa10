@@ -13,6 +13,14 @@ export const authGuard: CanActivateFn = async (_route, state) => {
     return true;
   }
 
-  await authService.login(state.url);
+  // If requested route is public registration, do not trigger Keycloak login here.
+  const requested = state?.url ?? '';
+  if (requested.startsWith('/register-company')) {
+    // allow navigation to registration page
+    return true;
+  }
+
+  // For protected pages initiate Keycloak login flow
+  await authService.login(requested);
   return router.parseUrl('/register-company');
 };

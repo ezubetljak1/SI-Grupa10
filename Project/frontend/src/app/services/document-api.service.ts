@@ -57,6 +57,12 @@ export class DocumentApiService {
     });
   }
 
+  getPreview(id: number): Observable<Blob> {
+    return this.http.get(`${this.baseUrl}/${id}/preview`, {
+      responseType: 'blob',
+    });
+  }
+
   update(id: number, payload: DocumentUpdateRequest): Observable<ApiResponse<DocflowDocument>> {
     return this.http.put<ApiResponse<DocflowDocument>>(`${this.baseUrl}/${id}`, payload);
   }
