@@ -1,0 +1,5 @@
+# Default owner for all files in this repository.
+* @ezubetljak1
+
+# CODEOWNERS changes must also be reviewed by the repository owner.
+.github/CODEOWNERS @ezubetljak1

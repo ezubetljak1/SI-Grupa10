@@ -343,7 +343,7 @@ a komentari u kodu navode da retry treba updateovati/zamijeniti fields, ne kreir
 
 - Sprječava se dupliranje extraction rezultata za isti dokument.
 - UI uvijek prikazuje trenutno važeći rezultat.
-- Ako u budućnosti bude potrebna historija ekstrakcija, model će se morati proširiti.
+- Ako u budućnosti bude potrebna historija ekstrakcije, model će se morati proširiti.
 
 **Status:** Aktivna
 
@@ -695,3 +695,327 @@ dok tabela pokazuje gdje treba izvršiti izmjenu.
 **Status:** Aktivna
 
 ---
+
+### DL-025 – Podrška za više tipova dokumenata i odvojene Google Document AI procesore
+
+**Datum:** 16.05.2026
+
+**Opis problema:**  
+Sistem je ranije bio primarno prilagođen invoice dokumentima i jednom Google Document AI procesoru. U Sprintu 8 bilo je
+potrebno proširiti OCR/AI pipeline tako da sistem podržava više tipova dokumenata: fakture, račune/receipt dokumente,
+bankovne izvode i forme.
+
+**Razmatrane opcije:**
+
+1. Nastaviti koristiti jedan generički Google Document AI procesor za sve tipove dokumenata.
+2. Uvesti odvojene Google Document AI procesore po tipu dokumenta i rutirati obradu na osnovu `documentType`.
+3. Implementirati potpuno odvojene extraction flow-ove i endpoint-e za svaki tip dokumenta.
+
+**Odabrana opcija:**  
+Uvedeni su odvojeni Google Document AI procesori po tipu dokumenta, a backend bira odgovarajući procesor preko
+centralnog routing sloja.
+
+**Razlog izbora:**  
+Različiti tipovi dokumenata imaju različitu strukturu i različita očekivana polja, pa je preciznije koristiti
+specijalizovane procesore umjesto jednog generičkog procesora. Istovremeno, zadržan je isti extraction endpoint i isti
+osnovni extraction flow, čime se izbjegava nepotrebno dupliciranje controller/service logike.
+
+**Posljedice odluke:**
+
+- `DocumentType` je proširen novim vrijednostima: `RECEIPT`, `BANK_STATEMENT`, `FORM`, uz postojeće `INVOICE` i `OTHER`.
+- Konfiguracija OCR-a je proširena posebnim processor ID vrijednostima za classifier, invoice, receipt, bank statement i
+  form procesor.
+- `.env.example`, `application.properties` i Docker konfiguracija moraju sadržavati nove Document AI varijable.
+- Backend mora validirati da je odgovarajući processor ID konfigurisan prije poziva Google Document AI servisa.
+- Dokument sada može čuvati informaciju koji je processor korišten kroz `processorIdUsed`.
+- Testovi moraju pokriti direktno rutiranje za podržane tipove dokumenata.
+
+**Status:** Aktivna
+
+---
+
+### DL-026 – Auto-klasifikacija dokumenata za `OTHER` i manual classification review
+
+**Datum:** 16.05.2026
+
+**Opis problema:**  
+Korisnik može uploadovati dokument kao `OTHER`, ali sistem i dalje treba pokušati prepoznati da li se zapravo radi o
+fakturi, računu, bankovnom izvodu ili formi, kako bi se koristio odgovarajući parser za postizanje najboljih rezultata.
+Istovremeno, sistem ne smije automatski nastaviti ekstrakciju ako classifier nije dovoljno siguran ili ako dokument
+ostaje nepoznatog tipa.
+
+**Razmatrane opcije:**
+
+1. `OTHER` dokumente uvijek obrađivati generičkim Form Parser procesorom.
+2. `OTHER` dokumente prvo poslati na classifier, pa tek onda na odgovarajući parser ako je rezultat dovoljno siguran.
+3. Za svaki `OTHER` dokument odmah tražiti ručni izbor tipa bez pokušaja automatske klasifikacije.
+4. Dozvoliti nastavak extraction flow-a i za nesigurne classifier rezultate.
+
+**Odabrana opcija:**  
+Ako je dokument uploadovan kao `OTHER`, backend prvo poziva custom classifier. Ako classifier vrati podržan tip
+dokumenta sa confidence vrijednošću najmanje 70%, sistem automatski postavlja detektovani tip i nastavlja obradu
+odgovarajućim parserom. Ako classifier vrati `OTHER`, nepodržan tip ili confidence ispod praga, dokument prelazi u
+status `NEEDS_CLASSIFICATION_REVIEW`.
+
+**Razlog izbora:**  
+Ovaj pristup kombinuje automatizaciju i kontrolu kvaliteta. Sistem automatski obrađuje dokumente kada je classifier
+dovoljno siguran, ali sprječava pogrešnu ekstrakciju kada rezultat klasifikacije nije pouzdan. Ručni review ostaje
+rezervisan samo za nejasne slučajeve.
+
+**Posljedice odluke:**
+
+- Uveden je status dokumenta `NEEDS_CLASSIFICATION_REVIEW`.
+- Backend čuva `detectedDocumentType` i `classificationConfidence` radi prikaza classifier rezultata korisniku.
+- Uveden je kontrolisani error response `DOCUMENT_CLASSIFICATION_REVIEW_REQUIRED` sa HTTP 409 statusom.
+- Uveden je endpoint `PATCH /api/documents/{id}/classification` za ručno potvrđivanje tipa dokumenta.
+- Ručna potvrda dozvoljava samo stvarne podržane tipove: `INVOICE`, `RECEIPT`, `BANK_STATEMENT` i `FORM`.
+- `OTHER` se koristi kao ulaz za auto-classify flow, a ne kao finalni tip za ručnu potvrdu.
+- Nakon ručne potvrde tipa, dokument se vraća u status `UPLOADED`, kako bi korisnik mogao ponovo pokrenuti ekstrakciju.
+
+**Status:** Aktivna
+
+---
+
+### DL-027 – Type-aware validacija extraction rezultata
+
+**Datum:** 16.05.2026
+
+**Opis problema:**  
+Prethodna validacija ekstraktovanih OCR polja bila je fokusirana na invoice dokumente. Nakon uvođenja više tipova
+dokumenata, ista pravila se više ne mogu primjenjivati na sve dokumente, jer receipt, bank statement i form dokumenti
+imaju drugačiju strukturu i drugačija obavezna polja.
+
+**Razmatrane opcije:**
+
+1. Zadržati invoice validaciju za sve tipove dokumenata.
+2. Ukloniti strogu validaciju za sve osim invoice dokumenata.
+3. Uvesti type-aware validaciju po tipu dokumenta.
+4. Validaciju prebaciti isključivo na frontend.
+
+**Odabrana opcija:**  
+Uvedena je type-aware backend validacija u extraction validation sloju.
+
+**Razlog izbora:**  
+Backend mora ostati finalna validacijska tačka prije prelaska dokumenta u `READY_FOR_APPROVAL`. Pravila validacije
+moraju odgovarati tipu dokumenta, jer su required polja i low-confidence kriteriji različiti za fakture, račune,
+bankovne izvode i forme.
+
+**Posljedice odluke:**
+
+- `INVOICE` zadržava strožiju validaciju obaveznih polja.
+- `RECEIPT` koristi osnovna required polja i podržava više mogućih naziva za datum računa.
+- `BANK_STATEMENT` zahtijeva osnovnu strukturu: broj računa, identifikaciono polje i barem jedno polje vezano za
+  aktivnosti, datume, balans ili transakcije.
+- `FORM` nema stroga required polja, jer se taj procesor koristi za dokumente koji su u obliku formi (imaju key-value
+  parove), ali se tip ne uklapa striktno u bilo koju drugu klasifikaciju, te nije moguće predvidjeti polja tog
+  dokumenta.
+- Low-confidence validacija zavisi od tipa dokumenta.
+- Placeholder required polja se kreiraju samo za tipove dokumenata koji imaju definisana required polja.
+- Validacija datuma i numeričkih vrijednosti ostaje dio backend confirm/edit flow-a.
+- Integracijski testovi moraju pokriti pozitivne i negativne scenarije po tipu dokumenta.
+
+**Status:** Aktivna
+
+---
+
+### DL-028 – Frontend podrška za document type selection, AI classification metadata i manual review flow
+
+**Datum:** 16.05.2026
+
+**Opis problema:**  
+Nakon proširenja backend pipeline-a na više tipova dokumenata, frontend je morao omogućiti korisniku izbor tipa
+dokumenta pri uploadu sa novim proširenim skupom, prikaz čitljivih tipova dokumenata u listi i detaljima, te poseban UI
+tok za dokumente koji zahtijevaju ručni classification review.
+
+**Razmatrane opcije:**
+
+1. Zadržati postojeći frontend i prikazivati samo raw `documentType` vrijednosti.
+2. Dodati minimalnu podršku za nove tipove samo na upload formi.
+3. Proširiti upload, document list i document detail stranice tako da podržavaju nove tipove, review status i classifier
+   metadata.
+4. Napraviti posebnu classification review stranicu.
+
+**Odabrana opcija:**  
+Proširene su postojeće document stranice bez uvođenja potpuno nove stranice za classification review.
+
+**Razlog izbora:**  
+Document detail stranica je već centralno mjesto za rad sa pojedinačnim dokumentom. Dodavanje classifier metadata i
+manual confirm akcije na postojeću detail stranicu zadržava jednostavan korisnički tok i ne uvodi dodatnu navigacijsku
+kompleksnost.
+
+**Posljedice odluke:**
+
+- Upload forma prikazuje više tipova dokumenata, uključujući opciju `Other / Auto classify`.
+- Document list koristi čitljive labele za tipove dokumenata.
+- Status badge podržava status `NEEDS_CLASSIFICATION_REVIEW`.
+- Detail stranica prikazuje AI classification metadata samo kada je classifier stvarno učestvovao u obradi ili kada je
+  dokument u review statusu.
+- Korisnik može ručno potvrditi tip dokumenta iz detail stranice.
+- Run extraction akcija se blokira ili skriva dok dokument zahtijeva classification review.
+- Frontend mora mapirati backend error `DOCUMENT_CLASSIFICATION_REVIEW_REQUIRED` u korisnički razumljivu poruku.
+- UI ostaje usklađen sa postojećim shared komponentama i stilom aplikacije.
+
+**Status:** Aktivna
+
+---
+
+### DL-029 – Strožija validacija datuma, numeričkih vrijednosti i invoice amount konzistentnosti
+
+**Datum:** 16.05.2026
+
+**Opis problema:**  
+Nakon prethodnog sprint review-a uočeno je da korisniku treba jasnije naglasiti koji formati datuma i numeričkih
+vrijednosti su podržani. Dodatno, sistem ne smije dozvoliti da korisnik ručno koriguje invoice iznose tako da ukupni
+iznos postane manji od komponentnih iznosa ili nekonzistentan sa `net_amount + vat_amount`.
+
+**Razmatrane opcije:**
+
+1. Ostaviti postojeće generičke validation poruke.
+2. Validirati samo format vrijednosti, bez provjere međusobne konzistentnosti invoice iznosa.
+3. Jasnije definisati podržane formate i dodati provjeru konzistentnosti iznosa na backendu.
+4. Osloniti se samo na frontend validaciju.
+
+**Odabrana opcija:**  
+Backend validacija je zadržana kao finalna zaštita, uz jasnije poruke za datum i numeričke vrijednosti, te dodatnu
+provjeru invoice amount konzistentnosti.
+
+**Razlog izbora:**  
+Frontend validacija poboljšava korisničko iskustvo, ali backend mora spriječiti neispravne korekcije bez obzira na izvor
+zahtjeva. Posebno je važno da dokument ne može preći u naredni workflow korak ako su ukupni i komponentni iznosi
+međusobno nelogični.
+
+**Posljedice odluke:**
+
+- Poruke za datum eksplicitno navode podržane formate: `YYYY-MM-DD`, `DD.MM.YYYY` i `DD/MM/YYYY`.
+- Sistem podržava evropski zapis dana i mjeseca za formate sa tačkom ili kosom crtom.
+- Numerička polja moraju biti unesena kao broj bez valute i dodatnog teksta, uz prikaz jasne validacijske poruke.
+- Dozvoljeni su decimalni zapisi sa tačkom ili zarezom, npr. `1500`, `1500.50` ili `1500,50`.
+- Vrijednosti poput `1500 KM` ili tekstualni dodaci uz broj nisu validni.
+- Backend provjerava da `total_amount` bude konzistentan sa `net_amount + vat_amount` kada su sva tri polja dostupna.
+- Confirm extraction flow također mora uhvatiti nekonzistentne OCR ili ručno korigovane vrijednosti, a ne samo PATCH
+  edit flow.
+
+**Status:** Aktivna
+
+---
+
+### DL-030 – Role storage strategy: aplikacijska baza vs Keycloak
+
+**Datum:** 17.05.2026
+
+**Opis problema:**  
+Sistem koristi Keycloak kao identity provider za upravljanje korisnicima i kredencijalima. Trebalo je odlučiti gdje se
+čuvaju i upravljaju aplikacijske role (ADMIN, OPERATOR, APPROVER, MANAGER) - samo u aplikacijskoj bazi, samo u
+Keycloaku, ili u oba mjesta.
+
+**Razmatrane opcije:**
+
+1. Role se čuvaju samo u Keycloaku kao realm roles ili client roles, aplikacijska baza koristi role iz JWT tokena.
+2. Role se čuvaju samo u aplikacijskoj bazi, Keycloak služi samo za identifikaciju i kredencijale.
+3. Role se čuvaju i u Keycloaku i u aplikacijskoj bazi (synchronizacija).
+
+**Odabrana opcija:**  
+Role se čuvaju samo u aplikacijskoj bazi kao FK referenca (role_id u tabeli app_user) sa odnosom prema role tabeli.
+
+**Razlog izbora:**  
+Aplikacijska baza je jedini izvor istine (single source of truth) za role. Keycloak se koristi isključivo kao identity
+provider za autentifikaciju i upravljanje kredencijalima. Rola određuje dozvole unutar aplikacije i vezana je za
+kompaniju, što je lakše upravljati u aplikacijskoj bazi.
+
+**Posljedice odluke:**
+
+- JWT token iz Keycloaka sadrži samo `sub` (keycloakUserId) i email, bez role podataka.
+- Svi API endpointi zahtijevaju `fetchCurrentUser()` poziv na startup aplikacije da bi dohvatili rolu.
+- Role se ne dodjeljuju kao Keycloak realm roles ili client roles.
+- Ako trebaju više integracijskih sistema, svaki sistem može imati vlastitu role definiciju u svojoj bazi.
+- Company-scoped pristup je implementiran na nivou aplikacijske baze, što je fleksibilnije za multi-tenant sisteme.
+
+**Status:** Aktivna
+
+---
+
+### DL-031 – Verifikacija stanja korisnika na svakom API zahtjevu
+
+**Datum:** 17.05.2026
+
+**Opis problema:**  
+JWT token je potrebан za pristup zaštićenim endpointa može biti validan duže vrijeme. Ako se korisnik deaktivira ili mu
+se promijeni status u aplikacijskoj bazi,
+njegov JWT token ostaje validan dok ne istekne. Trebalo je odlučiti kako se rješava taj slučaj.
+
+**Razmatrane opcije:**
+
+1. Pouzdati se samo na JWT token - korisnik može biti aktivan dok je token validan.
+2. Verifikovati keycloakUserId i AccountStatus na svakom zahtjevu.
+3. Verifikovati samo pri login OAuth flow, a tokom session korisiti JWT kao jedan izvor istine.
+
+**Odabrana opcija:**  
+Na svakom API zahtjevu backend provjeravaju AccountStatus korisnika kroz `CurrentUserService.getCurrentUser()` koja:
+
+1. Čita keycloakUserId iz JWT tokena
+2. Pronalazi UserEntity u bazi preko keycloakUserId
+3. Provjeravaju da li je korisnik ACTIVE ili PENDING_PASSWORD_CHANGE
+4. Provjeravaju da li korisnik pripada zahtijevanoj kompaniji
+5. Ako je korisnik INACTIVE, baca ResponseStatusException sa statusom FORBIDDEN
+
+**Razlog izbora:**  
+Iako to dodaje overhead na svakom zahtjevu (database lookup), sistem dobija kontrolu u realnom vremenu. Ako se korisnik
+deaktivira, sljedeći API zahtjev će biti odbijen čak i ako korisnik još ima validan JWT token. Isto tako, ako se
+korisnik prenese iz jedne kompanije u drugu ili mu se promijeni rola, sljedeći zahtjev će dobiti ažurirane podatke.
+
+**Posljedice odluke:**
+
+- Svaki zahtjev na `/api/**` uključuje dodatni database lookup za UserEntity.
+- Performance overhead je mali (single index lookup) i kompenzovan je sigurnosnom proverom.
+- Ako baza dato nije dostupna, korisnik ne može pristupiti aplikaciji čak iako ima validan JWT.
+- Za future optimizaciju, mogao bi se implementirati distributed cache (Redis) sa UserEntity podacima sa TTL od recimo 5
+  minuta.
+- Logout ni nije potreban sa koordinacijom - Keycloak handleuje logout na svojoj strani, a DocFlow će jednostavno odbiti
+  zahtjeve jer CurrentUserService neće pronaći korisnika.
+
+**Status:** Aktivna
+
+---
+
+### DL-032 – Role-based i company-scoped autorizacija na nivou servisa
+
+**Datum:** 17.05.2026
+
+**Opis problema:**  
+Trebalo je odlučiti gdje se provjeravaju dozvole za pristup resursima - na nivou HTTP controllera dekoratora, na nivou
+servisa, ili kroz poseban authorization interceptor. Dodatno, trebalo je osigurati da korisnici mogu pristupiti samo
+resursima iz svoje kompanije (company scoping).
+
+**Razmatrane opcije:**
+
+1. Autorizacija kroz `@PreAuthorize` anotacije na controllerima sa Spring EL expressions.
+2. Autorizacija kroz `@Protected` interfejse ili aspect-oriented programming.
+3. Autorizacija kroz ručne provjere (`if` statements) na nivou servisa.
+4. Autorizacija kroz poseban authorization sloj (zaseban servis za sve provjere).
+
+**Odabrana opcija:**  
+Autorizacija se provjeravaju na nivou servisa kroz centralizovane metode u `CurrentUserService`:
+
+- `requireAdmin()` - baca AccessDeniedException ako korisnik nije ADMIN
+- `requireAnyRole(RoleName...)` - baca AccessDeniedException ako korisnik nema bilo koju od dozoljenih rola
+- `getCurrentCompanyId()` - vraća companyId koji se koristi kao filter na svim upitima
+
+**Razlog izbora:**  
+Autorizacija na nivou servisa je centralizovana i laka za održavanje. Company scoping je implicitno - na svakom zahtjevu
+korisnikova companyId se koristi kao filter. Nema mogućnosti da korisnik prosledi drugačiji companyId ili bude "
+zaboravljen" da se filtrira. Svi resursi su multi-tenant-aware bez dodatnog koda. Autorizacija je jasna i vidljiva na
+početku svake poslovne logike.
+
+**Posljedice odluke:**
+
+- Svaka servisna metoda koja pristupa resursima počinje sa `requireAdmin()` ili `requireAnyRole()` pozivom.
+- Nema Spring Security anotacija tipa `@PreAuthorize` - umjesto toga se koriste imperativni pozivi.
+- Company scoping je automatski - nema mogućnosti da se "zaboravi".
+- Ako trebaju direkt role-based filtri na niskom nivou (npr. samo APPROVER vidi određene dokumente), to se dodaje kao
+  dodatna logika u servisima.
+- Za budućnost, ako autorizacijska logika postane kompleksnija, mogla bi se izdvojiti u policy-based authorization
+  sistem (npr. kroz OIDC fine-grained permissions ili Apache Shiro).
+- SQL upiti koriste WHERE clauses sa companyId filtrom što osigurava na nivou baze da se ne vraćaju podaci iz drugih
+  kompanija.
+
+**Status:** Aktivna
