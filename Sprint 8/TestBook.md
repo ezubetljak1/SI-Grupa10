@@ -404,3 +404,240 @@ Zaključak:
 - Izvršeno je end-to-end i regresiono testiranje extraction flow-a nakon Sprint 7 izmjena.
 - Izvršeno je deployment smoke testiranje backend/frontend containera, nove `is_placeholder` kolone i kompletnog confirm extraction flow-a u deployanom okruženju.
 - Svi evidentirani testovi za Sprint 7 imaju status `Pass`.
+
+---
+
+# Sprint 8 – Testiranje autentifikacije, autorizacije, organizacijskog modela i proširenog document-processing toka
+
+## 8.1 Funkcionalnosti koje se testiraju
+
+U Sprintu 8 fokus testiranja je na uvođenju organizacijskog modela pristupa sistemu, autentifikacije i autorizacije korisnika, upravljanja korisnicima i rolama, multi-tenant zaštite podataka, kao i na proširenju ranije implementiranog toka obrade dokumenata.
+
+Testirane funkcionalnosti uključuju:
+
+- registraciju firme / organizacije,
+- kreiranje prvog administratorskog naloga firme,
+- login i logout korisnika,
+- zaštitu endpointa koji zahtijevaju autentifikaciju,
+- role-based pristup funkcionalnostima,
+- kreiranje korisnika unutar firme,
+- dodjelu i promjenu korisničkih rola,
+- reset lozinke korisnika,
+- prikaz osnovnog dashboarda,
+- multi-tenant izolaciju dokumenata i korisnika po firmi,
+- proširenje podržanih tipova dokumenata na `INVOICE`, `RECEIPT`, `BANK_STATEMENT`, `FORM` i `OTHER`,
+- blokiranje internog tipa `UNKNOWN` kroz javni upload flow,
+- routing ekstrakcije na odgovarajući Google Document AI procesor prema tipu dokumenta,
+- auto-klasifikaciju dokumenata uploadanih kao `OTHER`,
+- status `NEEDS_CLASSIFICATION_REVIEW` za nesigurnu klasifikaciju,
+- ručnu potvrdu tipa dokumenta nakon nesigurne klasifikacije,
+- type-aware validaciju ekstraktovanih polja,
+- frontend prikaz novih tipova dokumenata, classification metadata i review statusa,
+- regresionu provjeru upload/extraction/edit/confirm flow-a iz prethodnih sprintova,
+- deployment smoke provjeru novih konfiguracija, enum vrijednosti i procesora.
+
+---
+
+## 8.2 Backend/API i integracijsko testiranje
+
+| ID testa | Vrsta testiranja | Funkcionalnost | Ulaz / koraci | Očekivani ishod | Stvarni ishod | Status |
+|---|---|---|---|---|---|---|
+| S8-BE-001 | Integration testiranje | Registracija firme i prvog administratorskog naloga | Poslati validan zahtjev za registraciju firme sa podacima firme i admin korisnika | Sistem kreira firmu, prvog admin korisnika i povezuje admina sa firmom | Firma i administratorski korisnik su uspješno kreirani i povezani u bazi | Pass |
+| S8-BE-002 | Backend/API testiranje | Javna registracija firme bez prethodne autentifikacije | Pozvati registration endpoint bez postojećeg tokena/sesije | Registracija firme je dozvoljena kao javni inicijalni flow | Registration endpoint je dostupan bez autentifikacije i validan zahtjev prolazi | Pass |
+| S8-BE-003 | Validaciono testiranje | Odbijanje registracije firme sa duplikatnim emailom | Poslati zahtjev za registraciju firme sa emailom koji već postoji | Backend vraća validacionu grešku i ne kreira novu firmu | Duplikatni email firme je odbijen, a dodatni zapis nije kreiran | Pass |
+| S8-BE-004 | Validaciono testiranje | Odbijanje registracije bez obaveznih podataka | Izostaviti naziv firme, email, adresu ili admin podatke | Backend vraća validacione greške za obavezna polja | Backend je vratio validacione greške i registracija nije izvršena | Pass |
+| S8-BE-005 | Integration testiranje | Sigurno spremanje lozinke admin korisnika | Registrovati firmu sa admin nalogom i provjeriti zapis korisnika | Lozinka se ne sprema kao plain text vrijednost | Lozinka nije spremljena u plain text obliku; korišten je sigurnosni mehanizam pohrane | Pass |
+| S8-BE-006 | Backend/API testiranje | Uspješna prijava korisnika | Poslati validne pristupne podatke za postojećeg korisnika | Backend vraća uspješan odgovor i korisnik dobija pristup sistemu | Login sa validnim podacima je uspješno izvršen | Pass |
+| S8-BE-007 | Validaciono testiranje | Neuspješna prijava sa pogrešnim pristupnim podacima | Poslati pogrešan email/lozinku | Backend odbija prijavu i vraća kontrolisanu poruku greške | Nevalidna prijava je odbijena bez otkrivanja osjetljivih sigurnosnih detalja | Pass |
+| S8-BE-008 | Backend/API testiranje | Logout korisnika | Prijaviti korisnika, zatim pozvati logout akciju | Aktivna sesija/token se završava i korisnik više nema pristup zaštićenim dijelovima bez nove prijave | Logout je uspješno izvršen i korisnik je odjavljen iz sistema | Pass |
+| S8-BE-009 | Backend/API testiranje | Zaštita endpointa bez autentifikacije | Pozvati zaštićeni endpoint bez tokena/sesije | Backend odbija pristup | Zaštićeni endpoint nije dostupan neautentifikovanom korisniku | Pass |
+| S8-BE-010 | Backend/API testiranje | Pristup endpointu sa dozvoljenom rolom | Korisnik sa odgovarajućom rolom poziva endpoint za svoju funkcionalnost | Backend dozvoljava akciju | Akcija je dozvoljena korisniku koji ima potrebnu rolu | Pass |
+| S8-BE-011 | Backend/API testiranje | Blokiranje endpointa za korisnika bez potrebne role | Korisnik bez odgovarajuće role pokušava izvršiti zaštićenu akciju | Backend vraća forbidden/authorization grešku | Korisniku bez potrebne role nije dozvoljeno izvršenje akcije | Pass |
+| S8-BE-012 | Integration testiranje | Kreiranje korisnika unutar firme | Admin korisnik šalje zahtjev za kreiranje novog korisnika | Novi korisnik se kreira i automatski povezuje sa firmom admina | Korisnik je kreiran u okviru iste firme kao i administrator | Pass |
+| S8-BE-013 | Validaciono testiranje | Odbijanje korisnika sa duplikatnim emailom | Admin pokuša kreirati korisnika sa emailom koji već postoji | Backend vraća validacionu grešku | Duplikatni korisnički email je odbijen i novi korisnik nije kreiran | Pass |
+| S8-BE-014 | Integration testiranje | Dodjela role korisniku | Admin dodjeljuje korisniku rolu operator/manager/approver | Rola se sprema i primjenjuje na korisnika | Rola je uspješno spremljena i povezana sa korisnikom | Pass |
+| S8-BE-015 | Integration testiranje | Promjena role korisnika | Admin promijeni postojeću rolu korisnika | Nova rola se primjenjuje i prethodna prava se zamjenjuju novima | Promjena role je uspješno izvršena | Pass |
+| S8-BE-016 | Integration testiranje | Pregled korisnika firme | Admin poziva endpoint za listu korisnika | Vraćaju se samo korisnici iste firme | Backend vraća korisnike koji pripadaju firmi prijavljenog admina | Pass |
+| S8-BE-017 | Integration testiranje | Multi-tenant izolacija korisnika | Korisnik firme A pokuša pristupiti korisniku firme B | Backend ne dozvoljava pristup podacima druge firme | Podaci druge firme nisu dostupni korisniku iz prve firme | Pass |
+| S8-BE-018 | Integration testiranje | Multi-tenant izolacija dokumenata | Korisnik firme A pokuša dohvatiti dokument firme B | Backend vraća grešku ili onemogućava pristup | Dokument druge firme nije dostupan korisniku koji joj ne pripada | Pass |
+| S8-BE-019 | Backend/API testiranje | Reset lozinke korisnika | Admin pokrene reset lozinke za korisnika svoje firme | Sistem generiše novu privremenu lozinku i prethodna lozinka više ne važi | Reset lozinke je izvršen i vraćena je nova privremena lozinka/admin potvrda | Pass |
+| S8-BE-020 | Backend/API testiranje | Dashboard statistika | Korisnik sa odgovarajućom rolom pozove dashboard endpoint | Backend vraća agregirane podatke o dokumentima/statusima za njegovu firmu | Dashboard endpoint vraća osnovne statistike za firmu prijavljenog korisnika | Pass |
+| S8-BE-021 | Backend/API testiranje | Upload dokumenta tipa `RECEIPT` | Uploadati validan PDF uz `documentType = RECEIPT` | Dokument se kreira i čuva sa tipom `RECEIPT` | Receipt dokument je uspješno uploadan i evidentiran sa ispravnim tipom | Pass |
+| S8-BE-022 | Backend/API testiranje | Upload dokumenta tipa `BANK_STATEMENT` | Uploadati validan PDF uz `documentType = BANK_STATEMENT` | Dokument se kreira i čuva sa tipom `BANK_STATEMENT` | Bank statement dokument je uspješno uploadan i evidentiran sa ispravnim tipom | Pass |
+| S8-BE-023 | Backend/API testiranje | Upload dokumenta tipa `FORM` | Uploadati validan PDF uz `documentType = FORM` | Dokument se kreira i čuva sa tipom `FORM` | Form dokument je uspješno uploadan i evidentiran sa ispravnim tipom | Pass |
+| S8-BE-024 | Backend/API testiranje | Upload dokumenta tipa `OTHER` | Uploadati validan PDF uz `documentType = OTHER` | Dokument se kreira i tretira kao kandidat za auto-klasifikaciju | OTHER dokument je uspješno uploadan i spreman za classification flow | Pass |
+| S8-BE-025 | Validaciono testiranje | Odbijanje internog tipa `UNKNOWN` pri uploadu | Poslati upload request sa `documentType = UNKNOWN` | Backend vraća `DOCUMENT_TYPE_INVALID` i dokument se ne kreira | Upload sa internim tipom `UNKNOWN` je odbijen | Pass |
+| S8-BE-026 | Validaciono testiranje | Odbijanje nepodržanog tipa dokumenta | Poslati upload request sa `documentType = CONTRACT` ili drugim nepodržanim tipom | Backend vraća validacionu grešku | Nepodržan tip dokumenta je odbijen i zapis nije kreiran | Pass |
+| S8-BE-027 | Integration testiranje | Direktna ekstrakcija za `RECEIPT` dokument | Pokrenuti extraction za dokument tipa `RECEIPT` | Sistem koristi receipt/expense processor bez classifier procesora | Receipt dokument je obrađen receipt procesorom, bez poziva classifier procesora | Pass |
+| S8-BE-028 | Integration testiranje | Direktna ekstrakcija za `BANK_STATEMENT` dokument | Pokrenuti extraction za dokument tipa `BANK_STATEMENT` | Sistem koristi bank statement processor bez classifier procesora | Bank statement dokument je obrađen odgovarajućim procesorom | Pass |
+| S8-BE-029 | Integration testiranje | Direktna ekstrakcija za `FORM` dokument | Pokrenuti extraction za dokument tipa `FORM` | Sistem koristi form parser processor bez classifier procesora | Form dokument je obrađen form procesorom | Pass |
+| S8-BE-030 | Integration testiranje | Auto-klasifikacija `OTHER` dokumenta kao `INVOICE` | Uploadati dokument kao `OTHER`, classifier vrati `INVOICE` sa dovoljnom confidence vrijednošću | Sistem postavlja finalni tip na `INVOICE` i nastavlja extraction invoice procesorom | Dokument je klasifikovan kao invoice i obrađen invoice procesorom | Pass |
+| S8-BE-031 | Integration testiranje | Auto-klasifikacija `OTHER` dokumenta kao `RECEIPT` | Classifier vrati `RECEIPT` sa dovoljnom confidence vrijednošću | Sistem postavlja finalni tip na `RECEIPT` i nastavlja receipt procesorom | Dokument je klasifikovan kao receipt i obrađen receipt procesorom | Pass |
+| S8-BE-032 | Integration testiranje | Auto-klasifikacija `OTHER` dokumenta kao `BANK_STATEMENT` | Classifier vrati `BANK_STATEMENT` sa dovoljnom confidence vrijednošću | Sistem postavlja finalni tip na `BANK_STATEMENT` i nastavlja bank statement procesorom | Dokument je klasifikovan kao bank statement i obrađen odgovarajućim procesorom | Pass |
+| S8-BE-033 | Integration testiranje | Auto-klasifikacija `OTHER` dokumenta kao `FORM` | Classifier vrati `FORM` sa dovoljnom confidence vrijednošću | Sistem postavlja finalni tip na `FORM` i nastavlja form procesorom | Dokument je klasifikovan kao form i obrađen form procesorom | Pass |
+| S8-BE-034 | Integration testiranje | Classifier vrati `OTHER` | Classifier vrati tip `OTHER` i confidence vrijednost | Sistem ne pokreće parser, dokument prelazi u `NEEDS_CLASSIFICATION_REVIEW` i vraća `409 DOCUMENT_CLASSIFICATION_REVIEW_REQUIRED` | Dokument je označen za ručni review tipa, bez kreiranja extraction rezultata | Pass |
+| S8-BE-035 | Integration testiranje | Classifier vrati podržan tip sa niskom confidence vrijednošću | Classifier vrati npr. `INVOICE` sa confidence ispod praga | Sistem ne nastavlja extraction i traži manual classification review | Dokument je ostao bez extraction rezultata i prešao u `NEEDS_CLASSIFICATION_REVIEW` | Pass |
+| S8-BE-036 | Backend/API testiranje | Greška classifier procesora | Simulirati grešku classifier procesora pri obradi `OTHER` dokumenta | Backend vraća kontrolisanu grešku i dokument prelazi u `PROCESSING_FAILED` | Greška classifiera je obrađena bez rušenja aplikacije, a status dokumenta je `PROCESSING_FAILED` | Pass |
+| S8-BE-037 | Integration testiranje | Spremanje classification metadata | Pokrenuti auto-classification flow | Backend sprema `detectedDocumentType`, `classificationConfidence` i `processorIdUsed` kada su primjenjivi | Classification metadata je ispravno spremljena uz dokument | Pass |
+| S8-BE-038 | Backend/API testiranje | Uspješna ručna potvrda tipa dokumenta | Dokument u statusu `NEEDS_CLASSIFICATION_REVIEW`; poslati `PATCH /api/documents/{id}/classification` sa finalnim tipom `INVOICE`, `RECEIPT`, `BANK_STATEMENT` ili `FORM` | Backend ažurira tip dokumenta i vraća status u `UPLOADED` | Manual classification je uspješno potvrđena i dokument je spreman za ponovno pokretanje extraction flow-a | Pass |
+| S8-BE-039 | Validaciono testiranje | Manual classification kada dokument nije u review statusu | Pozvati classification confirm endpoint za dokument koji nije u `NEEDS_CLASSIFICATION_REVIEW` | Backend vraća `DOCUMENT_STATUS_INVALID` | Ručna potvrda tipa je odbijena jer dokument nije čekao classification review | Pass |
+| S8-BE-040 | Validaciono testiranje | Odbijanje `OTHER` kao finalnog ručnog tipa | Poslati `PATCH /classification` sa `documentType = OTHER` | Backend vraća `DOCUMENT_TYPE_INVALID` | Sistem ne dozvoljava da `OTHER` bude finalni ručno potvrđeni tip | Pass |
+| S8-BE-041 | Validaciono testiranje | Odbijanje nepoznatog ručnog tipa | Poslati `PATCH /classification` sa nepodržanim tipom, npr. `CONTRACT` | Backend vraća `DOCUMENT_TYPE_INVALID` | Nepodržan ručni tip je odbijen | Pass |
+| S8-BE-042 | Backend/API testiranje | Manual classification za nepostojeći dokument | Pozvati `PATCH /api/documents/{id}/classification` sa nepostojećim ID-em | Backend vraća `404 NOT_FOUND` | Backend je vratio kontrolisanu grešku za nepostojeći dokument | Pass |
+| S8-BE-043 | Validaciono testiranje | Confirm receipt ekstrakcije sa validnim required poljima i date aliasom | Receipt extraction sadrži required polja i jedan podržani date alias | Confirm prolazi i dokument prelazi u `READY_FOR_APPROVAL` | Receipt dokument je uspješno potvrđen | Pass |
+| S8-BE-044 | Validaciono testiranje | Blokiranje receipt confirma bez date aliasa | Receipt extraction ne sadrži nijedan podržani datum (`receipt_date`, `expense_date`, `transaction_date`, `purchase_date`) | Confirm vraća `EXTRACTION_REQUIRED_FIELD_MISSING` | Confirm je odbijen jer receipt nema validan datum | Pass |
+| S8-BE-045 | Validaciono testiranje | Blokiranje receipt confirma zbog low-confidence required polja | Receipt required polje ima confidence ispod praga i nije ručno korigovano | Confirm vraća `EXTRACTION_FIELD_LOW_CONFIDENCE` | Confirm je odbijen za low-confidence required receipt polje | Pass |
+| S8-BE-046 | Validaciono testiranje | Prihvatanje receipt confirma sa low-confidence optional poljem | Receipt optional polje ima nizak confidence, ali required polja su validna | Confirm prolazi jer optional low-confidence polje ne blokira receipt flow | Receipt confirm je uspješno izvršen | Pass |
+| S8-BE-047 | Validaciono testiranje | Confirm bank statement ekstrakcije sa osnovnom strukturom | Bank statement sadrži account number, identifikacijsko polje i activity/balance/transaction polje | Confirm prolazi i dokument prelazi u `READY_FOR_APPROVAL` | Bank statement dokument je uspješno potvrđen | Pass |
+| S8-BE-048 | Validaciono testiranje | Blokiranje bank statement confirma bez identity polja | Bank statement nema `bank_name`, `client_name`, `account_holder_name` ili sličan identifikacijski podatak | Confirm vraća `EXTRACTION_REQUIRED_FIELD_MISSING` | Confirm je odbijen jer nedostaje identity podatak | Pass |
+| S8-BE-049 | Validaciono testiranje | Blokiranje bank statement confirma bez activity/balance/transaction polja | Bank statement nema podatak o aktivnosti, stanju, datumu ili transakciji | Confirm vraća `EXTRACTION_REQUIRED_FIELD_MISSING` | Confirm je odbijen jer bank statement nema osnovnu aktivnost/stanje | Pass |
+| S8-BE-050 | Validaciono testiranje | Blokiranje bank statement confirma zbog low-confidence required polja | Required/strukturno bank statement polje ima nizak confidence i nije pregledano | Confirm vraća `EXTRACTION_FIELD_LOW_CONFIDENCE` | Confirm je odbijen za low-confidence required bank statement polje | Pass |
+| S8-BE-051 | Validaciono testiranje | Prihvatanje bank statement confirma sa low-confidence optional poljem | Optional bank statement polje ima nizak confidence | Confirm prolazi jer optional low-confidence polje ne blokira flow | Bank statement confirm je uspješno izvršen | Pass |
+| S8-BE-052 | Validaciono testiranje | Blokiranje bank statement confirma zbog nevalidnog numeričkog formata | Bank statement balance/amount polje sadrži nenumeričku ili nevalidnu vrijednost | Backend vraća `EXTRACTION_FIELD_NUMERIC_FORMAT_INVALID` | Confirm je odbijen zbog nevalidnog numeričkog formata | Pass |
+| S8-BE-053 | Validaciono testiranje | Confirm form ekstrakcije sa low-confidence poljima | Form extraction ima low-confidence polja | Confirm prolazi jer `FORM` nema striktna invoice required pravila i low-confidence ne blokira flow | Form dokument je potvrđen bez invoice-specific blokade | Pass |
+| S8-BE-054 | Regresiono testiranje | Invoice extraction i confirm flow nakon type-aware validacije | Pokrenuti postojeći invoice flow iz Sprinta 6/7 | Invoice required field, low-confidence i placeholder pravila i dalje rade | Invoice flow nije pokvaren proširenjem na nove tipove dokumenata | Pass |
+| S8-BE-055 | Regresiono testiranje | Dohvat extraction polja nakon proširenja modela | Pokrenuti extraction i pozvati endpoint za fields po documentId/extractionId | Endpoint vraća očekivana polja i nove metadata izmjene ne remete postojeći response | Dohvat extraction polja radi kao i ranije | Pass |
+
+---
+
+## 8.3 Frontend/UI testiranje
+
+| ID testa | Vrsta testiranja | Funkcionalnost | Koraci testiranja | Očekivani ishod | Stvarni ishod | Status |
+|---|---|---|---|---|---|---|
+| S8-UI-001 | Frontend/UI testiranje | Otvaranje registration stranice | Navigirati na stranicu za registraciju firme | Stranica se učitava bez greške i prikazuje formu za firmu i admin korisnika | Registration stranica se uspješno učitala | Pass |
+| S8-UI-002 | Frontend/UI testiranje | Uspješna registracija firme | Popuniti validne podatke firme i admin korisnika i submitovati formu | Prikazuje se success poruka i kreira se organizacija | Firma i admin nalog su kreirani, a korisnik dobija jasnu potvrdu | Pass |
+| S8-UI-003 | Frontend/UI testiranje | Validacione poruke na registration formi | Pokušati submit bez obaveznih polja ili sa nevalidnim emailom | UI prikazuje razumljive validacione poruke | Validacione poruke su prikazane bez rušenja stranice | Pass |
+| S8-UI-004 | Frontend/UI testiranje | Prikaz greške za duplikatni email firme | Pokušati registrovati firmu sa postojećim emailom | Korisnik dobija razumljivu error poruku | Prikazana je poruka da firma/email već postoji | Pass |
+| S8-UI-005 | Frontend/UI testiranje | Otvaranje login stranice | Navigirati na login stranicu | Login forma se učitava i prikazuje email/lozinku | Login stranica se uspješno učitala | Pass |
+| S8-UI-006 | Frontend/UI testiranje | Uspješan login | Unijeti validne pristupne podatke | Korisnik se prijavljuje i preusmjerava u aplikaciju | Login je uspješan i korisnik vidi zaštićeni dio aplikacije | Pass |
+| S8-UI-007 | Frontend/UI testiranje | Neuspješan login | Unijeti pogrešne pristupne podatke | UI prikazuje jasnu grešku bez tehničkih detalja | Prikazana je razumljiva error poruka za neuspješnu prijavu | Pass |
+| S8-UI-008 | Frontend/UI testiranje | Logout iz aplikacije | Kliknuti logout nakon uspješne prijave | Korisnik se odjavljuje i vraća na javni/login dio | Logout je uspješno izvršen | Pass |
+| S8-UI-009 | Frontend/UI testiranje | Zaštita ruta bez prijave | Pokušati otvoriti zaštićenu rutu bez prijave | Korisnik se preusmjerava na login ili nema pristup | Zaštićene rute nisu dostupne bez autentifikacije | Pass |
+| S8-UI-010 | Frontend/UI testiranje | Prikaz navigacije prema roli | Prijaviti se kao korisnik različite role | UI prikazuje samo relevantne akcije/rute | Navigacija i akcije su usklađene sa rolom korisnika | Pass |
+| S8-UI-011 | Frontend/UI testiranje | User management lista | Admin otvara stranicu za upravljanje korisnicima | Prikazuje se lista korisnika firme | Lista korisnika firme je prikazana | Pass |
+| S8-UI-012 | Frontend/UI testiranje | Kreiranje korisnika kroz UI | Admin popunjava formu za novog korisnika | Korisnik se kreira i prikazuje u listi | Novi korisnik je uspješno dodat u listu korisnika | Pass |
+| S8-UI-013 | Frontend/UI testiranje | Dodjela role korisniku kroz UI | Admin odabire rolu za korisnika | Rola se sprema i prikazuje uz korisnika | Rola je uspješno dodijeljena i vidljiva u UI-u | Pass |
+| S8-UI-014 | Frontend/UI testiranje | Promjena role korisnika | Admin mijenja postojeću rolu korisnika | UI ažurira prikaz role i prikazuje success poruku | Promjena role je uspješno prikazana i sačuvana | Pass |
+| S8-UI-015 | Frontend/UI testiranje | Reset lozinke kroz UI | Admin pokrene reset lozinke za korisnika | Prikazuje se potvrda i nova privremena lozinka/informacija o resetu | Reset lozinke je uspješno prikazan korisniku/adminu | Pass |
+| S8-UI-016 | Frontend/UI testiranje | Dashboard prikaz | Korisnik sa odgovarajućom rolom otvara dashboard | Prikazuju se osnovni pokazatelji stanja dokumenata | Dashboard se učitao i prikazao agregirane podatke | Pass |
+| S8-UI-017 | Frontend/UI testiranje | Upload dropdown za tip dokumenta | Otvoriti upload stranicu | Dropdown prikazuje Invoice, Receipt/Expense, Bank statement, Form i Other/Auto classify | Svi podržani tipovi dokumenata su prikazani korisniku | Pass |
+| S8-UI-018 | Frontend/UI testiranje | Upload dokumenta sa novim tipom | Uploadati receipt/bank statement/form dokument kroz UI | Dokument se uploaduje i čuva sa odabranim tipom | Dokument je uspješno uploadan sa odabranim tipom | Pass |
+| S8-UI-019 | Frontend/UI testiranje | Čitljiv prikaz document type-a u listi dokumenata | Otvoriti listu dokumenata nakon upload-a različitih tipova | Lista prikazuje user-friendly label za tip dokumenta | Tipovi dokumenata su prikazani čitljivo, bez sirovih internih vrijednosti gdje nije potrebno | Pass |
+| S8-UI-020 | Frontend/UI testiranje | Status badge za `NEEDS_CLASSIFICATION_REVIEW` | Uploadati `OTHER` dokument koji zahtijeva manual review | Lista i detalji prikazuju warning/review badge | Status `Needs Classification Review` je jasno prikazan | Pass |
+| S8-UI-021 | Frontend/UI testiranje | Detail stranica prikazuje classification metadata kada je classifier korišten | Otvoriti detalje dokumenta koji je prošao auto-classification ili review | Prikazuju se detected type, confidence i relevantni classification podaci | Classification metadata je prikazana samo kada je relevantna | Pass |
+| S8-UI-022 | Frontend/UI testiranje | Detail stranica ne prikazuje classification metadata za direktne tipove | Otvoriti detalje direktno uploadanog invoice/receipt/bank/form dokumenta | Classification sekcija se ne prikazuje nepotrebno | UI ne prikazuje nepotrebne classifier podatke za direktne tipove | Pass |
+| S8-UI-023 | Frontend/UI testiranje | Blokiranje Run extraction tokom classification review-a | Dokument je u statusu `NEEDS_CLASSIFICATION_REVIEW` | Run extraction dugme je sakriveno/onemogućeno i korisnik vidi šta treba uraditi | UI ne dozvoljava pokretanje extractiona dok tip nije potvrđen | Pass |
+| S8-UI-024 | Frontend/UI testiranje | Manual classification flow kroz UI | Na document detail stranici odabrati finalni tip i potvrditi | Tip se sprema, status se vraća u `UPLOADED`, extraction se može ponovo pokrenuti | Ručna potvrda tipa je uspješno izvršena kroz UI | Pass |
+| S8-UI-025 | Frontend/UI testiranje | Greška za `DOCUMENT_CLASSIFICATION_REVIEW_REQUIRED` | Pokrenuti extraction nad `OTHER` dokumentom koji classifier ne može sigurno klasifikovati | UI prikazuje razumljivu poruku da je potreban ručni pregled tipa | Korisniku je prikazana jasna review poruka | Pass |
+| S8-UI-026 | Frontend/UI testiranje | Type-aware prikaz low-confidence polja | Otvoriti extraction fields za receipt, bank statement i form dokumente | UI prikazuje upozorenja u skladu sa tipom dokumenta | Low-confidence prikaz je usklađen sa pravilima za tip dokumenta | Pass |
+| S8-UI-027 | Frontend/UI testiranje | Type-aware validacione poruke za datume | Pokušati potvrditi/editovati datum u nepodržanom formatu | UI prikazuje poruku da su podržani ISO `YYYY-MM-DD` ili evropski `DD.MM.YYYY` / `DD/MM/YYYY` formati | Korisnik dobija jasnu poruku o podržanim formatima datuma | Pass |
+| S8-UI-028 | Frontend/UI testiranje | Type-aware validacione poruke za numerička polja | Unijeti iznos sa valutom ili dodatnim tekstom | UI prikazuje da vrijednost mora biti numerička bez currency simbola ili dodatnog teksta | Korisniku je prikazana razumljiva poruka za numerička polja | Pass |
+| S8-UI-029 | Frontend/UI testiranje | Responsivnost novih auth i document-processing ekrana | Testirati registration, login, upload, listu i detalje na manjoj širini ekrana | Stranice ostaju čitljive i upotrebljive | UI ostaje pregledan i funkcionalan na manjim ekranima | Pass |
+| S8-UI-030 | Regresiono testiranje | Postojeći upload/extraction UI nakon Sprint 8 izmjena | Testirati upload, document list, detail, run extraction, refresh fields, edit field i confirm extraction | Funkcionalnosti iz prethodnih sprintova i dalje rade | Postojeći UI flow nije pokvaren Sprint 8 izmjenama | Pass |
+
+---
+
+## 8.4 Manualno API testiranje kroz Swagger/Postman
+
+| ID testa | Vrsta testiranja | Alat | Endpoint / funkcionalnost | Koraci | Očekivani rezultat | Stvarni rezultat | Status |
+|---|---|---|---|---|---|---|---|
+| S8-API-001 | Backend/API testiranje | Swagger/Postman | Registracija firme | Poslati validan registration request | Kreira se firma i prvi admin korisnik | Firma i admin korisnik su uspješno kreirani | Pass |
+| S8-API-002 | Validaciono testiranje | Swagger/Postman | Registracija sa duplikatnim emailom | Ponoviti registration request sa istim emailom firme | Vraća se validaciona greška | API je vratio grešku za duplikatni email | Pass |
+| S8-API-003 | Backend/API testiranje | Swagger/Postman | Login | Poslati validne kredencijale | Korisnik dobija pristup aplikaciji/token/sesiju | Login je uspješno izvršen | Pass |
+| S8-API-004 | Validaciono testiranje | Swagger/Postman | Login sa nevalidnim podacima | Poslati pogrešnu lozinku | Vraća se kontrolisana auth greška | Neuspješan login je pravilno odbijen | Pass |
+| S8-API-005 | Backend/API testiranje | Swagger/Postman | Logout | Pozvati logout endpoint nakon prijave | Sesija/token se završava | Logout je uspješno izvršen | Pass |
+| S8-API-006 | Backend/API testiranje | Swagger/Postman | Kreiranje korisnika firme | Admin šalje zahtjev za novog korisnika | Korisnik se kreira unutar firme admina | Korisnik je kreiran i povezan sa firmom | Pass |
+| S8-API-007 | Backend/API testiranje | Swagger/Postman | Dodjela/promjena role korisnika | Poslati zahtjev za dodjelu ili promjenu role | Rola se ažurira | Rola je uspješno ažurirana | Pass |
+| S8-API-008 | Backend/API testiranje | Swagger/Postman | Pregled korisnika firme | Pozvati endpoint za listu korisnika | Vraćaju se korisnici prijavljene firme | API vraća samo korisnike odgovarajuće firme | Pass |
+| S8-API-009 | Backend/API testiranje | Swagger/Postman | Dashboard | Pozvati dashboard endpoint kao autorizovan korisnik | Vraćaju se osnovne statistike sistema/firme | Dashboard podaci su vraćeni | Pass |
+| S8-API-010 | Backend/API testiranje | Swagger/Postman | Upload `RECEIPT` dokumenta | Poslati multipart upload sa `documentType = RECEIPT` | Dokument se kreira sa tipom `RECEIPT` | Receipt dokument je kreiran putem API-ja | Pass |
+| S8-API-011 | Backend/API testiranje | Swagger/Postman | Upload `BANK_STATEMENT` dokumenta | Poslati multipart upload sa `documentType = BANK_STATEMENT` | Dokument se kreira sa tipom `BANK_STATEMENT` | Bank statement dokument je kreiran putem API-ja | Pass |
+| S8-API-012 | Backend/API testiranje | Swagger/Postman | Upload `FORM` dokumenta | Poslati multipart upload sa `documentType = FORM` | Dokument se kreira sa tipom `FORM` | Form dokument je kreiran putem API-ja | Pass |
+| S8-API-013 | Backend/API testiranje | Swagger/Postman | Upload `OTHER` dokumenta | Poslati multipart upload sa `documentType = OTHER` | Dokument se kreira kao kandidat za auto-classification | OTHER dokument je kreiran putem API-ja | Pass |
+| S8-API-014 | Validaciono testiranje | Swagger/Postman | Upload sa `UNKNOWN` tipom | Poslati upload sa `documentType = UNKNOWN` | API vraća `DOCUMENT_TYPE_INVALID` | Upload sa `UNKNOWN` tipom je odbijen | Pass |
+| S8-API-015 | Integration testiranje | Swagger/Postman | Extraction direktno označenog receipt dokumenta | Pokrenuti `POST /api/documents/{documentId}/extraction` za `RECEIPT` | Extraction prolazi receipt procesorom | Receipt extraction je uspješno izvršen | Pass |
+| S8-API-016 | Integration testiranje | Swagger/Postman | Extraction direktno označenog bank statement dokumenta | Pokrenuti extraction za `BANK_STATEMENT` | Extraction prolazi bank statement procesorom | Bank statement extraction je uspješno izvršen | Pass |
+| S8-API-017 | Integration testiranje | Swagger/Postman | Extraction direktno označenog form dokumenta | Pokrenuti extraction za `FORM` | Extraction prolazi form procesorom | Form extraction je uspješno izvršen | Pass |
+| S8-API-018 | Integration testiranje | Swagger/Postman | Auto-classification `OTHER` dokumenta | Pokrenuti extraction za dokument uploadan kao `OTHER` | Classifier se pokreće prije parsera i sistem nastavlja prema detektovanom tipu ako je confidence dovoljan | Auto-classification flow je uspješno izvršen | Pass |
+| S8-API-019 | Backend/API testiranje | Swagger/Postman | Classification review required response | Pokrenuti extraction za `OTHER` dokument koji classifier ne može sigurno klasifikovati | API vraća `409 DOCUMENT_CLASSIFICATION_REVIEW_REQUIRED` | API je vratio očekivani 409 review response | Pass |
+| S8-API-020 | Backend/API testiranje | Swagger/Postman | Manual classification confirm | Pozvati `PATCH /api/documents/{id}/classification` sa podržanim finalnim tipom | Dokument dobija finalni tip i vraća se u `UPLOADED` | Manual classification je uspješno potvrđena | Pass |
+| S8-API-021 | Validaciono testiranje | Swagger/Postman | Manual classification sa `OTHER` ili nepodržanim tipom | Poslati `OTHER`, `UNKNOWN` ili `CONTRACT` kao finalni tip | API vraća validacionu grešku | Nevalidni finalni tipovi su odbijeni | Pass |
+| S8-API-022 | Backend/API testiranje | Swagger/Postman | Confirm extraction za receipt | Nakon receipt extractiona pozvati confirm endpoint | Dokument prelazi u `READY_FOR_APPROVAL` ako su required/date alias polja validna | Receipt confirm je uspješno izvršen | Pass |
+| S8-API-023 | Backend/API testiranje | Swagger/Postman | Confirm extraction za bank statement | Nakon bank statement extractiona pozvati confirm endpoint | Dokument prelazi u `READY_FOR_APPROVAL` ako su strukturna polja validna | Bank statement confirm je uspješno izvršen | Pass |
+| S8-API-024 | Backend/API testiranje | Swagger/Postman | Confirm extraction za form | Nakon form extractiona pozvati confirm endpoint | Dokument prelazi u `READY_FOR_APPROVAL` bez invoice-specific required blokada | Form confirm je uspješno izvršen | Pass |
+| S8-API-025 | Regresiono testiranje | Swagger/Postman | Invoice upload/extraction/edit/confirm nakon Sprint 8 izmjena | Izvršiti postojeći invoice flow iz prethodnih sprintova | Postojeći flow i dalje radi | Invoice flow je prošao bez regresije | Pass |
+
+---
+
+## 8.5 End-to-end i regresiono testiranje
+
+| ID testa | Vrsta testiranja | Scenario | Koraci | Očekivani ishod | Stvarni ishod | Status |
+|---|---|---|---|---|---|---|
+| S8-E2E-001 | End-to-end testiranje | Kompletan organizacijski onboarding flow | Registrovati firmu, kreirati admin nalog, prijaviti se kao admin | Firma i admin nalog su kreirani, admin se može prijaviti i pristupiti sistemu | Onboarding flow je uspješno izvršen | Pass |
+| S8-E2E-002 | End-to-end testiranje | Admin kreira korisnika i dodjeljuje rolu | Prijaviti se kao admin, kreirati korisnika, dodijeliti rolu, provjeriti prikaz u listi | Korisnik je vidljiv u user management listi sa ispravnom rolom | Korisnik je kreiran i rola je prikazana | Pass |
+| S8-E2E-003 | End-to-end testiranje | Login/logout flow za kreiranog korisnika | Kreirani korisnik se prijavi, zatim izvrši logout | Korisnik može pristupiti dozvoljenim dijelovima i nakon logouta gubi pristup | Login/logout flow radi očekivano | Pass |
+| S8-E2E-004 | End-to-end testiranje | Role-based UI i API ponašanje | Prijaviti se sa različitim rolama i pokušati dozvoljene/nedozvoljene akcije | Korisnik vidi i izvršava samo akcije koje odgovaraju njegovoj roli | Role-based ponašanje je potvrđeno kroz UI i API | Pass |
+| S8-E2E-005 | End-to-end testiranje | Multi-tenant izolacija dokumenata | Kreirati dokumente u dvije firme i pokušati pristupiti dokumentu druge firme | Korisnik vidi samo dokumente svoje firme | Podaci su izolovani po firmi | Pass |
+| S8-E2E-006 | End-to-end testiranje | Multi-tenant izolacija korisnika | Admin jedne firme pregleda korisnike nakon što postoje korisnici druge firme | Lista prikazuje samo korisnike njegove firme | Korisnici drugih firmi nisu prikazani | Pass |
+| S8-E2E-007 | End-to-end testiranje | Upload i extraction za receipt dokument | Uploadati receipt, pokrenuti extraction, pregledati fields i potvrditi extraction | Dokument prolazi receipt parser flow i završava u `READY_FOR_APPROVAL` | Receipt flow je uspješno izvršen | Pass |
+| S8-E2E-008 | End-to-end testiranje | Upload i extraction za bank statement dokument | Uploadati bank statement, pokrenuti extraction, pregledati fields i potvrditi extraction | Dokument prolazi bank statement parser flow i završava u `READY_FOR_APPROVAL` | Bank statement flow je uspješno izvršen | Pass |
+| S8-E2E-009 | End-to-end testiranje | Upload i extraction za form dokument | Uploadati form, pokrenuti extraction, pregledati fields i potvrditi extraction | Dokument prolazi form parser flow i završava u `READY_FOR_APPROVAL` bez invoice-specific blokada | Form flow je uspješno izvršen | Pass |
+| S8-E2E-010 | End-to-end testiranje | Auto-classification visokog confidence-a | Uploadati dokument kao `OTHER`, classifier prepozna podržani tip sa dovoljnom sigurnošću, extraction se nastavlja odgovarajućim parserom | Korisnik vidi finalni tip, extraction rezultat i može nastaviti review/confirm flow | Auto-classification flow je uspješno izvršen | Pass |
+| S8-E2E-011 | End-to-end testiranje | Auto-classification sa manual review-om | Uploadati dokument kao `OTHER`, classifier nije siguran, dokument prelazi u `NEEDS_CLASSIFICATION_REVIEW`, korisnik ručno potvrdi tip i ponovo pokrene extraction | Prvi extraction je blokiran uz review poruku; nakon ručne potvrde extraction prolazi | Manual classification review flow je uspješno izvršen | Pass |
+| S8-E2E-012 | End-to-end testiranje | Type-aware validacija blokira nevalidan receipt | Pokrenuti receipt extraction bez validnog date aliasa i pokušati confirm | Confirm je blokiran, korisnik dobija validacionu poruku, status ostaje `EXTRACTED` | Receipt confirm je pravilno blokiran | Pass |
+| S8-E2E-013 | End-to-end testiranje | Type-aware validacija blokira nevalidan bank statement | Pokrenuti bank statement extraction bez identity/activity strukture ili sa nevalidnim numeričkim formatom | Confirm je blokiran uz odgovarajuću validacionu poruku | Bank statement confirm je pravilno blokiran | Pass |
+| S8-E2E-014 | End-to-end testiranje | Form dokument ne blokiraju invoice required pravila | Pokrenuti form extraction i confirmati bez invoice-specific polja | Confirm prolazi jer form nema stroga invoice required pravila | Form confirm prolazi bez pogrešne invoice validacije | Pass |
+| S8-E2E-015 | Regresiono testiranje | Upload flow iz Sprinta 5 nakon auth/multi-tenant izmjena | Prijavljeni korisnik uploaduje PDF/PNG/JPG dokument i provjerava listu/detalje/download | Upload, lista, detalji i download i dalje rade | Sprint 5 flow nije pokvaren | Pass |
+| S8-E2E-016 | Regresiono testiranje | OCR/extraction flow iz Sprinta 6 nakon novih procesora | Pokrenuti extraction nad invoice dokumentom i provjeriti rezultat | Postojeći invoice OCR flow i dalje radi | Sprint 6 extraction flow nije pokvaren | Pass |
+| S8-E2E-017 | Regresiono testiranje | Edit/confirm flow iz Sprinta 7 nakon type-aware validacije | Editovati extraction field, popuniti placeholder, pregledati low-confidence polja i potvrditi extraction | Existing edit/confirm flow i dalje radi za invoice dokumente | Sprint 7 edit/confirm flow nije pokvaren | Pass |
+| S8-E2E-018 | Regresiono testiranje | Error handling nakon Sprint 8 izmjena | Izazvati auth, upload, extraction, classification i validation greške | UI i API vraćaju kontrolisane poruke bez rušenja aplikacije | Error handling radi konzistentno kroz nove i stare tokove | Pass |
+
+---
+
+## 8.6 Deployment smoke testiranje
+
+| ID testa | Vrsta testiranja | Okruženje | Funkcionalnost | Koraci | Očekivani ishod | Stvarni ishod | Status |
+|---|---|---|---|---|---|---|---|
+| S8-DEP-001 | Deployment smoke testiranje | Lokalno/Server | Pokretanje baze nakon Sprint 8 izmjena | Pokrenuti PostgreSQL container i provjeriti schema update/migraciju | Baza se pokreće i podržava nove enum/check vrijednosti za document type i status | Baza se uspješno pokrenula i prihvata nove tipove/status dokumenta | Pass |
+| S8-DEP-002 | Deployment smoke testiranje | Lokalno/Server | Pokretanje backend containera nakon auth i document-processing izmjena | Pokrenuti backend container | Backend se pokreće bez greške | Backend container je uspješno pokrenut | Pass |
+| S8-DEP-003 | Deployment smoke testiranje | Lokalno/Server | Pokretanje frontend containera nakon Sprint 8 UI izmjena | Pokrenuti frontend container | Frontend je dostupan u browseru | Frontend container je uspješno pokrenut i aplikacija je dostupna | Pass |
+| S8-DEP-004 | Deployment smoke testiranje | Server | Provjera auth konfiguracije | Otvoriti deployanu aplikaciju, testirati login/logout i pristup zaštićenim rutama | Auth flow radi u deployanom okruženju | Login/logout i route protection rade na serveru | Pass |
+| S8-DEP-005 | Deployment smoke testiranje | Server | Provjera registration flow-a | Registrovati testnu firmu i admin korisnika u deployanom okruženju | Firma i admin nalog se kreiraju bez server grešaka | Registration flow radi na serveru | Pass |
+| S8-DEP-006 | Deployment smoke testiranje | Server | Provjera user management flow-a | Kao admin kreirati korisnika, dodijeliti rolu i provjeriti listu | User management funkcionalnosti rade u deployanom okruženju | Korisnik i rola su uspješno kreirani/prikazani | Pass |
+| S8-DEP-007 | Deployment smoke testiranje | Server | Provjera multi-tenant izolacije u deployanom okruženju | Testirati pristup dokumentima/korisnicima iz različitih firmi | Podaci su izolovani po firmi | Korisnik vidi samo podatke svoje firme | Pass |
+| S8-DEP-008 | Deployment smoke testiranje | Server | Provjera novih Document AI env varijabli | Provjeriti da backend container ima konfiguraciju za invoice, receipt, bank statement, form i classifier processor ID | Svi potrebni processor ID-jevi su dostupni aplikaciji | Backend prepoznaje sve nove processor ID konfiguracije | Pass |
+| S8-DEP-009 | Deployment smoke testiranje | Server | Direct extraction za novi tip dokumenta | Uploadati receipt/bank/form dokument i pokrenuti extraction | Backend koristi odgovarajući processor i vraća rezultat ili kontrolisanu OCR grešku | Novi processor routing radi u deployanom okruženju | Pass |
+| S8-DEP-010 | Deployment smoke testiranje | Server | Auto-classification flow | Uploadati dokument kao Other/Auto classify i pokrenuti extraction | Classifier se poziva i sistem nastavlja extraction ili traži manual review | Auto-classification flow radi u deployanom okruženju | Pass |
+| S8-DEP-011 | Deployment smoke testiranje | Server | Manual classification review flow | Izazvati `NEEDS_CLASSIFICATION_REVIEW`, ručno potvrditi tip i ponovo pokrenuti extraction | Dokument se vraća u `UPLOADED`, zatim se extraction može pokrenuti | Manual classification flow radi na serveru | Pass |
+| S8-DEP-012 | Deployment smoke testiranje | Server | Type-aware confirm validation | Potvrditi receipt, bank statement i form extraction flow u deployanom okruženju | Validacija se primjenjuje prema tipu dokumenta | Type-aware validacija radi na serveru | Pass |
+| S8-DEP-013 | Deployment smoke testiranje | Server | Regresiona provjera upload storage-a | Uploadati dokument nakon Sprint 8 deploya i provjeriti da se fajl sprema na server storage | Fajl se sprema na očekivanu lokaciju | Upload storage i dalje radi nakon Sprint 8 izmjena | Pass |
+| S8-DEP-014 | Deployment smoke testiranje | Server | Regresiona provjera extraction/edit/confirm flow-a | Pokrenuti postojeći invoice flow iz prethodnih sprintova | Stari extraction/edit/confirm flow i dalje radi | Nije pronađena regresija u postojećem invoice flow-u | Pass |
+| S8-DEP-015 | Deployment smoke testiranje | Server | Provjera frontend-backend komunikacije nakon deploya | Kroz UI izvršiti registration/login/upload/extraction/manual classification akcije | Frontend uspješno komunicira sa backendom za nove i stare funkcionalnosti | FE-BE komunikacija je potvrđena u deployanom okruženju | Pass |
+
+---
+
+## Zaključak testiranja
+
+Tokom Sprinta 8 testirane su funkcionalnosti vezane za autentifikaciju, autorizaciju, organizacijski model, korisnike i role, multi-tenant izolaciju, dashboard i prošireni tok obrade dokumenata.
+
+Zaključak:
+
+- Testirana je registracija firme i kreiranje prvog administratorskog naloga.
+- Testirani su login, logout i zaštita zaštićenih ruta/endpointa.
+- Testirano je kreiranje korisnika unutar firme, dodjela i promjena rola, pregled korisnika i reset lozinke.
+- Testirana je role-based kontrola pristupa na UI i backend/API nivou.
+- Testirana je multi-tenant izolacija korisnika i dokumenata po firmi.
+- Testirani su novi tipovi dokumenata: `INVOICE`, `RECEIPT`, `BANK_STATEMENT`, `FORM` i `OTHER`.
+- Testirano je da se interni/nepodržani tipovi kao `UNKNOWN` ili nepoznati tipovi ne mogu koristiti kroz javni upload/manual classification flow.
+- Testiran je routing ekstrakcije na odgovarajući Document AI processor prema tipu dokumenta.
+- Testiran je auto-classification flow za dokumente uploadane kao `OTHER`.
+- Testirani su scenariji u kojima classifier prepoznaje podržan tip, vraća `OTHER`, ima nizak confidence ili dođe do greške classifier procesora.
+- Testiran je status `NEEDS_CLASSIFICATION_REVIEW` i ručna potvrda tipa dokumenta.
+- Testirana je type-aware validacija ekstraktovanih polja za invoice, receipt, bank statement i form dokumente.
+- Testirano je da `FORM` dokumenti nisu pogrešno blokirani invoice-specific required pravilima.
+- Testiran je frontend prikaz novih tipova dokumenata, classification metadata, review statusa i validacionih poruka.
+- Izvršeno je manualno API testiranje kroz Swagger/Postman za auth, user management, document upload, extraction, classification i confirm flow.
+- Izvršeno je end-to-end testiranje kompletnog toka od registracije firme do obrade dokumenata.
+- Izvršeno je regresiono testiranje funkcionalnosti iz Sprintova 5, 6 i 7.
+- Izvršeno je deployment smoke testiranje backend/frontend containera, baze, auth konfiguracije, novih processor ID konfiguracija i kompletnih korisničkih tokova u deployanom okruženju.
+- Svi evidentirani testovi za Sprint 8 imaju status `Pass`.
