@@ -26,7 +26,8 @@ public class CompanyValidation {
             Pattern.compile("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$");
     private static final Pattern PERSON_NAME_PATTERN =
             Pattern.compile("^[A-Za-zČĆŽŠĐčćžšđ]+([ '-][A-Za-zČĆŽŠĐčćžšđ]+)*$");
-    private static final Pattern ADDRESS_HAS_NUMBER_PATTERN = Pattern.compile(".*\\d.*");
+    private static final Pattern ADDRESS_HAS_NUMBER_OR_BB_PATTERN =
+            Pattern.compile(".*(\\d+|\\bb\\.?\\s*b\\.?\\b).*", Pattern.CASE_INSENSITIVE);
     private final CompanyDAO companyDAO;
     private final MessageSource messageSource;
 
@@ -77,7 +78,9 @@ public class CompanyValidation {
         }
 
         if (StringUtils.hasText(request.getAddress())
-                && !ADDRESS_HAS_NUMBER_PATTERN.matcher(request.getAddress().trim()).matches()) {
+                && !ADDRESS_HAS_NUMBER_OR_BB_PATTERN
+                        .matcher(request.getAddress().trim())
+                        .matches()) {
             addError(
                     errors,
                     "COMPANY_ADDRESS_NUMBER_REQUIRED",
@@ -127,7 +130,7 @@ public class CompanyValidation {
         }
 
         if (StringUtils.hasText(request.getCompanyAddress())
-                && !ADDRESS_HAS_NUMBER_PATTERN
+                && !ADDRESS_HAS_NUMBER_OR_BB_PATTERN
                         .matcher(request.getCompanyAddress().trim())
                         .matches()) {
             addError(
