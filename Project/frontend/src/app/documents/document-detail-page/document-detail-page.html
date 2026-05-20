@@ -222,6 +222,16 @@
                 {{ confirmingExtraction ? 'Confirming...' : 'Confirm extraction' }}
               </button>
             </div>
+
+              @if (hasUnreviewedDateFields()) {
+                <div class="date-format-notice">
+                  <strong>Check extracted date fields:</strong>
+                  <span>
+                    Dates should be in European format: DD.MM.YYYY or DD/MM/YYYY.
+                    If OCR returns an ambiguous date, verify that the day and month are correct before confirming extraction.
+                  </span>
+                </div>
+              }
           } @else if (document.documentStatus === 'READY_FOR_APPROVAL') {
             <button
               type="button"

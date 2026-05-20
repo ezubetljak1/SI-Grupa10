@@ -751,11 +751,26 @@ export class DocumentDetailPageComponent implements OnInit {
   }
 
   getDateFormatHint(): string {
-    return 'Supported format: DD.MM.YYYY or YYYY-MM-DD or DD/MM/YYYY';
+    return 'Supported format: DD.MM.YYYY or DD/MM/YYYY. Ambiguous US format MM/DD/YYYY is not supported.';
   }
 
   isDateFieldRequiringReview(field: ExtractionField): boolean {
-    return this.isDateField(field) && !field.corrected;
+    return (
+      this.isDateField(field) &&
+      this.isLowConfidenceField(field) &&
+      !field.corrected &&
+      this.shouldLowConfidenceBlockConfirmation(field)
+    );
+  }
+
+  hasDateFields(): boolean {
+    return this.extractionFields.some((field) => this.isDateField(field));
+  }
+
+  hasUnreviewedDateFields(): boolean {
+    return this.extractionFields.some(
+      (field) => this.isDateField(field) && !field.corrected
+    );
   }
 
   private resolveDownloadFileName(doc: DocflowDocument): string {

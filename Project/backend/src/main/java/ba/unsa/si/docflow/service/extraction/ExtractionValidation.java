@@ -115,7 +115,6 @@ public class ExtractionValidation {
 
     private static final List<DateTimeFormatter> ACCEPTED_DATE_FORMATS =
             List.of(
-                    DateTimeFormatter.ISO_LOCAL_DATE.withResolverStyle(ResolverStyle.STRICT),
                     DateTimeFormatter.ofPattern("dd.MM.uuuu")
                             .withResolverStyle(ResolverStyle.STRICT),
                     DateTimeFormatter.ofPattern("dd/MM/uuuu")
@@ -364,19 +363,6 @@ public class ExtractionValidation {
                 continue;
             }
 
-            String normalizedFieldName = normalizeFieldName(field.getFieldName());
-
-            if (isDateField(normalizedFieldName)) {
-                if (!Boolean.TRUE.equals(field.getCorrected())) {
-                    errors.add(
-                            "EXTRACTION_FIELD_REQUIRES_REVIEW",
-                            "Date field '"
-                                    + field.getFieldName()
-                                    + "' must be manually reviewed before confirmation. Supported format: DD.MM.YYYY");
-                }
-                continue;
-            }
-
             if (!isLowConfidence(field) || Boolean.TRUE.equals(field.getCorrected())) {
                 continue;
             }
@@ -458,7 +444,7 @@ public class ExtractionValidation {
                 "EXTRACTION_FIELD_DATE_FORMAT_INVALID",
                 "Field '"
                         + fieldName
-                        + "' must be a valid date. Supported formats are ISO YYYY-MM-DD or European DD.MM.YYYY / DD/MM/YYYY. Ambiguous US format MM/DD/YYYY is not supported.");
+                        + "' must be a valid European date. Supported formats are DD.MM.YYYY or DD/MM/YYYY. Ambiguous US format MM/DD/YYYY is not supported.");
     }
 
     private void validateNumericFormat(String fieldName, String value, ValidationErrors errors) {
