@@ -16,6 +16,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+
 @Service
 @RequiredArgsConstructor
 public class UserCompanyManagementService {
@@ -26,10 +28,23 @@ public class UserCompanyManagementService {
     private final UserService userService;
     private final UserValidation userValidation;
 
-    @Transactional(readOnly = true)
+    @Transactional
     public PagedResponse<UserResponse> findAll(UserFilterRequest filter) {
         currentUserService.requireAdmin();
-        return userService.findAll(filter, currentUserService.getCurrentCompanyId());
+
+        Long companyId = currentUserService.getCurrentCompanyId();
+        PagedResponse<UserResponse> response = userService.findAll(filter, companyId);
+
+        if (response.getPayload() != null) {
+            List<UserResponse> syncedUsers =
+                    response.getPayload().stream()
+                            .map(user -> syncPasswordChangeStatus(user, companyId))
+                            .toList();
+
+            response.setPayload(syncedUsers);
+        }
+
+        return response;
     }
 
     @Transactional(readOnly = true)
@@ -38,22 +53,13 @@ public class UserCompanyManagementService {
         return userService.findByIdAndCompanyId(id, currentUserService.getCurrentCompanyId());
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public UserResponse currentUserProfile() {
         String keycloakUserId = currentUserService.getCurrentKeycloakUserId();
         UserResponse response = userService.findResponseByKeycloakUserId(keycloakUserId);
 
-        // If local status is pending password change but Keycloak no longer requires it,
-        // update local account status to ACTIVE to keep frontend in sync.
-        if (AccountStatus.PENDING_PASSWORD_CHANGE.name().equals(response.getAccountStatus())) {
-            boolean required = keycloakAdminService.isPasswordUpdateRequired(keycloakUserId);
-            if (!required) {
-                Long companyId = currentUserService.getCurrentCompanyId();
-                response = userService.changeStatus(response.getId(), AccountStatus.ACTIVE, companyId);
-            }
-        }
-
-        return response;
+        Long companyId = currentUserService.getCurrentCompanyId();
+        return syncPasswordChangeStatus(response, companyId);
     }
 
     @Transactional
@@ -104,11 +110,30 @@ public class UserCompanyManagementService {
     @Transactional
     public ApiResponse<String> resetPassword(Long id) {
         currentUserService.requireAdmin();
+
         Long companyId = currentUserService.getCurrentCompanyId();
         UserEntity user = userValidation.validateExistsInCompany(id, companyId);
 
         String temporaryPassword = keycloakAdminService.resetUserPassword(user.getKeycloakUserId());
 
+        userService.changeStatus(id, AccountStatus.PENDING_PASSWORD_CHANGE, companyId);
+
         return new ApiResponse<>("OK", temporaryPassword);
+    }
+
+    private UserResponse syncPasswordChangeStatus(UserResponse response, Long companyId) {
+        if (!AccountStatus.PENDING_PASSWORD_CHANGE.name().equals(response.getAccountStatus())) {
+            return response;
+        }
+
+        UserEntity user = userValidation.validateExistsInCompany(response.getId(), companyId);
+        boolean passwordUpdateRequired =
+                keycloakAdminService.isPasswordUpdateRequired(user.getKeycloakUserId());
+
+        if (passwordUpdateRequired) {
+            return response;
+        }
+
+        return userService.changeStatus(user.getId(), AccountStatus.ACTIVE, companyId);
     }
 }

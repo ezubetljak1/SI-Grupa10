@@ -134,14 +134,14 @@ public class KeycloakAdminService {
             user.setEnabled(enabled);
             realm().users().get(keycloakUserId).update(user);
         } catch (Exception ex) {
-            throw new KeycloakIntegrationException(
-                    "Failed to update user status in Keycloak.", ex);
+            throw new KeycloakIntegrationException("Failed to update user status in Keycloak.", ex);
         }
     }
 
     public String resetUserPassword(String keycloakUserId) {
         if (!StringUtils.hasText(keycloakUserId)) {
-            throw new KeycloakIntegrationException("Keycloak user id is required for password reset.");
+            throw new KeycloakIntegrationException(
+                    "Keycloak user id is required for password reset.");
         }
 
         try {
@@ -210,21 +210,13 @@ public class KeycloakAdminService {
             return;
         }
 
-        String body = safeReadBody(response);
-        throw new KeycloakIntegrationException(
-                "Keycloak "
-                        + operation
-                        + " failed with HTTP "
-                        + status
-                        + (StringUtils.hasText(body) ? ": " + body : ""));
-    }
-
-    private String safeReadBody(Response response) {
-        try {
-            return response.hasEntity() ? response.readEntity(String.class) : "";
-        } catch (Exception ex) {
-            return "";
+        if (status == 409 && "create user".equals(operation)) {
+            throw new KeycloakIntegrationException(
+                    "A user with this email already exists in the identity provider.");
         }
+
+        throw new KeycloakIntegrationException(
+                "Keycloak operation failed. Please try again or contact support.");
     }
 
     private String buildGroupName(String companyName) {

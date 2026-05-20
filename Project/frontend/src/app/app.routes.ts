@@ -13,7 +13,7 @@ import { roleGuard } from './auth/services/role.guard';
 export const routes: Routes = [
     {
         path: '',
-        redirectTo: 'documents',
+        redirectTo: 'register-company',
         pathMatch: 'full'
     },
     {

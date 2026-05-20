@@ -2,6 +2,8 @@ package ba.unsa.si.docflow.dao;
 
 import ba.unsa.si.docflow.dto.user.UserFilterRequest;
 import ba.unsa.si.docflow.entity.UserEntity;
+import ba.unsa.si.docflow.entity.enums.AccountStatus;
+import ba.unsa.si.docflow.entity.enums.RoleName;
 
 import jakarta.persistence.TypedQuery;
 import jakarta.persistence.criteria.CriteriaBuilder;
@@ -114,5 +116,23 @@ public class UserDAO extends AbstractDAO<UserEntity, Long> {
         addEqualIfNotNull(predicates, cb, root.get("accountStatus"), request.getAccountStatus());
 
         return predicates;
+    }
+
+    public long countActiveAdminsByCompanyId(Long companyId) {
+        String jpql = """
+        SELECT COUNT(u)
+        FROM UserEntity u, RoleEntity r
+        WHERE u.roleId = r.id
+          AND u.companyId = :companyId
+          AND r.name = :adminRole
+          AND u.accountStatus <> :inactiveStatus
+    """;
+
+        return entityManager
+                .createQuery(jpql, Long.class)
+                .setParameter("companyId", companyId)
+                .setParameter("adminRole", RoleName.ADMIN)
+                .setParameter("inactiveStatus", AccountStatus.INACTIVE)
+                .getSingleResult();
     }
 }

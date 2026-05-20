@@ -23,6 +23,8 @@ public class UserValidation {
 
     private static final Pattern EMAIL_PATTERN =
             Pattern.compile("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$");
+    private static final Pattern PERSON_NAME_PATTERN =
+            Pattern.compile("^[A-Za-zČĆŽŠĐčćžšđ]+([ '-][A-Za-zČĆŽŠĐčćžšđ]+)*$");
 
     private final UserDAO userDAO;
     private final CompanyValidation companyValidation;
@@ -84,16 +86,35 @@ public class UserValidation {
         }
 
         if (!StringUtils.hasText(request.getKeycloakUserId())) {
-            addError(errors, "USER_KEYCLOAK_ID_REQUIRED", "user.validation.keycloak_user_id.required");
-        } else if (userDAO.findByKeycloakUserId(request.getKeycloakUserId()) != null) {
             addError(
                     errors,
-                    "USER_KEYCLOAK_ID_EXISTS",
-                    "user.validation.keycloak_user_id.exists");
+                    "USER_KEYCLOAK_ID_REQUIRED",
+                    "user.validation.keycloak_user_id.required");
+        } else if (userDAO.findByKeycloakUserId(request.getKeycloakUserId()) != null) {
+            addError(errors, "USER_KEYCLOAK_ID_EXISTS", "user.validation.keycloak_user_id.exists");
         }
+
+        validatePersonName(
+                errors,
+                request.getFirstName(),
+                "COMPANY_ADMIN_FIRST_NAME_INVALID",
+                "company.validation.admin_first_name.invalid");
+
+        validatePersonName(
+                errors,
+                request.getLastName(),
+                "COMPANY_ADMIN_LAST_NAME_INVALID",
+                "company.validation.admin_last_name.invalid");
 
         if (errors.hasErrors()) {
             throw new ApiValidationException(errors);
+        }
+    }
+
+    private void validatePersonName(
+            ValidationErrors errors, String value, String code, String messageKey) {
+        if (StringUtils.hasText(value) && !PERSON_NAME_PATTERN.matcher(value.trim()).matches()) {
+            addError(errors, code, messageKey);
         }
     }
 
