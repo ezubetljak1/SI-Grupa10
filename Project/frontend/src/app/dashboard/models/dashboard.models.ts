@@ -6,8 +6,6 @@ export interface DocumentsByResponsibleUser {
 
 export interface DashboardResponse {
   totalDocuments: number;
-
   documentsByStatus: Record<string, number>;
-
   documentsByResponsibleUser: DocumentsByResponsibleUser[];
 }
