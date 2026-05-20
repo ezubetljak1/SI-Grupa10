@@ -250,4 +250,22 @@ Napomena: Ovaj AI Usage Log je živi dokument i ažurira se kroz sprintove.
 | Šta je tim izmijenio                       | Prilagođeni su repository queryji postojećim entity nazivima i strukturi baze, korigovani frontend import pathovi i Angular struktura foldera, uklonjeno korištenje environment fajlova zbog postojeće proxy konfiguracije projekta, prilagođen ApiResponse format postojećem backend response standardu, te usklađeni security zahtjevi sa postojećom Keycloak konfiguracijom i lokalnim development okruženjem.                                 |
 | Šta je tim odbacio                         | Nepotrebno refaktorisanje postojećih servisa i komponenti, uvođenje novih biblioteka ili dashboard frameworka, generisanje dodatnih environment konfiguracija koje projekat trenutno ne koristi, kreiranje zasebnog frontend login sistema mimo postojećeg Keycloak pristupa, kao i izmjene funkcionalnosti koje nisu direktno povezane sa Sprint 8 dashboard zadacima.                                                                           |
 | Rizici, problemi ili greške koje su uočene | Uočeni su problemi sa Keycloak konfiguracijom i nedostajućim frontend clientom za JWT autentifikaciju. Postojao je rizik da CurrentUserService vrati null companyId zbog nepotpune integracije lokalnih User modela i Keycloak korisnika. Također su identifikovani potencijalni problemi sa role mapiranjem i autorizacijom ukoliko JWT token ne sadrži očekivane role claimove.                                                                 |
-| Ko je koristio alat                        | Irhad Žiga                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Ko je koristio alat                        | Irhad Žiga                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+
+---
+
+##Unos #15
+
+| Polje | Detalji |
+|---|---|
+| Datum | 20.05.2026 |
+| Sprint broj | Sprint 8 |
+| Alat koji je korišten | ChatGPT / Codex |
+| Svrha korištenja | Implementacija i provjera Član 6 dijela: frontend auth, register company i user management UI. |
+| Kratak opis zadatka ili upita | Alat je korišten za analizu postojećeg Sprint 8 koda, integraciju Keycloak login/logout flow-a u Angular frontend, izradu register company stranice, user management stranice i povezivanje sa postojećim backend endpointima. |
+| Šta je AI predložio ili generisao | Predložena je struktura frontend auth modula sa `AuthService`, `authGuard`, `roleGuard`, `authInterceptor`, Keycloak konfiguracijom, `RegisterCompanyPage` i `UsersPage`. Predloženo je i dodavanje backend endpointa `GET /api/company/users/me` za dohvat trenutno prijavljenog korisnika. |
+| Šta je tim prihvatio | Prihvaćen je pristup da se koristi `keycloak-js`, da se auth state i token dodaju kroz Angular servis/interceptor, da se meni i akcije skrivaju po rolama, te da se user management radi preko postojećih backend user endpointa. |
+| Šta je tim izmijenio | Implementacija je prilagođena postojećem Angular standalone patternu, postojećem `ApiResponse`/`PagedResponse` formatu i postojećim rolama `ADMIN`, `OPERATOR`, `APPROVER`, `MANAGER`. Dodan je prikaz privremene šifre nakon kreiranja/resetovanja korisnika radi lakšeg testiranja i prezentacije. |
+| Šta je tim odbacio | Odbijena je ideja da se `Register company` dodaje na Keycloak login ekran, jer Keycloak služi samo za autentifikaciju, dok registracija firme pripada Angular aplikaciji. Također nije mijenjan osnovni Keycloak theme. |
+| Rizici, problemi ili greške koje su uočene | Uočeno je da `MANAGER` vidi upload dugmad iako nema pravo upload-a; to je ispravljeno sakrivanjem upload akcija za role koje nisu `ADMIN` ili `OPERATOR`. Uočeno je i da role guard može prerano provjeriti role prije dohvaćanja profila; guard je dopunjen da učita current user profil prije provjere role. |
+| Ko je koristio alat | Muhamed Hatunic |
