@@ -34,4 +34,21 @@ public class ExtractionDAO extends AbstractDAO<ExtractionEntity, Long> {
             entityManager.flush();
         }
     }
+
+    public ExtractionEntity findByIdWithDocument(Long extractionId) {
+        String jpql =
+                """
+                SELECT e
+                FROM ExtractionEntity e
+                JOIN FETCH e.document
+                WHERE e.id = :extractionId
+                """;
+
+        return entityManager
+                .createQuery(jpql, ExtractionEntity.class)
+                .setParameter("extractionId", extractionId)
+                .getResultStream()
+                .findFirst()
+                .orElse(null);
+    }
 }

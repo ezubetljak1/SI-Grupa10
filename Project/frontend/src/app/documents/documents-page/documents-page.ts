@@ -12,8 +12,9 @@ import {
   StatusBadgeComponent,
   UiCardComponent
 } from '../../shared/components';
-import { DocflowDocument } from '../models/document.models';
+import { DocflowDocument, DOCUMENT_TYPE_OPTIONS } from '../models/document.models';
 import { ToastrService } from 'ngx-toastr';
+import { AuthService } from '../../auth/services/auth.service';
 
 @Component({
   selector: 'app-documents-page',
@@ -33,12 +34,34 @@ import { ToastrService } from 'ngx-toastr';
 export class DocumentsPageComponent implements OnInit {
   private readonly documentApiService = inject(DocumentApiService);
   private readonly toastr = inject(ToastrService);
+  private readonly authService = inject(AuthService);
 
   documents: DocflowDocument[] = [];
   errors: string[] = [];
   listLoading = false;
 
   confirmingDeleteId: number | null = null;
+
+  readonly documentTypeOptions = DOCUMENT_TYPE_OPTIONS;
+
+  get canUploadDocuments(): boolean {
+    return this.authService.hasRole(['ADMIN', 'OPERATOR']);
+  }
+
+  formatDocumentTypeLabel(documentType: string | null | undefined): string {
+    if (!documentType) {
+      return '—';
+    }
+
+    return (
+      this.documentTypeOptions.find((type) => type.value === documentType)?.label ??
+      documentType.replaceAll('_', ' ')
+    );
+  }
+
+  needsClassificationReview(document: DocflowDocument): boolean {
+    return document.documentStatus === 'NEEDS_CLASSIFICATION_REVIEW';
+  }
 
   ngOnInit(): void {
     this.loadDocuments();

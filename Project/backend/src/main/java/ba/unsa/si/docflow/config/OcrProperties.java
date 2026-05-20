@@ -12,7 +12,18 @@ import org.springframework.stereotype.Component;
 @ConfigurationProperties(prefix = "docflow.ocr")
 public class OcrProperties {
     private String projectId;
+
     private String location;
-    private String processorId;
+
     private String endpoint;
+
+    private String classifierProcessorId;
+
+    private String invoiceProcessorId;
+
+    private String receiptProcessorId;
+
+    private String bankStatementProcessorId;
+
+    private String formProcessorId;
 }

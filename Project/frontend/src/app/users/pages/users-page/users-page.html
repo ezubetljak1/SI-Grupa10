@@ -1,0 +1,240 @@
+<section class="users-page">
+  <div class="page-top">
+    <app-page-header
+      eyebrow="Company administration"
+      title="Company Users"
+      description="Create team accounts, manage roles, reset temporary passwords and keep account access under control."
+    ></app-page-header>
+
+    <div class="header-actions">
+      <button class="btn btn-secondary" type="button" (click)="loadUsers()" [disabled]="loading">
+        {{ loading ? 'Refreshing...' : 'Refresh' }}
+      </button>
+    </div>
+  </div>
+
+  <section class="metrics-grid" aria-label="User statistics">
+    <article class="metric-card">
+      <span class="metric-label">Total users</span>
+      <strong>{{ totalUsers }}</strong>
+      <small>All users in this company</small>
+    </article>
+
+    <article class="metric-card metric-card--success">
+      <span class="metric-label">Active</span>
+      <strong>{{ activeUsers }}</strong>
+      <small>Ready to use the system</small>
+    </article>
+
+    <article class="metric-card metric-card--warning">
+      <span class="metric-label">Pending password</span>
+      <strong>{{ pendingUsers }}</strong>
+      <small>Must update temporary password</small>
+    </article>
+
+    <article class="metric-card metric-card--info">
+      <span class="metric-label">Admins</span>
+      <strong>{{ adminUsers }}</strong>
+      <small>Company administrators</small>
+    </article>
+  </section>
+
+  <app-ui-card
+    title="Create user"
+    subtitle="Create a real company user account and share the generated temporary password."
+  >
+    <form class="create-form" (ngSubmit)="createUser()">
+      <div class="form-grid">
+        <label class="field">
+          <span>First name</span>
+          <input class="input" type="text" name="firstName" [(ngModel)]="newUser.firstName" autocomplete="given-name" placeholder="E.g. John" />
+        </label>
+
+        <label class="field">
+          <span>Last name</span>
+          <input class="input" type="text" name="lastName" [(ngModel)]="newUser.lastName" autocomplete="family-name" placeholder="E.g. Doe" />
+        </label>
+
+        <label class="field field--wide">
+          <span>Email</span>
+          <input class="input" type="email" name="email" [(ngModel)]="newUser.email" autocomplete="email" placeholder="user@company.com" />
+        </label>
+
+        <label class="field">
+          <span>Role</span>
+          <select class="select" name="role" [(ngModel)]="newUser.role">
+            @for (role of roleOptions; track role.value) {
+              <option [ngValue]="role.value">{{ role.label }}</option>
+            }
+          </select>
+        </label>
+      </div>
+
+      <div class="role-help">
+        @for (role of roleOptions; track role.value) {
+          <div class="role-help-item" [class.role-help-item--active]="newUser.role === role.value">
+            <strong>{{ role.label }}</strong>
+            <span>{{ role.description }}</span>
+          </div>
+        }
+      </div>
+
+      <div class="form-actions">
+        <button class="btn btn-primary" type="submit" [disabled]="saving">
+          {{ saving ? 'Creating...' : 'Add user' }}
+        </button>
+      </div>
+    </form>
+
+    @if (passwordResult) {
+      <div class="password-result">
+        <div>
+          <span>{{ passwordResult.action === 'created' ? 'Temporary password generated' : 'Password reset completed' }}</span>
+          <strong>{{ passwordResult.email }}</strong>
+        </div>
+
+        <button class="password-code" type="button" (click)="copyTemporaryPassword()">
+          <code>{{ passwordResult.temporaryPassword }}</code>
+          <span>Copy</span>
+        </button>
+
+        <p>The user must sign in with this password and update it on first login.</p>
+      </div>
+    }
+  </app-ui-card>
+
+  <app-ui-card title="User directory" subtitle="Search users, review account status and manage role-based access.">
+    <div class="toolbar">
+      <label class="field search-field">
+        <span>Search</span>
+        <input class="input" type="search" name="search" [(ngModel)]="search" (keyup.enter)="loadUsers()" placeholder="Search by name or email" />
+      </label>
+
+      <div class="toolbar-actions">
+        <button class="btn btn-secondary" type="button" (click)="loadUsers()" [disabled]="loading">Search</button>
+
+        @if (search) {
+          <button class="btn btn-muted" type="button" (click)="clearSearch()">Clear</button>
+        }
+      </div>
+    </div>
+
+    @if (loading) {
+      <div class="loading-state">
+        <span class="loading-spinner" aria-hidden="true"></span>
+        <span>Loading users...</span>
+      </div>
+    }
+
+    @if (!loading && users.length === 0) {
+      <app-empty-state title="No users found" description="Create the first company user or adjust your search criteria."></app-empty-state>
+    }
+
+    @if (!loading && users.length > 0) {
+      <div class="table-wrap">
+        <table class="users-table">
+          <thead>
+            <tr>
+              <th>User</th>
+              <th>Role</th>
+              <th>Status</th>
+              <th class="actions-heading">Actions</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            @for (user of users; track user.id) {
+              <tr>
+                <td>
+                  <div class="user-cell">
+                    <div class="avatar" aria-hidden="true">{{ getInitials(user) }}</div>
+                    <div class="user-main">
+                      <div class="user-title-row">
+                        <strong>{{ fullName(user) }}</strong>
+                        @if (isCurrentUser(user)) {
+                          <span class="you-badge">You</span>
+                        }
+                      </div>
+                      <span>{{ user.email }}</span>
+                    </div>
+                  </div>
+                </td>
+
+                <td>
+                  <select class="select select--compact" [ngModel]="user.role" (ngModelChange)="changeRole(user, $event)" [disabled]="isBusy(user) || isCurrentUser(user)">
+                    @for (role of roleOptions; track role.value) {
+                      <option [ngValue]="role.value">{{ role.label }}</option>
+                    }
+                  </select>
+                </td>
+
+                <td>
+                  <span class="status-pill" [ngClass]="statusClass(user.accountStatus)">
+                    {{ statusLabel(user.accountStatus) }}
+                  </span>
+                </td>
+
+                <td>
+                  <div class="row-actions">
+                    <button class="btn btn-small" type="button" [class.btn-danger]="user.accountStatus !== 'INACTIVE'" [class.btn-secondary]="user.accountStatus === 'INACTIVE'" (click)="changeStatus(user)" [disabled]="isBusy(user) || isCurrentUser(user)">
+                      {{ user.accountStatus === 'INACTIVE' ? 'Activate' : 'Deactivate' }}
+                    </button>
+
+                    <button class="btn btn-muted btn-small" type="button" (click)="resetPassword(user)" [disabled]="isBusy(user)">
+                      Reset password
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <div class="user-cards">
+        @for (user of users; track user.id) {
+          <article class="user-card">
+            <div class="user-card-header">
+              <div class="avatar" aria-hidden="true">{{ getInitials(user) }}</div>
+              <div>
+                <div class="user-title-row">
+                  <strong>{{ fullName(user) }}</strong>
+                  @if (isCurrentUser(user)) {
+                    <span class="you-badge">You</span>
+                  }
+                </div>
+                <span>{{ user.email }}</span>
+              </div>
+            </div>
+
+            <div class="user-card-meta">
+              <span class="status-pill" [ngClass]="statusClass(user.accountStatus)">{{ statusLabel(user.accountStatus) }}</span>
+              <span class="role-pill">{{ roleLabel(user.role) }}</span>
+            </div>
+
+            <div class="mobile-controls">
+              <label class="field">
+                <span>Role</span>
+                <select class="select" [ngModel]="user.role" (ngModelChange)="changeRole(user, $event)" [disabled]="isBusy(user) || isCurrentUser(user)">
+                  @for (role of roleOptions; track role.value) {
+                    <option [ngValue]="role.value">{{ role.label }}</option>
+                  }
+                </select>
+              </label>
+
+              <div class="row-actions">
+                <button class="btn btn-small" type="button" [class.btn-danger]="user.accountStatus !== 'INACTIVE'" [class.btn-secondary]="user.accountStatus === 'INACTIVE'" (click)="changeStatus(user)" [disabled]="isBusy(user) || isCurrentUser(user)">
+                  {{ user.accountStatus === 'INACTIVE' ? 'Activate' : 'Deactivate' }}
+                </button>
+
+                <button class="btn btn-muted btn-small" type="button" (click)="resetPassword(user)" [disabled]="isBusy(user)">
+                  Reset password
+                </button>
+              </div>
+            </div>
+          </article>
+        }
+      </div>
+    }
+  </app-ui-card>
+</section>

@@ -4,11 +4,13 @@ import { Observable } from 'rxjs';
 
 import { ApiResponse, PagedResponse } from '../models/api.models';
 import {
+  ConfirmDocumentTypeRequest,
   DocflowDocument,
   DocumentCreateRequest,
   DocumentFilterRequest,
   DocumentUpdateRequest,
   DocumentUploadRequest,
+  ManualClassificationDocumentType,
 } from '../documents/models/document.models';
 import { Extraction, ExtractionField } from '../documents/models/extraction.models';
 
@@ -38,8 +40,6 @@ export class DocumentApiService {
     const formData = new FormData();
 
     formData.append('file', request.file);
-    formData.append('companyId', String(request.companyId));
-    formData.append('createdByUserId', String(request.createdByUserId));
     formData.append('documentType', request.documentType);
 
     if (request.name?.trim()) {
@@ -55,8 +55,26 @@ export class DocumentApiService {
     });
   }
 
+  getPreview(id: number): Observable<Blob> {
+    return this.http.get(`${this.baseUrl}/${id}/preview`, {
+      responseType: 'blob',
+    });
+  }
+
   update(id: number, payload: DocumentUpdateRequest): Observable<ApiResponse<DocflowDocument>> {
     return this.http.put<ApiResponse<DocflowDocument>>(`${this.baseUrl}/${id}`, payload);
+  }
+
+  confirmDocumentType(
+    id: number,
+    documentType: ManualClassificationDocumentType
+  ): Observable<ApiResponse<DocflowDocument>> {
+    const payload: ConfirmDocumentTypeRequest = { documentType };
+
+    return this.http.patch<ApiResponse<DocflowDocument>>(
+      `${this.baseUrl}/${id}/classification`,
+      payload
+    );
   }
 
   delete(id: number): Observable<ApiResponse<string>> {

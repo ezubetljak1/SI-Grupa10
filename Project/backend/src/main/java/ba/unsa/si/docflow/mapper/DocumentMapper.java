@@ -30,6 +30,10 @@ public interface DocumentMapper {
 
     @Mapping(target = "documentType", expression = "java(entity.getDocumentType().name())")
     @Mapping(target = "documentStatus", expression = "java(entity.getDocumentStatus().name())")
+    @Mapping(
+            target = "detectedDocumentType",
+            expression =
+                    "java(entity.getDetectedDocumentType() != null ? entity.getDetectedDocumentType().name() : null)")
     Document entityToDto(DocumentEntity entity);
 
     @Mapping(

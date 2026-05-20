@@ -11,14 +11,20 @@ import ba.unsa.si.docflow.entity.ExtractionEntity;
 import ba.unsa.si.docflow.entity.ExtractionFieldEntity;
 import ba.unsa.si.docflow.entity.enums.DocumentStatus;
 import ba.unsa.si.docflow.entity.enums.DocumentType;
+import ba.unsa.si.docflow.entity.enums.RoleName;
 import ba.unsa.si.docflow.exception.ApiNotFoundException;
 import ba.unsa.si.docflow.exception.ApiValidationException;
+import ba.unsa.si.docflow.exception.DocumentClassificationReviewRequiredException;
 import ba.unsa.si.docflow.exception.ExtractionException;
 import ba.unsa.si.docflow.mapper.ExtractionMapper;
 import ba.unsa.si.docflow.response.ApiResponse;
 import ba.unsa.si.docflow.response.ValidationErrors;
+import ba.unsa.si.docflow.security.CurrentUserService;
 import ba.unsa.si.docflow.service.document.DocumentValidation;
+import ba.unsa.si.docflow.service.ocr.DocumentAiProcessorRouter;
+import ba.unsa.si.docflow.service.ocr.DocumentClassificationService;
 import ba.unsa.si.docflow.service.ocr.OcrProvider;
+import ba.unsa.si.docflow.service.ocr.model.DocumentClassificationResult;
 import ba.unsa.si.docflow.service.ocr.model.OcrExtractedField;
 import ba.unsa.si.docflow.service.ocr.model.OcrResult;
 import ba.unsa.si.docflow.service.storage.StorageService;
@@ -38,7 +44,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.time.format.ResolverStyle;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -67,6 +77,18 @@ public class ExtractionServiceImpl implements ExtractionService {
                     "qty");
 
     private static final BigDecimal AMOUNT_TOTAL_TOLERANCE = new BigDecimal("0.01");
+    private static final BigDecimal CLASSIFICATION_CONFIDENCE_THRESHOLD = new BigDecimal("0.70");
+    private static final DateTimeFormatter ISO_DATE_FORMATTER =
+            DateTimeFormatter.ISO_LOCAL_DATE.withResolverStyle(ResolverStyle.STRICT);
+
+    private static final DateTimeFormatter EUROPEAN_DOT_DATE_FORMATTER =
+            DateTimeFormatter.ofPattern("dd.MM.uuuu").withResolverStyle(ResolverStyle.STRICT);
+
+    private static final DateTimeFormatter EUROPEAN_SLASH_DATE_FORMATTER =
+            DateTimeFormatter.ofPattern("dd/MM/uuuu").withResolverStyle(ResolverStyle.STRICT);
+
+    private static final DateTimeFormatter EUROPEAN_OUTPUT_DATE_FORMATTER =
+            DateTimeFormatter.ofPattern("dd.MM.uuuu");
 
     private final ExtractionDAO extractionDAO;
     private final ExtractionFieldDAO extractionFieldDAO;
@@ -77,27 +99,41 @@ public class ExtractionServiceImpl implements ExtractionService {
     private final ExtractionMapper extractionMapper;
     private final ObjectMapper objectMapper;
     private final ExtractionValidation extractionValidation;
+    private final DocumentAiProcessorRouter processorRouter;
+    private final DocumentClassificationService documentClassificationService;
+    private final CurrentUserService currentUserService;
 
     @Override
     public ApiResponse<ExtractionResponse> process(Long documentId) {
-        DocumentEntity document = documentValidation.validateExists(documentId);
+        currentUserService.requireAnyRole(RoleName.ADMIN, RoleName.OPERATOR);
+        DocumentEntity document = requireDocumentInCurrentCompany(documentId);
 
         try {
             byte[] fileContent = readDocumentContent(document);
             String mimeType = resolveMimeType(document);
 
-            OcrResult ocrResult = ocrProvider.process(fileContent, mimeType);
-            DocumentType resolvedDocumentType = resolveDocumentType(ocrResult);
+            DocumentType documentType =
+                    resolveDocumentTypeForProcessing(document, fileContent, mimeType);
+            String processorId = processorRouter.resolveProcessorId(documentType);
 
-            ExtractionEntity extraction =
-                    upsertExtraction(document, ocrResult, resolvedDocumentType);
+            OcrResult ocrResult = ocrProvider.process(fileContent, mimeType, processorId);
+            ExtractionEntity extraction = upsertExtraction(document, ocrResult, documentType);
 
+            document.setDocumentType(documentType);
+            document.setProcessorIdUsed(processorId);
             document.setDocumentStatus(DocumentStatus.EXTRACTED);
-            document.setDocumentType(resolvedDocumentType);
             documentDAO.merge(document);
 
             ExtractionResponse response = extractionMapper.entityToDto(extraction);
             return new ApiResponse<>("OK", response);
+
+        } catch (ExtractionException exception) {
+            if (document.getDocumentStatus() != DocumentStatus.NEEDS_CLASSIFICATION_REVIEW) {
+                document.setDocumentStatus(DocumentStatus.PROCESSING_FAILED);
+                documentDAO.merge(document);
+            }
+
+            throw exception;
 
         } catch (Exception exception) {
             document.setDocumentStatus(DocumentStatus.PROCESSING_FAILED);
@@ -116,7 +152,9 @@ public class ExtractionServiceImpl implements ExtractionService {
     @Override
     @Transactional(readOnly = true)
     public ApiResponse<ExtractionResponse> findByDocumentId(Long documentId) {
-        documentValidation.validateExists(documentId);
+        currentUserService.requireAnyRole(
+                RoleName.ADMIN, RoleName.OPERATOR, RoleName.APPROVER, RoleName.MANAGER);
+        requireDocumentInCurrentCompany(documentId);
 
         ExtractionEntity extraction = extractionDAO.findByDocumentId(documentId);
 
@@ -131,7 +169,9 @@ public class ExtractionServiceImpl implements ExtractionService {
     @Override
     @Transactional(readOnly = true)
     public ApiResponse<List<ExtractionFieldResponse>> findFieldsByDocumentId(Long documentId) {
-        documentValidation.validateExists(documentId);
+        currentUserService.requireAnyRole(
+                RoleName.ADMIN, RoleName.OPERATOR, RoleName.APPROVER, RoleName.MANAGER);
+        requireDocumentInCurrentCompany(documentId);
 
         ExtractionEntity extraction = extractionDAO.findByDocumentId(documentId);
 
@@ -148,6 +188,9 @@ public class ExtractionServiceImpl implements ExtractionService {
     @Override
     @Transactional(readOnly = true)
     public ApiResponse<List<ExtractionFieldResponse>> findFieldsByExtractionId(Long extractionId) {
+        currentUserService.requireAnyRole(
+                RoleName.ADMIN, RoleName.OPERATOR, RoleName.APPROVER, RoleName.MANAGER);
+        requireExtractionInCurrentCompany(extractionId);
         List<ExtractionFieldEntity> fields = extractionFieldDAO.findByExtractionId(extractionId);
 
         if (fields.isEmpty()) {
@@ -160,7 +203,8 @@ public class ExtractionServiceImpl implements ExtractionService {
 
     @Override
     public ApiResponse<ExtractionResponse> confirmExtraction(Long documentId) {
-        DocumentEntity document = documentValidation.validateExists(documentId);
+        currentUserService.requireAnyRole(RoleName.ADMIN, RoleName.OPERATOR);
+        DocumentEntity document = requireDocumentInCurrentCompany(documentId);
 
         ExtractionEntity extraction = extractionDAO.findByDocumentId(documentId);
 
@@ -180,6 +224,8 @@ public class ExtractionServiceImpl implements ExtractionService {
     @Override
     public ApiResponse<ExtractionFieldResponse> updateField(
             Long extractionId, Long fieldId, UpdateExtractionFieldRequest request) {
+        currentUserService.requireAnyRole(RoleName.ADMIN, RoleName.OPERATOR);
+        requireExtractionInCurrentCompany(extractionId);
         ExtractionFieldEntity field =
                 extractionFieldDAO
                         .findByIdAndExtractionId(fieldId, extractionId)
@@ -200,6 +246,44 @@ public class ExtractionServiceImpl implements ExtractionService {
         ExtractionFieldEntity updatedField = extractionFieldDAO.merge(field);
 
         return new ApiResponse<>("OK", extractionMapper.fieldToDto(updatedField));
+    }
+
+    private DocumentType resolveDocumentTypeForProcessing(
+            DocumentEntity document, byte[] fileContent, String mimeType) {
+        DocumentType currentType = document.getDocumentType();
+
+        if (currentType != DocumentType.OTHER) {
+            document.setDetectedDocumentType(null);
+            document.setClassificationConfidence(null);
+            return currentType;
+        }
+
+        DocumentClassificationResult classification =
+                documentClassificationService.classify(fileContent, mimeType);
+
+        DocumentType detectedType = classification.documentType();
+        BigDecimal confidence =
+                classification.confidence() != null ? classification.confidence() : BigDecimal.ZERO;
+
+        document.setDetectedDocumentType(detectedType);
+        document.setClassificationConfidence(confidence);
+
+        boolean supportedDetectedType =
+                detectedType == DocumentType.INVOICE
+                        || detectedType == DocumentType.RECEIPT
+                        || detectedType == DocumentType.BANK_STATEMENT
+                        || detectedType == DocumentType.FORM;
+
+        if (!supportedDetectedType
+                || confidence.compareTo(CLASSIFICATION_CONFIDENCE_THRESHOLD) < 0) {
+            document.setDocumentStatus(DocumentStatus.NEEDS_CLASSIFICATION_REVIEW);
+            documentDAO.merge(document);
+
+            throw new DocumentClassificationReviewRequiredException(
+                    document.getId(), detectedType, confidence);
+        }
+
+        return detectedType;
     }
 
     private void validateUpdatedFieldValue(ExtractionFieldEntity field, String newValue) {
@@ -223,7 +307,7 @@ public class ExtractionServiceImpl implements ExtractionService {
 
         String trimmed = raw.trim();
         if (trimmed.contains(" ") || trimmed.contains("\t")) {
-            throw invalidAmount(fieldName, "Amount must not contain spaces.");
+            throw invalidAmount(fieldName, "Amount must not contain spaces or currency text.");
         }
 
         if (trimmed.contains(",") && trimmed.contains(".")) {
@@ -297,7 +381,7 @@ public class ExtractionServiceImpl implements ExtractionService {
             ValidationErrors errors = new ValidationErrors();
             errors.add(
                     "EXTRACTION_FIELD_AMOUNT_INCONSISTENT",
-                    "total_amount must equal net_amount + vat_amount (within 0.01).");
+                    "total_amount must match net_amount + vat_amount within 0.01 and cannot be smaller than its component amounts.");
             throw new ApiValidationException(errors);
         }
     }
@@ -309,7 +393,12 @@ public class ExtractionServiceImpl implements ExtractionService {
 
     private static ApiValidationException invalidAmount(String fieldName, String message) {
         ValidationErrors errors = new ValidationErrors();
-        errors.add("EXTRACTION_FIELD_AMOUNT_INVALID", fieldName + ": " + message);
+        errors.add(
+                "EXTRACTION_FIELD_AMOUNT_INVALID",
+                fieldName
+                        + ": "
+                        + message
+                        + " Enter only the numeric value, without currency symbols or additional text. Use for example 1500, 1500.50 or 1500,50.");
         return new ApiValidationException(errors);
     }
 
@@ -418,7 +507,7 @@ public class ExtractionServiceImpl implements ExtractionService {
 
         entity.setExtraction(extraction);
         entity.setFieldName(field.getType());
-        entity.setValue(resolveFieldValue(field));
+        entity.setValue(sanitizeFieldValue(field));
         entity.setConfidence(scaleConfidence(field.getConfidence()));
         entity.setCorrected(false);
         entity.setPlaceholder(false);
@@ -426,12 +515,99 @@ public class ExtractionServiceImpl implements ExtractionService {
         return entity;
     }
 
+    private String sanitizeFieldValue(OcrExtractedField field) {
+        String value = resolveFieldValue(field);
+
+        if (!StringUtils.hasText(value)) {
+            return value;
+        }
+
+        String normalizedFieldName = normalizeFieldName(field.getType());
+
+        if (isDateField(normalizedFieldName)) {
+            return sanitizeDateValue(value);
+        }
+
+        if (isDecimalField(normalizedFieldName)) {
+            return sanitizeNumericValue(value);
+        }
+
+        return value;
+    }
+
+    private String sanitizeNumericValue(String value) {
+        if (!StringUtils.hasText(value)) {
+            return value;
+        }
+
+        String sanitized = value.trim();
+
+        sanitized = sanitized.replaceAll("[€$£₣₤₥₦₧₨₪฿₱₭₮₵₴]", "");
+        sanitized = sanitized.replaceAll("^[A-Z]{2,3}\\s+", "").replaceAll("\\s+[A-Z]{2,3}$", "");
+        sanitized =
+                sanitized.replaceAll(
+                        "(?i)\\s+(mark|kuna|rupee|dinar|rial|peso|franc|corona|won|baht|dong|rupiah|pound|dollar|euro|cent|pence)?s?$",
+                        "");
+
+        return sanitized.trim();
+    }
+
     private String resolveFieldValue(OcrExtractedField field) {
+        String normalizedFieldName = normalizeFieldName(field.getType());
+
+        if ((isDateField(normalizedFieldName) || isDecimalField(normalizedFieldName))
+                && StringUtils.hasText(field.getNormalizedValue())) {
+            return field.getNormalizedValue();
+        }
+
         if (StringUtils.hasText(field.getValue())) {
             return field.getValue();
         }
 
         return field.getNormalizedValue();
+    }
+
+    private String sanitizeDateValue(String value) {
+        if (!StringUtils.hasText(value)) {
+            return value;
+        }
+
+        String trimmed = value.trim();
+
+        LocalDate isoDate = parseIsoDate(trimmed);
+        if (isoDate != null) {
+            return isoDate.format(EUROPEAN_OUTPUT_DATE_FORMATTER);
+        }
+
+        LocalDate europeanDotDate = parseDate(trimmed, EUROPEAN_DOT_DATE_FORMATTER);
+        if (europeanDotDate != null) {
+            return europeanDotDate.format(EUROPEAN_OUTPUT_DATE_FORMATTER);
+        }
+
+        LocalDate europeanSlashDate = parseDate(trimmed, EUROPEAN_SLASH_DATE_FORMATTER);
+        if (europeanSlashDate != null) {
+            return europeanSlashDate.format(EUROPEAN_OUTPUT_DATE_FORMATTER);
+        }
+
+        return trimmed;
+    }
+
+    private LocalDate parseIsoDate(String value) {
+        String candidate = value;
+
+        if (value.matches("\\d{4}-\\d{2}-\\d{2}.*")) {
+            candidate = value.substring(0, 10);
+        }
+
+        return parseDate(candidate, ISO_DATE_FORMATTER);
+    }
+
+    private LocalDate parseDate(String value, DateTimeFormatter formatter) {
+        try {
+            return LocalDate.parse(value, formatter);
+        } catch (DateTimeParseException exception) {
+            return null;
+        }
     }
 
     private BigDecimal scaleConfidence(BigDecimal confidence) {
@@ -450,28 +626,22 @@ public class ExtractionServiceImpl implements ExtractionService {
         }
     }
 
-    private DocumentType resolveDocumentType(OcrResult ocrResult) {
-        boolean hasInvoiceField =
-                ocrResult.getFields().stream()
-                        .map(OcrExtractedField::getType)
-                        .filter(StringUtils::hasText)
-                        .anyMatch(
-                                type ->
-                                        type.startsWith("invoice")
-                                                || type.equals("supplier_name")
-                                                || type.equals("total_amount")
-                                                || type.equals("net_amount")
-                                                || type.equals("total_tax_amount")
-                                                || type.equals("currency"));
+    private DocumentEntity requireDocumentInCurrentCompany(Long documentId) {
+        return documentValidation.validateExistsInCompany(
+                documentId, currentUserService.getCurrentCompanyId());
+    }
 
-        boolean rawTextLooksLikeInvoice =
-                StringUtils.hasText(ocrResult.getRawText())
-                        && ocrResult.getRawText().toLowerCase().contains("invoice");
+    private ExtractionEntity requireExtractionInCurrentCompany(Long extractionId) {
+        ExtractionEntity extraction = extractionDAO.findByIdWithDocument(extractionId);
 
-        if (hasInvoiceField || rawTextLooksLikeInvoice) {
-            return DocumentType.INVOICE;
+        if (extraction == null || extraction.getDocument() == null) {
+            throw new ApiNotFoundException(
+                    "Extraction result was not found for extraction with id: " + extractionId);
         }
 
-        return DocumentType.OTHER;
+        documentValidation.validateExistsInCompany(
+                extraction.getDocument().getId(), currentUserService.getCurrentCompanyId());
+
+        return extraction;
     }
 }

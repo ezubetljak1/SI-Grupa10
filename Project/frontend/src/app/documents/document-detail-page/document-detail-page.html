@@ -43,7 +43,7 @@
 
             <div class="doc-header__meta">
               <app-status-badge [status]="document.documentStatus"></app-status-badge>
-              <span class="meta-chip">{{ document.documentType }}</span>
+              <span class="meta-chip">{{ formatDocumentTypeLabel(document.documentType) }}</span>
             </div>
           </div>
         </div>
@@ -56,7 +56,7 @@
 
           <div class="meta-item">
             <span class="meta-item__label">Document type</span>
-            <strong class="meta-item__value">{{ document.documentType }}</strong>
+            <strong class="meta-item__value">{{ formatDocumentTypeLabel(document.documentType) }}</strong>
           </div>
 
           <div class="meta-item">
@@ -69,6 +69,44 @@
             <strong class="meta-item__value">{{ formatDate(document.uploadDate) }}</strong>
           </div>
         </div>
+
+      @if (hasAiClassificationMetadata()) {
+  <div class="ai-classification-metadata">
+    <div class="ai-classification-metadata__header">
+      <div>
+        <span class="ai-classification-metadata__eyebrow">AI classification</span>
+        <h3>Automatic classification result</h3>
+      </div>
+
+      @if (document.documentStatus === 'NEEDS_CLASSIFICATION_REVIEW') {
+              <span class="meta-chip meta-chip--warning">Manual review required</span>
+            }
+          </div>
+
+          <div class="meta-grid meta-grid--ai">
+            <div class="meta-item meta-item--ai">
+              <span class="meta-item__label">AI detected type</span>
+              <strong class="meta-item__value">
+                {{ formatDocumentTypeLabel(document.detectedDocumentType) }}
+              </strong>
+            </div>
+
+            <div class="meta-item meta-item--ai">
+              <span class="meta-item__label">Classification confidence</span>
+              <strong class="meta-item__value">
+                {{ formatClassificationConfidence(document.classificationConfidence) }}
+              </strong>
+            </div>
+
+            <div class="meta-item meta-item--ai">
+              <span class="meta-item__label">Processor used</span>
+              <strong class="meta-item__value">
+                {{ formatProcessorLabel(document) }}
+              </strong>
+            </div>
+          </div>
+        </div>
+      }
       </app-ui-card>
 
       <app-ui-card
@@ -100,11 +138,63 @@
         </div>
       </app-ui-card>
 
+      @if (isClassificationReviewRequired()) {
+        <app-ui-card
+          title="Classification review required"
+          subtitle="The document was uploaded as Other, but AI could not classify it with enough confidence."
+          badgeText="Review required"
+          badgeVariant="warning">
+          <div class="classification-review">
+            <div class="classification-review__summary">
+              <div>
+                <span class="meta-item__label">AI detected type</span>
+                <strong>{{ formatDocumentTypeLabel(document.detectedDocumentType) }}</strong>
+              </div>
+
+              <div>
+                <span class="meta-item__label">Confidence</span>
+                <strong>{{ formatClassificationConfidence(document.classificationConfidence) }}</strong>
+              </div>
+            </div>
+
+            <div class="classification-review__form">
+              <div class="field">
+                <label for="manualDocumentType">Confirm correct document type</label>
+                <select
+                  id="manualDocumentType"
+                  class="select"
+                  name="manualDocumentType"
+                  [(ngModel)]="selectedManualDocumentType">
+                  @for (type of manualClassificationTypeOptions; track type.value) {
+                    <option [value]="type.value">{{ type.label }}</option>
+                  }
+                </select>
+                <span class="helper">
+                  After confirmation, the document returns to Uploaded and extraction can be run again.
+                </span>
+              </div>
+
+              <button
+                type="button"
+                class="btn btn-primary"
+                [disabled]="confirmingDocumentType"
+                (click)="confirmDocumentType()">
+                {{ confirmingDocumentType ? 'Confirming...' : 'Confirm document type' }}
+              </button>
+            </div>
+          </div>
+        </app-ui-card>
+      }
+
       <app-ui-card
         title="Extracted fields"
         subtitle="Automatically extracted fields from OCR/AI processing. Review flagged values before confirming.">
         <div class="extraction-actions">
-          @if (document.documentStatus === 'EXTRACTED') {
+          @if (!canManageExtraction) {
+            <span class="classification-review-hint">
+              Your role can view extracted fields, but extraction actions are restricted.
+            </span>
+          } @else if (document.documentStatus === 'EXTRACTED') {
             <div class="extraction-actions__left">
               <button
                 type="button"
@@ -132,6 +222,16 @@
                 {{ confirmingExtraction ? 'Confirming...' : 'Confirm extraction' }}
               </button>
             </div>
+
+              @if (hasUnreviewedDateFields()) {
+                <div class="date-format-notice">
+                  <strong>Check extracted date fields:</strong>
+                  <span>
+                    Dates should be in European format: DD.MM.YYYY or DD/MM/YYYY.
+                    If OCR returns an ambiguous date, verify that the day and month are correct before confirming extraction.
+                  </span>
+                </div>
+              }
           } @else if (document.documentStatus === 'READY_FOR_APPROVAL') {
             <button
               type="button"
@@ -140,15 +240,19 @@
               [disabled]="extractionLoading || extractionRunning || confirmingExtraction">
               {{ extractionLoading ? 'Refreshing...' : 'Refresh fields' }}
             </button>
+          } @else if (document.documentStatus === 'NEEDS_CLASSIFICATION_REVIEW') {
+              <span class="classification-review-hint">
+                Confirm the document type before running extraction again.
+              </span>
           } @else {
-            <button
-              type="button"
-              class="btn btn-primary"
-              (click)="runExtraction()"
-              [disabled]="extractionRunning || extractionLoading || confirmingExtraction">
-              {{ extractionRunning ? 'Running extraction...' : 'Run extraction' }}
-            </button>
-          }
+              <button
+                type="button"
+                class="btn btn-primary"
+                [disabled]="extractionRunning"
+                (click)="runExtraction()">
+                {{ extractionRunning ? 'Running extraction...' : 'Run extraction' }}
+              </button>
+            }
         </div>
 
         @if (document.documentStatus === 'READY_FOR_APPROVAL') {
@@ -196,7 +300,11 @@
                   <tr
                     [class.row--editing]="isEditing(field)"
                     [class.row--placeholder]="isPlaceholderField(field)"
-                    [class.row--warning]="isLowConfidenceField(field) && !field.corrected && !isPlaceholderField(field)">
+                    [class.row--warning]="
+                      (isLowConfidenceField(field) || isDateFieldRequiringReview(field))
+                      && !field.corrected
+                      && !isPlaceholderField(field)
+                    ">
                     <td class="field-cell">
                       <div class="field-cell__content">
                         <span class="mono">{{ field.fieldName }}</span>
@@ -220,6 +328,10 @@
                             autofocus
                           />
 
+                          @if (isDateField(field)) {
+                            <span class="field-hint">{{ getDateFormatHint() }}</span>
+                          }
+
                           @if (editState!.validationError) {
                             <span class="validation-error">{{ editState!.validationError }}</span>
                           }
@@ -232,7 +344,7 @@
                     </td>
 
                     <td>
-                      <span [class.confidence--low]="isLowConfidenceField(field)">
+                      <span [class.confidence--low]="isLowConfidenceField(field) && !isDateField(field)">
                         {{ formatConfidence(field.confidence) }}
                       </span>
                     </td>
@@ -248,12 +360,18 @@
 
                     <td class="review-cell">
                       <span class="review-badge" [ngClass]="getFieldReviewClass(field)">
-                        {{ getFieldReviewLabel(field) }}
+                        @if (isDateFieldRequiringReview(field) && !field.corrected) {
+                          Review needed
+                        } @else {
+                          {{ getFieldReviewLabel(field) }}
+                        }
                       </span>
                     </td>
 
                     <td class="actions-cell">
-                      @if (!isEditing(field)) {
+                      @if (!canManageExtraction) {
+                        <span class="meta-chip meta-chip--muted">View only</span>
+                      } @else if (!isEditing(field)) {
                         <button
                           type="button"
                           class="icon-btn"

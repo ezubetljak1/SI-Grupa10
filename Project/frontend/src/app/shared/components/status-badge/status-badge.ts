@@ -13,7 +13,7 @@ type BadgeVariant =
   selector: 'app-status-badge',
   standalone: true,
   templateUrl: './status-badge.html',
-  styleUrl: './status-badge.scss'
+  styleUrl: './status-badge.scss',
 })
 export class StatusBadgeComponent {
   @Input() status = '';
@@ -33,8 +33,13 @@ export class StatusBadgeComponent {
       ERROR: 'Error',
       REJECTED: 'Rejected',
       PROCESSING_FAILED: 'Processing Failed',
+      EXTRACTED: 'Extracted',
+      UNDER_REVIEW: 'Under Review',
+      NEEDS_CLASSIFICATION_REVIEW: 'Needs Classification Review',
       READY_FOR_APPROVAL: 'Ready For Approval',
-      UNKNOWN: 'Unknown'
+      APPROVED: 'Approved',
+      COMPLETED: 'Completed',
+      UNKNOWN: 'Unknown',
     };
 
     return labels[this.normalizedStatus] ?? this.formatFallbackLabel(this.normalizedStatus);
@@ -51,8 +56,13 @@ export class StatusBadgeComponent {
       ERROR: 'error',
       REJECTED: 'error',
       PROCESSING_FAILED: 'error',
+      EXTRACTED: 'info',
+      UNDER_REVIEW: 'warning',
+      NEEDS_CLASSIFICATION_REVIEW: 'warning',
       READY_FOR_APPROVAL: 'approval',
-      UNKNOWN: 'neutral'
+      APPROVED: 'success',
+      COMPLETED: 'success',
+      UNKNOWN: 'neutral',
     };
 
     return variants[this.normalizedStatus] ?? 'neutral';
@@ -63,7 +73,7 @@ export class StatusBadgeComponent {
       .toLowerCase()
       .split('_')
       .filter(Boolean)
-      .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
       .join(' ');
   }
 }

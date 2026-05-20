@@ -7,9 +7,17 @@ import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
+import ba.unsa.si.docflow.dao.CompanyDAO;
+import ba.unsa.si.docflow.dao.UserDAO;
+import ba.unsa.si.docflow.entity.CompanyEntity;
+import ba.unsa.si.docflow.entity.UserEntity;
+import ba.unsa.si.docflow.entity.enums.AccountStatus;
+import ba.unsa.si.docflow.entity.enums.CompanyStatus;
+import ba.unsa.si.docflow.entity.enums.RoleName;
 import ba.unsa.si.docflow.service.ocr.OcrProvider;
 import ba.unsa.si.docflow.service.ocr.model.OcrExtractedField;
 import ba.unsa.si.docflow.service.ocr.model.OcrResult;
+import ba.unsa.si.docflow.service.role.RoleService;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -24,12 +32,18 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -37,13 +51,15 @@ import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
 @SpringBootTest
-@AutoConfigureMockMvc
+@AutoConfigureMockMvc(addFilters = false)
 @ActiveProfiles("test")
 class ExtractionIntegrationTest {
 
@@ -51,6 +67,13 @@ class ExtractionIntegrationTest {
             "%PDF-1.4 fake invoice content".getBytes(StandardCharsets.UTF_8);
 
     private static final Path UPLOAD_ROOT = createTempDirectory();
+    private static final String TEST_INVOICE_PROCESSOR_ID = "test-invoice-processor-id";
+    private static final String TEST_RECEIPT_PROCESSOR_ID = "test-receipt-processor-id";
+    private static final String TEST_BANK_STATEMENT_PROCESSOR_ID =
+            "test-bank-statement-processor-id";
+    private static final String TEST_FORM_PROCESSOR_ID = "test-form-processor-id";
+    private static final String TEST_CLASSIFIER_PROCESSOR_ID = "test-classifier-processor-id";
+    private static final String KEYCLOAK_USER = "kc-extraction-test-user";
 
     @Autowired private MockMvc mockMvc;
 
@@ -58,11 +81,26 @@ class ExtractionIntegrationTest {
 
     @Autowired private ObjectMapper objectMapper;
 
+    @Autowired private CompanyDAO companyDAO;
+
+    @Autowired private UserDAO userDAO;
+
+    @Autowired private RoleService roleService;
+
+    @Autowired private PlatformTransactionManager transactionManager;
+
     @MockitoBean private OcrProvider ocrProvider;
 
     @DynamicPropertySource
     static void registerProperties(DynamicPropertyRegistry registry) {
         registry.add("docflow.storage.root-dir", () -> UPLOAD_ROOT.toString());
+
+        registry.add("docflow.ocr.invoice-processor-id", () -> TEST_INVOICE_PROCESSOR_ID);
+        registry.add("docflow.ocr.receipt-processor-id", () -> TEST_RECEIPT_PROCESSOR_ID);
+        registry.add(
+                "docflow.ocr.bank-statement-processor-id", () -> TEST_BANK_STATEMENT_PROCESSOR_ID);
+        registry.add("docflow.ocr.form-processor-id", () -> TEST_FORM_PROCESSOR_ID);
+        registry.add("docflow.ocr.classifier-processor-id", () -> TEST_CLASSIFIER_PROCESSOR_ID);
     }
 
     @BeforeEach
@@ -70,9 +108,14 @@ class ExtractionIntegrationTest {
         jdbcTemplate.execute("DELETE FROM extraction_field");
         jdbcTemplate.execute("DELETE FROM extraction");
         jdbcTemplate.execute("DELETE FROM document");
+        jdbcTemplate.execute("DELETE FROM app_user");
+        jdbcTemplate.execute("DELETE FROM company");
 
         deleteChildren(UPLOAD_ROOT);
         Files.createDirectories(UPLOAD_ROOT);
+
+        setupTestTenant();
+        authenticateAs(KEYCLOAK_USER);
 
         reset(ocrProvider);
     }
@@ -86,7 +129,8 @@ class ExtractionIntegrationTest {
     void processExtractionThenStoresExtractionFieldsAndUpdatesDocumentStatus() throws Exception {
         Long documentId = uploadPdf("Invoice for extraction");
 
-        when(ocrProvider.process(any(byte[].class), eq("application/pdf")))
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_INVOICE_PROCESSOR_ID)))
                 .thenReturn(sampleOcrResult());
 
         mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
@@ -102,7 +146,7 @@ class ExtractionIntegrationTest {
                                 .value("Test Company d.o.o."))
                 .andExpect(
                         jsonPath("$.payload.fields[?(@.fieldName == 'total_amount')].value")
-                                .value("117.00"));
+                                .value("117"));
 
         Integer extractionCount =
                 jdbcTemplate.queryForObject(
@@ -132,15 +176,537 @@ class ExtractionIntegrationTest {
         assertEquals("INVOICE", document.get("document_type"));
 
         ArgumentCaptor<byte[]> fileCaptor = ArgumentCaptor.forClass(byte[].class);
-        verify(ocrProvider).process(fileCaptor.capture(), eq("application/pdf"));
+        verify(ocrProvider)
+                .process(
+                        fileCaptor.capture(), eq("application/pdf"), eq(TEST_INVOICE_PROCESSOR_ID));
         assertArrayEquals(PDF_CONTENT, fileCaptor.getValue());
+    }
+
+    @Test
+    void processReceiptDocumentThenUsesReceiptProcessorWithoutClassifier() throws Exception {
+        Long documentId = uploadPdfWithType("Receipt for extraction", "RECEIPT");
+
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_RECEIPT_PROCESSOR_ID)))
+                .thenReturn(sampleReceiptOcrResult());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("OK"))
+                .andExpect(jsonPath("$.payload.documentId").value(documentId));
+
+        Map<String, Object> document = findDocumentClassificationMetadata(documentId);
+
+        assertEquals("EXTRACTED", document.get("document_status"));
+        assertEquals("RECEIPT", document.get("document_type"));
+        assertNull(document.get("detected_document_type"));
+        assertNull(document.get("classification_confidence"));
+        assertEquals(TEST_RECEIPT_PROCESSOR_ID, document.get("processor_id_used"));
+
+        verify(ocrProvider, times(1))
+                .process(any(byte[].class), eq("application/pdf"), eq(TEST_RECEIPT_PROCESSOR_ID));
+        verify(ocrProvider, never())
+                .process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_CLASSIFIER_PROCESSOR_ID));
+    }
+
+    @Test
+    void processBankStatementDocumentThenUsesBankStatementProcessorWithoutClassifier()
+            throws Exception {
+        Long documentId = uploadPdfWithType("Bank statement for extraction", "BANK_STATEMENT");
+
+        when(ocrProvider.process(
+                        any(byte[].class),
+                        eq("application/pdf"),
+                        eq(TEST_BANK_STATEMENT_PROCESSOR_ID)))
+                .thenReturn(sampleBankStatementOcrResult());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("OK"))
+                .andExpect(jsonPath("$.payload.documentId").value(documentId));
+
+        Map<String, Object> document = findDocumentClassificationMetadata(documentId);
+
+        assertEquals("EXTRACTED", document.get("document_status"));
+        assertEquals("BANK_STATEMENT", document.get("document_type"));
+        assertNull(document.get("detected_document_type"));
+        assertNull(document.get("classification_confidence"));
+        assertEquals(TEST_BANK_STATEMENT_PROCESSOR_ID, document.get("processor_id_used"));
+
+        verify(ocrProvider, times(1))
+                .process(
+                        any(byte[].class),
+                        eq("application/pdf"),
+                        eq(TEST_BANK_STATEMENT_PROCESSOR_ID));
+        verify(ocrProvider, never())
+                .process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_CLASSIFIER_PROCESSOR_ID));
+    }
+
+    @Test
+    void processFormDocumentThenUsesFormProcessorWithoutClassifier() throws Exception {
+        Long documentId = uploadPdfWithType("Form for extraction", "FORM");
+
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_FORM_PROCESSOR_ID)))
+                .thenReturn(sampleFormOcrResult());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("OK"))
+                .andExpect(jsonPath("$.payload.documentId").value(documentId));
+
+        Map<String, Object> document = findDocumentClassificationMetadata(documentId);
+
+        assertEquals("EXTRACTED", document.get("document_status"));
+        assertEquals("FORM", document.get("document_type"));
+        assertNull(document.get("detected_document_type"));
+        assertNull(document.get("classification_confidence"));
+        assertEquals(TEST_FORM_PROCESSOR_ID, document.get("processor_id_used"));
+
+        verify(ocrProvider, times(1))
+                .process(any(byte[].class), eq("application/pdf"), eq(TEST_FORM_PROCESSOR_ID));
+        verify(ocrProvider, never())
+                .process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_CLASSIFIER_PROCESSOR_ID));
+    }
+
+    @Test
+    void processOtherDocumentWhenClassifierDetectsInvoiceThenUsesInvoiceProcessor()
+            throws Exception {
+        Long documentId = uploadPdfWithType("Unknown invoice document", "OTHER");
+
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_CLASSIFIER_PROCESSOR_ID)))
+                .thenReturn(classifierResult("INVOICE", "0.92"));
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_INVOICE_PROCESSOR_ID)))
+                .thenReturn(sampleOcrResult());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("OK"))
+                .andExpect(jsonPath("$.payload.documentId").value(documentId));
+
+        Map<String, Object> document = findDocumentClassificationMetadata(documentId);
+
+        assertEquals("EXTRACTED", document.get("document_status"));
+        assertEquals("INVOICE", document.get("document_type"));
+        assertEquals("INVOICE", document.get("detected_document_type"));
+        assertBigDecimalEquals("0.92", document.get("classification_confidence"));
+        assertEquals(TEST_INVOICE_PROCESSOR_ID, document.get("processor_id_used"));
+
+        verify(ocrProvider, times(1))
+                .process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_CLASSIFIER_PROCESSOR_ID));
+        verify(ocrProvider, times(1))
+                .process(any(byte[].class), eq("application/pdf"), eq(TEST_INVOICE_PROCESSOR_ID));
+    }
+
+    @Test
+    void processOtherDocumentWhenClassifierDetectsReceiptThenUsesReceiptProcessor()
+            throws Exception {
+        Long documentId = uploadPdfWithType("Unknown receipt document", "OTHER");
+
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_CLASSIFIER_PROCESSOR_ID)))
+                .thenReturn(classifierResult("RECEIPT", "0.91"));
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_RECEIPT_PROCESSOR_ID)))
+                .thenReturn(sampleReceiptOcrResult());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("OK"))
+                .andExpect(jsonPath("$.payload.documentId").value(documentId));
+
+        Map<String, Object> document = findDocumentClassificationMetadata(documentId);
+
+        assertEquals("EXTRACTED", document.get("document_status"));
+        assertEquals("RECEIPT", document.get("document_type"));
+        assertEquals("RECEIPT", document.get("detected_document_type"));
+        assertBigDecimalEquals("0.91", document.get("classification_confidence"));
+        assertEquals(TEST_RECEIPT_PROCESSOR_ID, document.get("processor_id_used"));
+
+        verify(ocrProvider, times(1))
+                .process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_CLASSIFIER_PROCESSOR_ID));
+        verify(ocrProvider, times(1))
+                .process(any(byte[].class), eq("application/pdf"), eq(TEST_RECEIPT_PROCESSOR_ID));
+    }
+
+    @Test
+    void processOtherDocumentWhenClassifierDetectsBankStatementThenUsesBankStatementProcessor()
+            throws Exception {
+        Long documentId = uploadPdfWithType("Unknown bank statement document", "OTHER");
+
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_CLASSIFIER_PROCESSOR_ID)))
+                .thenReturn(classifierResult("BANK_STATEMENT", "0.89"));
+        when(ocrProvider.process(
+                        any(byte[].class),
+                        eq("application/pdf"),
+                        eq(TEST_BANK_STATEMENT_PROCESSOR_ID)))
+                .thenReturn(sampleBankStatementOcrResult());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("OK"))
+                .andExpect(jsonPath("$.payload.documentId").value(documentId));
+
+        Map<String, Object> document = findDocumentClassificationMetadata(documentId);
+
+        assertEquals("EXTRACTED", document.get("document_status"));
+        assertEquals("BANK_STATEMENT", document.get("document_type"));
+        assertEquals("BANK_STATEMENT", document.get("detected_document_type"));
+        assertBigDecimalEquals("0.89", document.get("classification_confidence"));
+        assertEquals(TEST_BANK_STATEMENT_PROCESSOR_ID, document.get("processor_id_used"));
+
+        verify(ocrProvider, times(1))
+                .process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_CLASSIFIER_PROCESSOR_ID));
+        verify(ocrProvider, times(1))
+                .process(
+                        any(byte[].class),
+                        eq("application/pdf"),
+                        eq(TEST_BANK_STATEMENT_PROCESSOR_ID));
+    }
+
+    @Test
+    void processOtherDocumentWhenClassifierDetectsFormThenUsesFormProcessor() throws Exception {
+        Long documentId = uploadPdfWithType("Unknown form document", "OTHER");
+
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_CLASSIFIER_PROCESSOR_ID)))
+                .thenReturn(classifierResult("FORM", "0.86"));
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_FORM_PROCESSOR_ID)))
+                .thenReturn(sampleFormOcrResult());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("OK"))
+                .andExpect(jsonPath("$.payload.documentId").value(documentId));
+
+        Map<String, Object> document = findDocumentClassificationMetadata(documentId);
+
+        assertEquals("EXTRACTED", document.get("document_status"));
+        assertEquals("FORM", document.get("document_type"));
+        assertEquals("FORM", document.get("detected_document_type"));
+        assertBigDecimalEquals("0.86", document.get("classification_confidence"));
+        assertEquals(TEST_FORM_PROCESSOR_ID, document.get("processor_id_used"));
+
+        verify(ocrProvider, times(1))
+                .process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_CLASSIFIER_PROCESSOR_ID));
+        verify(ocrProvider, times(1))
+                .process(any(byte[].class), eq("application/pdf"), eq(TEST_FORM_PROCESSOR_ID));
+    }
+
+    @Test
+    void processOtherDocumentWhenClassifierReturnsOtherThenRequiresManualReview() throws Exception {
+        Long documentId = uploadPdfWithType("Unknown unsupported document", "OTHER");
+
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_CLASSIFIER_PROCESSOR_ID)))
+                .thenReturn(classifierResult("OTHER", "0.88"));
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("DOCUMENT_CLASSIFICATION_REVIEW_REQUIRED"))
+                .andExpect(
+                        jsonPath("$.payload")
+                                .value("Document classification requires manual review."));
+
+        Map<String, Object> document = findDocumentClassificationMetadata(documentId);
+
+        assertEquals("NEEDS_CLASSIFICATION_REVIEW", document.get("document_status"));
+        assertEquals("OTHER", document.get("document_type"));
+        assertEquals("OTHER", document.get("detected_document_type"));
+        assertBigDecimalEquals("0.88", document.get("classification_confidence"));
+        assertNull(document.get("processor_id_used"));
+
+        Integer extractionCount =
+                jdbcTemplate.queryForObject(
+                        "SELECT COUNT(*) FROM extraction WHERE document_id = ?",
+                        Integer.class,
+                        documentId);
+
+        assertEquals(0, extractionCount);
+
+        verify(ocrProvider, times(1))
+                .process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_CLASSIFIER_PROCESSOR_ID));
+        verifyNoParserProcessorWasCalled();
+    }
+
+    @Test
+    void processOtherDocumentWhenClassifierConfidenceIsLowThenRequiresManualReview()
+            throws Exception {
+        Long documentId = uploadPdfWithType("Low confidence unknown document", "OTHER");
+
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_CLASSIFIER_PROCESSOR_ID)))
+                .thenReturn(classifierResult("INVOICE", "0.40"));
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("DOCUMENT_CLASSIFICATION_REVIEW_REQUIRED"))
+                .andExpect(
+                        jsonPath("$.payload")
+                                .value("Document classification requires manual review."));
+
+        Map<String, Object> document = findDocumentClassificationMetadata(documentId);
+
+        assertEquals("NEEDS_CLASSIFICATION_REVIEW", document.get("document_status"));
+        assertEquals("OTHER", document.get("document_type"));
+        assertEquals("INVOICE", document.get("detected_document_type"));
+        assertBigDecimalEquals("0.40", document.get("classification_confidence"));
+        assertNull(document.get("processor_id_used"));
+
+        Integer extractionCount =
+                jdbcTemplate.queryForObject(
+                        "SELECT COUNT(*) FROM extraction WHERE document_id = ?",
+                        Integer.class,
+                        documentId);
+
+        assertEquals(0, extractionCount);
+
+        verify(ocrProvider, times(1))
+                .process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_CLASSIFIER_PROCESSOR_ID));
+        verifyNoParserProcessorWasCalled();
+    }
+
+    @Test
+    void processOtherDocumentWhenClassifierProviderFailsThenMarksDocumentAsProcessingFailed()
+            throws Exception {
+        Long documentId = uploadPdfWithType("Classifier failure document", "OTHER");
+
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_CLASSIFIER_PROCESSOR_ID)))
+                .thenThrow(new IllegalStateException("Classifier unavailable"));
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.code").value("EXTRACTION_FAILED"))
+                .andExpect(
+                        jsonPath("$.payload")
+                                .value("Document extraction failed: Classifier unavailable"));
+
+        Map<String, Object> document = findDocumentClassificationMetadata(documentId);
+
+        assertEquals("PROCESSING_FAILED", document.get("document_status"));
+        assertEquals("OTHER", document.get("document_type"));
+        assertNull(document.get("detected_document_type"));
+        assertNull(document.get("classification_confidence"));
+        assertNull(document.get("processor_id_used"));
+
+        Integer extractionCount =
+                jdbcTemplate.queryForObject(
+                        "SELECT COUNT(*) FROM extraction WHERE document_id = ?",
+                        Integer.class,
+                        documentId);
+
+        assertEquals(0, extractionCount);
+
+        verify(ocrProvider, times(1))
+                .process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_CLASSIFIER_PROCESSOR_ID));
+        verifyNoParserProcessorWasCalled();
+    }
+
+    @Test
+    void confirmReceiptExtractionWithRequiredFieldsAndDateAliasThenSucceeds() throws Exception {
+        Long documentId =
+                processDocumentWithTypeAndResult(
+                        "Valid receipt for confirmation",
+                        "RECEIPT",
+                        TEST_RECEIPT_PROCESSOR_ID,
+                        sampleReceiptOcrResult());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction/confirm", documentId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("OK"))
+                .andExpect(jsonPath("$.payload.documentId").value(documentId));
+
+        assertDocumentStatus(documentId, "READY_FOR_APPROVAL");
+    }
+
+    @Test
+    void confirmReceiptExtractionWithoutDateAliasThenReturnsBadRequest() throws Exception {
+        Long documentId =
+                processDocumentWithTypeAndResult(
+                        "Receipt without date",
+                        "RECEIPT",
+                        TEST_RECEIPT_PROCESSOR_ID,
+                        sampleReceiptOcrResultWithoutDateAlias());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction/confirm", documentId))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$[0].code").value("EXTRACTION_REQUIRED_FIELD_MISSING"));
+
+        assertDocumentStatus(documentId, "EXTRACTED");
+    }
+
+    @Test
+    void confirmReceiptExtractionWithLowConfidenceRequiredFieldThenReturnsBadRequest()
+            throws Exception {
+        Long documentId =
+                processDocumentWithTypeAndResult(
+                        "Receipt with low confidence total",
+                        "RECEIPT",
+                        TEST_RECEIPT_PROCESSOR_ID,
+                        sampleReceiptOcrResultWithLowConfidenceRequiredField());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction/confirm", documentId))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$[0].code").value("EXTRACTION_FIELD_LOW_CONFIDENCE"));
+
+        assertDocumentStatus(documentId, "EXTRACTED");
+    }
+
+    @Test
+    void confirmReceiptExtractionWithLowConfidenceOptionalFieldThenSucceeds() throws Exception {
+        Long documentId =
+                processDocumentWithTypeAndResult(
+                        "Receipt with low confidence optional field",
+                        "RECEIPT",
+                        TEST_RECEIPT_PROCESSOR_ID,
+                        sampleReceiptOcrResultWithLowConfidenceOptionalField());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction/confirm", documentId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("OK"))
+                .andExpect(jsonPath("$.payload.documentId").value(documentId));
+
+        assertDocumentStatus(documentId, "READY_FOR_APPROVAL");
+    }
+
+    @Test
+    void confirmBankStatementExtractionWithRequiredFieldsAndBasicStructureThenSucceeds()
+            throws Exception {
+        Long documentId =
+                processDocumentWithTypeAndResult(
+                        "Valid bank statement for confirmation",
+                        "BANK_STATEMENT",
+                        TEST_BANK_STATEMENT_PROCESSOR_ID,
+                        sampleBankStatementOcrResult());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction/confirm", documentId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("OK"))
+                .andExpect(jsonPath("$.payload.documentId").value(documentId));
+
+        assertDocumentStatus(documentId, "READY_FOR_APPROVAL");
+    }
+
+    @Test
+    void confirmBankStatementWithoutIdentityFieldThenReturnsBadRequest() throws Exception {
+        Long documentId =
+                processDocumentWithTypeAndResult(
+                        "Bank statement without identity",
+                        "BANK_STATEMENT",
+                        TEST_BANK_STATEMENT_PROCESSOR_ID,
+                        sampleBankStatementOcrResultWithoutIdentityField());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction/confirm", documentId))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$[0].code").value("EXTRACTION_REQUIRED_FIELD_MISSING"));
+
+        assertDocumentStatus(documentId, "EXTRACTED");
+    }
+
+    @Test
+    void confirmBankStatementWithoutActivityFieldThenReturnsBadRequest() throws Exception {
+        Long documentId =
+                processDocumentWithTypeAndResult(
+                        "Bank statement without activity",
+                        "BANK_STATEMENT",
+                        TEST_BANK_STATEMENT_PROCESSOR_ID,
+                        sampleBankStatementOcrResultWithoutActivityField());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction/confirm", documentId))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$[0].code").value("EXTRACTION_REQUIRED_FIELD_MISSING"));
+
+        assertDocumentStatus(documentId, "EXTRACTED");
+    }
+
+    @Test
+    void confirmBankStatementWithLowConfidenceRequiredFieldThenReturnsBadRequest()
+            throws Exception {
+        Long documentId =
+                processDocumentWithTypeAndResult(
+                        "Bank statement with low confidence account",
+                        "BANK_STATEMENT",
+                        TEST_BANK_STATEMENT_PROCESSOR_ID,
+                        sampleBankStatementOcrResultWithLowConfidenceRequiredField());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction/confirm", documentId))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$[0].code").value("EXTRACTION_FIELD_LOW_CONFIDENCE"));
+
+        assertDocumentStatus(documentId, "EXTRACTED");
+    }
+
+    @Test
+    void confirmBankStatementWithLowConfidenceOptionalFieldThenSucceeds() throws Exception {
+        Long documentId =
+                processDocumentWithTypeAndResult(
+                        "Bank statement with low confidence optional field",
+                        "BANK_STATEMENT",
+                        TEST_BANK_STATEMENT_PROCESSOR_ID,
+                        sampleBankStatementOcrResultWithLowConfidenceOptionalField());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction/confirm", documentId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("OK"))
+                .andExpect(jsonPath("$.payload.documentId").value(documentId));
+
+        assertDocumentStatus(documentId, "READY_FOR_APPROVAL");
+    }
+
+    @Test
+    void confirmBankStatementWithInvalidBalanceFormatThenReturnsBadRequest() throws Exception {
+        Long documentId =
+                processDocumentWithTypeAndResult(
+                        "Bank statement with invalid balance",
+                        "BANK_STATEMENT",
+                        TEST_BANK_STATEMENT_PROCESSOR_ID,
+                        sampleBankStatementOcrResultWithInvalidBalanceFormat());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction/confirm", documentId))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$[0].code").value("EXTRACTION_FIELD_NUMERIC_FORMAT_INVALID"));
+
+        assertDocumentStatus(documentId, "EXTRACTED");
+    }
+
+    @Test
+    void confirmFormExtractionWithLowConfidenceFieldsThenSucceeds() throws Exception {
+        Long documentId =
+                processDocumentWithTypeAndResult(
+                        "Form with low confidence fields",
+                        "FORM",
+                        TEST_FORM_PROCESSOR_ID,
+                        sampleFormOcrResultWithLowConfidenceFields());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction/confirm", documentId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("OK"))
+                .andExpect(jsonPath("$.payload.documentId").value(documentId));
+
+        assertDocumentStatus(documentId, "READY_FOR_APPROVAL");
     }
 
     @Test
     void findExtractionByDocumentIdThenReturnsPersistedResult() throws Exception {
         Long documentId = uploadPdf("Find extraction invoice");
 
-        when(ocrProvider.process(any(byte[].class), eq("application/pdf")))
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_INVOICE_PROCESSOR_ID)))
                 .thenReturn(sampleOcrResult());
 
         mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
@@ -158,7 +724,8 @@ class ExtractionIntegrationTest {
     void findExtractionFieldsByDocumentIdThenReturnsOnlyFields() throws Exception {
         Long documentId = uploadPdf("Fields by document invoice");
 
-        when(ocrProvider.process(any(byte[].class), eq("application/pdf")))
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_INVOICE_PROCESSOR_ID)))
                 .thenReturn(sampleOcrResult());
 
         mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
@@ -171,7 +738,7 @@ class ExtractionIntegrationTest {
                 .andExpect(jsonPath("$.payload[?(@.fieldName == 'currency')].value").value("EUR"))
                 .andExpect(
                         jsonPath("$.payload[?(@.fieldName == 'invoice_date')].value")
-                                .value("2026-05-06"));
+                                .value("06.05.2026"));
     }
 
     @Test
@@ -194,7 +761,8 @@ class ExtractionIntegrationTest {
     void findExtractionFieldsByExtractionIdThenReturnsFields() throws Exception {
         Long documentId = uploadPdf("Fields by extraction invoice");
 
-        when(ocrProvider.process(any(byte[].class), eq("application/pdf")))
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_INVOICE_PROCESSOR_ID)))
                 .thenReturn(sampleOcrResult());
 
         MvcResult result =
@@ -210,8 +778,7 @@ class ExtractionIntegrationTest {
                 .andExpect(jsonPath("$.code").value("OK"))
                 .andExpect(jsonPath("$.payload.length()").value(5))
                 .andExpect(
-                        jsonPath("$.payload[?(@.fieldName == 'total_amount')].value")
-                                .value("117.00"));
+                        jsonPath("$.payload[?(@.fieldName == 'total_amount')].value").value("117"));
     }
 
     @Test
@@ -225,7 +792,8 @@ class ExtractionIntegrationTest {
     void retryExtractionThenReusesSameExtractionAndReplacesFields() throws Exception {
         Long documentId = uploadPdf("Retry invoice");
 
-        when(ocrProvider.process(any(byte[].class), eq("application/pdf")))
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_INVOICE_PROCESSOR_ID)))
                 .thenReturn(sampleOcrResult())
                 .thenReturn(sampleRetryOcrResult());
 
@@ -288,8 +856,9 @@ class ExtractionIntegrationTest {
         assertEquals(firstExtractionId, retryExtractionId);
         assertEquals(5, retryFieldCount);
         assertEquals(2, placeholderCount);
-        assertEquals("250.00", totalAmount);
-        verify(ocrProvider, times(2)).process(any(byte[].class), eq("application/pdf"));
+        assertEquals("250", totalAmount);
+        verify(ocrProvider, times(2))
+                .process(any(byte[].class), eq("application/pdf"), eq(TEST_INVOICE_PROCESSOR_ID));
     }
 
     @Test
@@ -316,7 +885,8 @@ class ExtractionIntegrationTest {
     void processExtractionWhenOcrFailsThenMarksDocumentAsProcessingFailed() throws Exception {
         Long documentId = uploadPdf("Failed extraction invoice");
 
-        when(ocrProvider.process(any(byte[].class), eq("application/pdf")))
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_INVOICE_PROCESSOR_ID)))
                 .thenThrow(new IllegalStateException("OCR provider unavailable"));
 
         mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
@@ -346,7 +916,8 @@ class ExtractionIntegrationTest {
     void deleteExtractedDocumentThenRemovesDocumentExtractionFieldsAndFile() throws Exception {
         Long documentId = uploadPdf("Delete extracted invoice");
 
-        when(ocrProvider.process(any(byte[].class), eq("application/pdf")))
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_INVOICE_PROCESSOR_ID)))
                 .thenReturn(sampleOcrResult());
 
         mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
@@ -394,7 +965,8 @@ class ExtractionIntegrationTest {
     void updateExtractionFieldThenChangesValueAndMarksFieldAsCorrected() throws Exception {
         Long documentId = uploadPdf("Editable extraction invoice");
 
-        when(ocrProvider.process(any(byte[].class), eq("application/pdf")))
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_INVOICE_PROCESSOR_ID)))
                 .thenReturn(sampleOcrResult());
 
         MvcResult processResult =
@@ -455,7 +1027,8 @@ class ExtractionIntegrationTest {
         Long firstDocumentId = uploadPdf("First editable extraction invoice");
         Long secondDocumentId = uploadPdf("Second editable extraction invoice");
 
-        when(ocrProvider.process(any(byte[].class), eq("application/pdf")))
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_INVOICE_PROCESSOR_ID)))
                 .thenReturn(sampleOcrResult())
                 .thenReturn(sampleOcrResult());
 
@@ -512,7 +1085,7 @@ class ExtractionIntegrationTest {
                         """,
                         firstFieldId);
 
-        assertEquals("117.00", unchangedField.get("value"));
+        assertEquals("117", unchangedField.get("value"));
         assertEquals(false, unchangedField.get("is_corrected"));
     }
 
@@ -532,7 +1105,7 @@ class ExtractionIntegrationTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$[0].code").value("EXTRACTION_FIELD_AMOUNT_INVALID"));
 
-        assertFieldUnchanged(extractionId, fieldId, "117.00", false);
+        assertFieldUnchanged(extractionId, fieldId, "117", false);
     }
 
     @Test
@@ -551,7 +1124,7 @@ class ExtractionIntegrationTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$[0].code").value("EXTRACTION_FIELD_AMOUNT_INVALID"));
 
-        assertFieldUnchanged(extractionId, fieldId, "117.00", false);
+        assertFieldUnchanged(extractionId, fieldId, "117", false);
     }
 
     @Test
@@ -570,7 +1143,7 @@ class ExtractionIntegrationTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$[0].code").value("EXTRACTION_FIELD_AMOUNT_INVALID"));
 
-        assertFieldUnchanged(extractionId, fieldId, "117.00", false);
+        assertFieldUnchanged(extractionId, fieldId, "117", false);
     }
 
     @Test
@@ -589,7 +1162,7 @@ class ExtractionIntegrationTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$[0].code").value("EXTRACTION_FIELD_AMOUNT_INVALID"));
 
-        assertFieldUnchanged(extractionId, fieldId, "117.00", false);
+        assertFieldUnchanged(extractionId, fieldId, "117", false);
     }
 
     @Test
@@ -626,7 +1199,7 @@ class ExtractionIntegrationTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$[0].code").value("EXTRACTION_FIELD_DATE_FORMAT_INVALID"));
 
-        assertFieldUnchanged(extractionId, fieldId, "2026-05-06", false);
+        assertFieldUnchanged(extractionId, fieldId, "06.05.2026", false);
     }
 
     @Test
@@ -663,7 +1236,7 @@ class ExtractionIntegrationTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$[0].code").value("EXTRACTION_FIELD_AMOUNT_INCONSISTENT"));
 
-        assertFieldUnchanged(extractionId, totalFieldId, "117.00", false);
+        assertFieldUnchanged(extractionId, totalFieldId, "117", false);
     }
 
     @Test
@@ -671,7 +1244,8 @@ class ExtractionIntegrationTest {
             throws Exception {
         Long documentId = uploadPdf("Confirm extraction invoice");
 
-        when(ocrProvider.process(any(byte[].class), eq("application/pdf")))
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_INVOICE_PROCESSOR_ID)))
                 .thenReturn(sampleOcrResult());
 
         MvcResult processResult =
@@ -739,7 +1313,8 @@ class ExtractionIntegrationTest {
         assertEquals("125.50", correctedField.get("value"));
         assertEquals(true, correctedField.get("is_corrected"));
 
-        verify(ocrProvider, times(1)).process(any(byte[].class), eq("application/pdf"));
+        verify(ocrProvider, times(1))
+                .process(any(byte[].class), eq("application/pdf"), eq(TEST_INVOICE_PROCESSOR_ID));
     }
 
     @Test
@@ -758,7 +1333,8 @@ class ExtractionIntegrationTest {
             throws Exception {
         Long documentId = uploadPdf("Low confidence invoice");
 
-        when(ocrProvider.process(any(byte[].class), eq("application/pdf")))
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_INVOICE_PROCESSOR_ID)))
                 .thenReturn(sampleLowConfidenceOcrResult());
 
         mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
@@ -781,7 +1357,8 @@ class ExtractionIntegrationTest {
     void confirmExtractionWithLowConfidenceCorrectedFieldThenSucceeds() throws Exception {
         Long documentId = uploadPdf("Corrected low confidence invoice");
 
-        when(ocrProvider.process(any(byte[].class), eq("application/pdf")))
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_INVOICE_PROCESSOR_ID)))
                 .thenReturn(sampleLowConfidenceOcrResult());
 
         MvcResult processResult =
@@ -837,7 +1414,8 @@ class ExtractionIntegrationTest {
     void confirmInvoiceExtractionWithoutRequiredFieldThenReturnsBadRequest() throws Exception {
         Long documentId = uploadPdf("Missing required field invoice");
 
-        when(ocrProvider.process(any(byte[].class), eq("application/pdf")))
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_INVOICE_PROCESSOR_ID)))
                 .thenReturn(sampleOcrResultWithoutInvoiceId());
 
         mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
@@ -860,7 +1438,8 @@ class ExtractionIntegrationTest {
     void confirmInvoiceExtractionWithBlankFieldThenReturnsBadRequest() throws Exception {
         Long documentId = uploadPdf("Blank required field invoice");
 
-        when(ocrProvider.process(any(byte[].class), eq("application/pdf")))
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_INVOICE_PROCESSOR_ID)))
                 .thenReturn(sampleOcrResultWithBlankSupplierName());
 
         mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
@@ -883,7 +1462,8 @@ class ExtractionIntegrationTest {
     void confirmInvoiceExtractionWithRequiredFieldsThenSucceeds() throws Exception {
         Long documentId = uploadPdf("Valid required fields invoice");
 
-        when(ocrProvider.process(any(byte[].class), eq("application/pdf")))
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_INVOICE_PROCESSOR_ID)))
                 .thenReturn(sampleOcrResult());
 
         mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
@@ -907,7 +1487,8 @@ class ExtractionIntegrationTest {
     void confirmInvoiceExtractionWithInvalidDateFormatThenReturnsBadRequest() throws Exception {
         Long documentId = uploadPdf("Invalid date format invoice");
 
-        when(ocrProvider.process(any(byte[].class), eq("application/pdf")))
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_INVOICE_PROCESSOR_ID)))
                 .thenReturn(sampleOcrResultWithInvalidDateFormat());
 
         mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
@@ -930,7 +1511,8 @@ class ExtractionIntegrationTest {
     void confirmInvoiceExtractionWithDifferentFieldNameCaseThenSucceeds() throws Exception {
         Long documentId = uploadPdf("Normalized field names invoice");
 
-        when(ocrProvider.process(any(byte[].class), eq("application/pdf")))
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_INVOICE_PROCESSOR_ID)))
                 .thenReturn(sampleOcrResultWithMixedCaseFieldNames());
 
         mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
@@ -953,7 +1535,8 @@ class ExtractionIntegrationTest {
             throws Exception {
         Long documentId = uploadPdf("Missing placeholders invoice");
 
-        when(ocrProvider.process(any(byte[].class), eq("application/pdf")))
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_INVOICE_PROCESSOR_ID)))
                 .thenReturn(sampleOcrResultMissingSupplierAndCurrency());
 
         MvcResult processResult =
@@ -1006,7 +1589,8 @@ class ExtractionIntegrationTest {
     void confirmExtractionWithRequiredPlaceholderFieldsThenReturnsBadRequest() throws Exception {
         Long documentId = uploadPdf("Confirm placeholder invoice");
 
-        when(ocrProvider.process(any(byte[].class), eq("application/pdf")))
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_INVOICE_PROCESSOR_ID)))
                 .thenReturn(sampleOcrResultMissingSupplierAndCurrency());
 
         mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
@@ -1029,7 +1613,8 @@ class ExtractionIntegrationTest {
     void updatePlaceholderFieldThenSetsCorrectedTrueAndPlaceholderFalse() throws Exception {
         Long documentId = uploadPdf("Edit placeholder invoice");
 
-        when(ocrProvider.process(any(byte[].class), eq("application/pdf")))
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_INVOICE_PROCESSOR_ID)))
                 .thenReturn(sampleOcrResultMissingSupplierAndCurrency());
 
         MvcResult processResult =
@@ -1089,7 +1674,8 @@ class ExtractionIntegrationTest {
     void confirmExtractionAfterFillingPlaceholderFieldsThenSucceeds() throws Exception {
         Long documentId = uploadPdf("Filled placeholders invoice");
 
-        when(ocrProvider.process(any(byte[].class), eq("application/pdf")))
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_INVOICE_PROCESSOR_ID)))
                 .thenReturn(sampleOcrResultMissingSupplierAndCurrency());
 
         MvcResult processResult =
@@ -1131,6 +1717,93 @@ class ExtractionIntegrationTest {
 
         assertEquals("READY_FOR_APPROVAL", documentStatus);
         assertEquals(0, placeholderCount);
+    }
+
+    @Test
+    void confirmInvoiceExtractionWhenTotalAmountIsSmallerThanNetAmountThenReturnsBadRequest()
+            throws Exception {
+        Long documentId = uploadPdf("Invoice total smaller than net");
+
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_INVOICE_PROCESSOR_ID)))
+                .thenReturn(sampleOcrResultWithTotalSmallerThanNet());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction/confirm", documentId))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$[0].code").value("EXTRACTION_FIELD_AMOUNT_INCONSISTENT"));
+
+        String documentStatus =
+                jdbcTemplate.queryForObject(
+                        "SELECT document_status FROM document WHERE id = ?",
+                        String.class,
+                        documentId);
+
+        assertEquals("EXTRACTED", documentStatus);
+    }
+
+    @Test
+    void confirmInvoiceExtractionWhenNetPlusVatDoesNotMatchTotalThenReturnsBadRequest()
+            throws Exception {
+        Long documentId = uploadPdf("Invoice net vat mismatch");
+
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_INVOICE_PROCESSOR_ID)))
+                .thenReturn(sampleOcrResultWithNetVatMismatch());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction/confirm", documentId))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$[0].code").value("EXTRACTION_FIELD_AMOUNT_INCONSISTENT"));
+    }
+
+    @Test
+    void updateDecimalFieldWithCurrencyTextThenReturnsBadRequest() throws Exception {
+        long[] ids = uploadAndExtractWith(sampleOcrResult());
+        long extractionId = ids[0];
+        long fieldId = ids[1];
+
+        mockMvc.perform(
+                        patch(
+                                        "/api/extractions/{extractionId}/fields/{fieldId}",
+                                        extractionId,
+                                        fieldId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"value\": \"1500 KM\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$[0].code").value("EXTRACTION_FIELD_AMOUNT_INVALID"));
+
+        assertFieldUnchanged(extractionId, fieldId, "117", false);
+    }
+
+    private OcrResult sampleOcrResultWithTotalSmallerThanNet() {
+        return new OcrResult(
+                "INVOICE\nNet 1500.00\nVAT 255.00\nTotal 1000.00 EUR\n",
+                List.of(
+                        field("supplier_name", "Math Test Company", null, "0.91"),
+                        field("invoice_id", "INV-MATH-001", null, "0.97"),
+                        field("invoice_date", "2026-05-16", "2026-05-16", "0.96"),
+                        field("net_amount", "1500.00", "1500", "0.95"),
+                        field("vat_amount", "255.00", "255", "0.95"),
+                        field("total_amount", "1000.00", "1000", "0.95"),
+                        field("currency", "EUR", "EUR", "0.89")));
+    }
+
+    private OcrResult sampleOcrResultWithNetVatMismatch() {
+        return new OcrResult(
+                "INVOICE\nNet 100.00\nVAT 17.00\nTotal 90.00 EUR\n",
+                List.of(
+                        field("supplier_name", "Mismatch Company", null, "0.91"),
+                        field("invoice_id", "INV-MATH-002", null, "0.97"),
+                        field("invoice_date", "2026-05-16", "2026-05-16", "0.96"),
+                        field("net_amount", "100.00", "100", "0.95"),
+                        field("vat_amount", "17.00", "17", "0.95"),
+                        field("total_amount", "90.00", "90", "0.95"),
+                        field("currency", "EUR", "EUR", "0.89")));
     }
 
     private Long findFieldId(Long extractionId, String fieldName) {
@@ -1227,6 +1900,10 @@ class ExtractionIntegrationTest {
     }
 
     private Long uploadPdf(String name) throws Exception {
+        return uploadPdfWithType(name, "INVOICE");
+    }
+
+    private Long uploadPdfWithType(String name, String documentType) throws Exception {
         MockMultipartFile file =
                 new MockMultipartFile(
                         "file",
@@ -1238,15 +1915,232 @@ class ExtractionIntegrationTest {
                 mockMvc.perform(
                                 multipart("/api/documents/upload")
                                         .file(file)
-                                        .param("companyId", "1")
-                                        .param("createdByUserId", "1")
-                                        .param("documentType", "INVOICE")
+                                        .param("documentType", documentType)
                                         .param("name", name))
                         .andExpect(status().isOk())
                         .andReturn();
 
         JsonNode response = objectMapper.readTree(result.getResponse().getContentAsString());
         return response.get("payload").get("id").asLong();
+    }
+
+    private void setupTestTenant() {
+        new TransactionTemplate(transactionManager)
+                .executeWithoutResult(
+                        status -> {
+                            CompanyEntity company = new CompanyEntity();
+                            company.setName("Extraction Test Co");
+                            company.setAddress("Address");
+                            company.setEmail("extraction-" + System.nanoTime() + "@test.ba");
+                            company.setRegistrationDate(LocalDateTime.now());
+                            company.setStatus(CompanyStatus.ACTIVE);
+                            company.setKeycloakGroupId("group-extraction");
+                            Long companyId = companyDAO.persist(company).getId();
+
+                            UserEntity user = new UserEntity();
+                            user.setCompanyId(companyId);
+                            user.setRoleId(roleService.getByName(RoleName.OPERATOR).getId());
+                            user.setKeycloakUserId(KEYCLOAK_USER);
+                            user.setFirstName("Extraction");
+                            user.setLastName("Tester");
+                            user.setEmail("extraction-user@test.ba");
+                            user.setAccountStatus(AccountStatus.ACTIVE);
+                            userDAO.persist(user);
+                            userDAO.flush();
+                        });
+    }
+
+    private void authenticateAs(String keycloakUserId) {
+        Jwt jwt =
+                Jwt.withTokenValue("extraction-test-token")
+                        .header("alg", "none")
+                        .subject(keycloakUserId)
+                        .claim("email", keycloakUserId + "@test.ba")
+                        .issuedAt(Instant.now())
+                        .expiresAt(Instant.now().plusSeconds(3600))
+                        .build();
+
+        SecurityContextHolder.getContext()
+                .setAuthentication(
+                        new JwtAuthenticationToken(
+                                jwt, List.of(new SimpleGrantedAuthority("ROLE_USER"))));
+    }
+
+    private OcrResult classifierResult(String documentType, String confidence) {
+        return new OcrResult(
+                "Classification result: " + documentType,
+                List.of(field(documentType, documentType, documentType, confidence)));
+    }
+
+    private OcrResult sampleReceiptOcrResult() {
+        return new OcrResult(
+                "RECEIPT\nMerchant: Test Shop\nTotal: 20.00 EUR\n",
+                List.of(
+                        field("supplier_name", "Test Shop", null, "0.90"),
+                        field("expense_date", "2026-05-06", "2026-05-06", "0.88"),
+                        field("total_amount", "20.00", "20", "0.93"),
+                        field("currency", "EUR", "EUR", "0.89")));
+    }
+
+    private OcrResult sampleBankStatementOcrResult() {
+        return new OcrResult(
+                "BANK STATEMENT\nBank: Test Bank\nAccount: BA000123\n",
+                List.of(
+                        field("bank_name", "Test Bank", null, "0.92"),
+                        field("account_number", "BA000123", null, "0.91"),
+                        field("statement_start_date", "2026-05-01", "2026-05-01", "0.89"),
+                        field("statement_end_date", "2026-05-31", "2026-05-31", "0.89")));
+    }
+
+    private OcrResult sampleFormOcrResult() {
+        return new OcrResult(
+                "FORM\nApplicant: Test User\nApproved: yes\n",
+                List.of(
+                        field("applicant_name", "Test User", null, "0.91"),
+                        field("approval_date", "2026-05-06", "2026-05-06", "0.87"),
+                        field("approved", "yes", null, "0.85")));
+    }
+
+    private Long processDocumentWithTypeAndResult(
+            String name, String documentType, String processorId, OcrResult ocrResult)
+            throws Exception {
+        Long documentId = uploadPdfWithType(name, documentType);
+
+        when(ocrProvider.process(any(byte[].class), eq("application/pdf"), eq(processorId)))
+                .thenReturn(ocrResult);
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("OK"));
+
+        return documentId;
+    }
+
+    private void assertDocumentStatus(Long documentId, String expectedStatus) {
+        String documentStatus =
+                jdbcTemplate.queryForObject(
+                        "SELECT document_status FROM document WHERE id = ?",
+                        String.class,
+                        documentId);
+
+        assertEquals(expectedStatus, documentStatus);
+    }
+
+    private OcrResult sampleReceiptOcrResultWithoutDateAlias() {
+        return new OcrResult(
+                "RECEIPT\nMerchant: Test Shop\nTotal: 20.00 EUR\n",
+                List.of(
+                        field("supplier_name", "Test Shop", null, "0.90"),
+                        field("total_amount", "20.00", "20", "0.93"),
+                        field("currency", "EUR", "EUR", "0.89")));
+    }
+
+    private OcrResult sampleReceiptOcrResultWithLowConfidenceRequiredField() {
+        return new OcrResult(
+                "RECEIPT\nMerchant: Test Shop\nTotal: 20.00 EUR\n",
+                List.of(
+                        field("supplier_name", "Test Shop", null, "0.90"),
+                        field("expense_date", "2026-05-06", "2026-05-06", "0.88"),
+                        field("total_amount", "20.00", "20", "0.26"),
+                        field("currency", "EUR", "EUR", "0.89")));
+    }
+
+    private OcrResult sampleReceiptOcrResultWithLowConfidenceOptionalField() {
+        return new OcrResult(
+                "RECEIPT\nMerchant: Test Shop\nTotal: 20.00 EUR\nPayment: card\n",
+                List.of(
+                        field("supplier_name", "Test Shop", null, "0.90"),
+                        field("expense_date", "2026-05-06", "2026-05-06", "0.88"),
+                        field("total_amount", "20.00", "20", "0.93"),
+                        field("currency", "EUR", "EUR", "0.89"),
+                        field("payment_type", "card", null, "0.25")));
+    }
+
+    private OcrResult sampleBankStatementOcrResultWithoutIdentityField() {
+        return new OcrResult(
+                "BANK STATEMENT\nAccount: BA000123\nPeriod: 2026-05-01 - 2026-05-31\n",
+                List.of(
+                        field("account_number", "BA000123", null, "0.91"),
+                        field("statement_start_date", "2026-05-01", "2026-05-01", "0.89"),
+                        field("statement_end_date", "2026-05-31", "2026-05-31", "0.89")));
+    }
+
+    private OcrResult sampleBankStatementOcrResultWithoutActivityField() {
+        return new OcrResult(
+                "BANK STATEMENT\nBank: Test Bank\nAccount: BA000123\n",
+                List.of(
+                        field("bank_name", "Test Bank", null, "0.92"),
+                        field("account_number", "BA000123", null, "0.91")));
+    }
+
+    private OcrResult sampleBankStatementOcrResultWithLowConfidenceRequiredField() {
+        return new OcrResult(
+                "BANK STATEMENT\nBank: Test Bank\nAccount: BA000123\n",
+                List.of(
+                        field("bank_name", "Test Bank", null, "0.92"),
+                        field("account_number", "BA000123", null, "0.26"),
+                        field("statement_start_date", "2026-05-01", "2026-05-01", "0.89"),
+                        field("statement_end_date", "2026-05-31", "2026-05-31", "0.89")));
+    }
+
+    private OcrResult sampleBankStatementOcrResultWithLowConfidenceOptionalField() {
+        return new OcrResult(
+                "BANK STATEMENT\nBank: Test Bank\nAccount: BA000123\nType: checking\n",
+                List.of(
+                        field("bank_name", "Test Bank", null, "0.92"),
+                        field("account_number", "BA000123", null, "0.91"),
+                        field("statement_start_date", "2026-05-01", "2026-05-01", "0.89"),
+                        field("statement_end_date", "2026-05-31", "2026-05-31", "0.89"),
+                        field("account_type", "checking", null, "0.25")));
+    }
+
+    private OcrResult sampleBankStatementOcrResultWithInvalidBalanceFormat() {
+        return new OcrResult(
+                "BANK STATEMENT\nBank: Test Bank\nAccount: BA000123\nBalance: 1 000.00\n",
+                List.of(
+                        field("bank_name", "Test Bank", null, "0.92"),
+                        field("account_number", "BA000123", null, "0.91"),
+                        field("statement_start_date", "2026-05-01", "2026-05-01", "0.89"),
+                        field("starting_balance", "1 000.00", null, "0.90")));
+    }
+
+    private OcrResult sampleFormOcrResultWithLowConfidenceFields() {
+        return new OcrResult(
+                "FORM\nApplicant: Test User\nApproved: yes\n",
+                List.of(
+                        field("applicant_name", "Test User", null, "0.25"),
+                        field("approval_date", "2026-05-06", "2026-05-06", "0.30"),
+                        field("approved", "yes", null, "0.20")));
+    }
+
+    private Map<String, Object> findDocumentClassificationMetadata(Long documentId) {
+        return jdbcTemplate.queryForMap(
+                """
+                SELECT document_status, document_type, detected_document_type,
+                       classification_confidence, processor_id_used
+                FROM document
+                WHERE id = ?
+                """,
+                documentId);
+    }
+
+    private void assertBigDecimalEquals(String expected, Object actual) {
+        assertTrue(actual instanceof BigDecimal, "Expected BigDecimal but got: " + actual);
+        assertEquals(0, new BigDecimal(expected).compareTo((BigDecimal) actual));
+    }
+
+    private void verifyNoParserProcessorWasCalled() {
+        verify(ocrProvider, never())
+                .process(any(byte[].class), eq("application/pdf"), eq(TEST_INVOICE_PROCESSOR_ID));
+        verify(ocrProvider, never())
+                .process(any(byte[].class), eq("application/pdf"), eq(TEST_RECEIPT_PROCESSOR_ID));
+        verify(ocrProvider, never())
+                .process(
+                        any(byte[].class),
+                        eq("application/pdf"),
+                        eq(TEST_BANK_STATEMENT_PROCESSOR_ID));
+        verify(ocrProvider, never())
+                .process(any(byte[].class), eq("application/pdf"), eq(TEST_FORM_PROCESSOR_ID));
     }
 
     private OcrResult sampleOcrResult() {
@@ -1281,7 +2175,9 @@ class ExtractionIntegrationTest {
             throws Exception {
         Long documentId = uploadPdf("Decimal validation invoice");
 
-        when(ocrProvider.process(any(byte[].class), eq("application/pdf"))).thenReturn(ocrResult);
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_INVOICE_PROCESSOR_ID)))
+                .thenReturn(ocrResult);
 
         MvcResult processResult =
                 mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))

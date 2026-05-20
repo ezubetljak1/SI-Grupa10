@@ -4,6 +4,7 @@ import lombok.Data;
 
 import java.io.Serial;
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Data
@@ -16,6 +17,9 @@ public class Document implements Serializable {
     private String name;
     private String fileType;
     private String documentType;
+    private String detectedDocumentType;
+    private BigDecimal classificationConfidence;
+    private String processorIdUsed;
     private String storagePath;
     private LocalDateTime uploadDate;
     private Long fileSize;

@@ -1,20 +1,26 @@
-import {CommonModule} from '@angular/common';
-import {HttpErrorResponse} from '@angular/common/http';
-import {Component, inject, OnInit} from '@angular/core';
-import {FormsModule} from '@angular/forms';
-import {ActivatedRoute, RouterLink} from '@angular/router';
+import { CommonModule } from '@angular/common';
+import { HttpErrorResponse } from '@angular/common/http';
+import { Component, inject, OnInit } from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 
-import {DocumentApiService} from '../../services/document-api.service';
+import { DocumentApiService} from '../../services/document-api.service';
 import {
   FileTypeIconComponent,
   PageHeaderComponent,
   StatusBadgeComponent,
   UiCardComponent,
 } from '../../shared/components';
-import {DocflowDocument} from '../models/document.models';
-import {DomSanitizer, SafeResourceUrl} from '@angular/platform-browser';
-import {ToastrService} from 'ngx-toastr';
-import {Extraction, ExtractionField} from '../models/extraction.models';
+import {
+  DOCUMENT_TYPE_OPTIONS,
+  DocflowDocument,
+  MANUAL_CLASSIFICATION_DOCUMENT_TYPES,
+  ManualClassificationDocumentType,
+} from '../models/document.models';
+import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
+import { ToastrService } from 'ngx-toastr';
+import { Extraction, ExtractionField } from '../models/extraction.models';
+import { AuthService } from '../../auth/services/auth.service';
 
 interface EditState {
   fieldId: number;
@@ -48,6 +54,7 @@ export class DocumentDetailPageComponent implements OnInit {
   private readonly documentApiService = inject(DocumentApiService);
   private readonly route = inject(ActivatedRoute);
   private readonly toastr = inject(ToastrService);
+  private readonly authService = inject(AuthService);
 
   document: DocflowDocument | null = null;
   loading = false;
@@ -56,6 +63,7 @@ export class DocumentDetailPageComponent implements OnInit {
   private readonly sanitizer = inject(DomSanitizer);
 
   fileUrl: SafeResourceUrl | null = null;
+  private previewObjectUrl: string | undefined;
 
   isPdf = false;
   isImage = false;
@@ -68,6 +76,16 @@ export class DocumentDetailPageComponent implements OnInit {
   extractionId: number | null = null;
   editState: EditState | null = null;
   confirmingExtraction = false;
+
+  readonly documentTypeOptions = DOCUMENT_TYPE_OPTIONS;
+  readonly manualClassificationTypeOptions = MANUAL_CLASSIFICATION_DOCUMENT_TYPES;
+
+  selectedManualDocumentType: ManualClassificationDocumentType = 'FORM';
+  confirmingDocumentType = false;
+
+  get canManageExtraction(): boolean {
+    return this.authService.hasRole(['ADMIN', 'OPERATOR']);
+  }
 
   ngOnInit(): void {
     this.route.paramMap.subscribe((params) => {
@@ -87,10 +105,31 @@ export class DocumentDetailPageComponent implements OnInit {
       next: (response) => {
         this.loading = false;
         this.document = response.payload;
-        const rawUrl = `/api/documents/${this.document.id}/preview`;
-        this.fileUrl = this.sanitizer.bypassSecurityTrustResourceUrl(rawUrl);
+        this.selectedManualDocumentType = this.resolveDefaultManualDocumentType(this.document);
+        // Fetch preview as a blob so Authorization header is included by interceptor
+        // then create an object URL for the iframe/img src. This avoids 401 on iframe
+        // navigations and X-Frame-Options issues.
         this.isPdf = this.document.fileType === 'application/pdf';
         this.isImage = this.document.fileType?.startsWith('image/');
+
+        // revoke previously created object URL if present
+        if (this.previewObjectUrl) {
+          try {
+            window.URL.revokeObjectURL(this.previewObjectUrl);
+          } catch {}
+          this.previewObjectUrl = undefined;
+        }
+
+        this.documentApiService.getPreview(this.document.id).subscribe({
+          next: (blob) => {
+            this.previewObjectUrl = window.URL.createObjectURL(blob);
+            this.fileUrl = this.sanitizer.bypassSecurityTrustResourceUrl(this.previewObjectUrl);
+          },
+          error: () => {
+            this.fileUrl = null;
+            this.toastr.error('Failed to load document preview.', 'Error');
+          },
+        });
         this.extractionError = null;
         this.extractionFields = [];
         if (this.shouldLoadExtractionForStatus(this.document.documentStatus)) {
@@ -107,6 +146,37 @@ export class DocumentDetailPageComponent implements OnInit {
         this.toastr.error(message, 'Error');
       },
     });
+  }
+
+  confirmDocumentType(): void {
+    if (!this.document) {
+      return;
+    }
+
+    const documentId = this.document.id;
+    this.confirmingDocumentType = true;
+
+    this.documentApiService
+      .confirmDocumentType(documentId, this.selectedManualDocumentType)
+      .subscribe({
+        next: (response) => {
+          this.confirmingDocumentType = false;
+          this.document = response.payload;
+          this.extractionError = null;
+          this.toastr.success(
+            'Document type confirmed. You can run extraction again.',
+            'Classification confirmed'
+          );
+          this.loadDocument(documentId);
+        },
+        error: (err: HttpErrorResponse) => {
+          this.confirmingDocumentType = false;
+          const message =
+            this.extractErrorMessage(err.error) ??
+            'Document type confirmation failed.';
+          this.toastr.error(message, 'Error');
+        },
+      });
   }
 
   loadExtraction(): void {
@@ -222,24 +292,117 @@ export class DocumentDetailPageComponent implements OnInit {
 
     if (name.includes('date') || name.includes('datum')) {
       if (!this.isValidDateValue(trimmed)) {
-        return 'Invalid date format. Accepted formats: YYYY-MM-DD, DD.MM.YYYY, DD/MM/YYYY.';
+        return 'Invalid date format. Supported formats are ISO YYYY-MM-DD or European DD.MM.YYYY / DD/MM/YYYY. US MM/DD/YYYY format is not supported.';
       }
     }
 
     if (
       name.includes('amount') ||
+      name.includes('balance') ||
+      name.includes('deposit') ||
+      name.includes('withdrawal') ||
       name.includes('iznos') ||
       name.includes('cijena') ||
       name.endsWith('_price') ||
       name.endsWith('_quantity') ||
-      ['net_amount', 'vat_amount', 'total_amount', 'total_tax_amount', 'tax_amount', 'subtotal_amount', 'amount', 'price', 'unit_price', 'quantity', 'qty'].includes(name)
+      [
+        'net_amount',
+        'vat_amount',
+        'total_amount',
+        'total_tax_amount',
+        'tax_amount',
+        'subtotal_amount',
+        'amount',
+        'price',
+        'unit_price',
+        'quantity',
+        'qty',
+        'starting_balance',
+        'ending_balance',
+        'opening_balance',
+        'closing_balance',
+        'current_balance',
+        'transaction_deposit',
+        'transaction_withdrawal',
+        'transaction_amount',
+        'table_item/transaction_deposit',
+        'table_item/transaction_withdrawal',
+        'table_item/transaction_amount',
+      ].includes(name)
     ) {
       if (!this.isValidNumericValue(trimmed)) {
-        return 'Field must be a non-negative number with up to 2 decimals (e.g. 1234.56 or 1234,56).';
+        return 'Field must be a numeric value only, without currency symbols or additional text. Use for example 1500, 1500.50 or 1500,50.';
       }
     }
-
     return null;
+  }
+
+  isClassificationReviewRequired(): boolean {
+    return this.document?.documentStatus === 'NEEDS_CLASSIFICATION_REVIEW';
+  }
+
+  formatDocumentTypeLabel(documentType: string | null | undefined): string {
+    if (!documentType) {
+      return '—';
+    }
+
+    return (
+      this.documentTypeOptions.find((type) => type.value === documentType)?.label ??
+      documentType.replaceAll('_', ' ')
+    );
+  }
+
+  formatClassificationConfidence(confidence: number | null | undefined): string {
+    if (confidence === null || confidence === undefined) {
+      return '—';
+    }
+
+    const normalized = confidence <= 1 ? confidence * 100 : confidence;
+    return `${Math.round(normalized)}%`;
+  }
+
+  formatProcessorLabel(document: DocflowDocument | null | undefined): string {
+    if (!document?.processorIdUsed) {
+      return '—';
+    }
+
+    if (document.documentStatus === 'NEEDS_CLASSIFICATION_REVIEW') {
+      return 'AI classifier';
+    }
+
+    const typeForProcessor = document.documentType ?? document.detectedDocumentType;
+
+    switch (typeForProcessor) {
+      case 'INVOICE':
+        return 'Invoice parser';
+      case 'RECEIPT':
+        return 'Expense parser';
+      case 'BANK_STATEMENT':
+        return 'Bank statement parser';
+      case 'FORM':
+        return 'Form parser';
+      case 'OTHER':
+        return 'AI classifier';
+      default:
+        return 'Document AI processor';
+    }
+  }
+
+  private resolveDefaultManualDocumentType(
+    document: DocflowDocument
+  ): ManualClassificationDocumentType {
+    const detectedType = document.detectedDocumentType;
+
+    if (
+      detectedType === 'INVOICE' ||
+      detectedType === 'RECEIPT' ||
+      detectedType === 'BANK_STATEMENT' ||
+      detectedType === 'FORM'
+    ) {
+      return detectedType;
+    }
+
+    return 'FORM';
   }
 
   private isValidDateValue(value: string): boolean {
@@ -440,8 +603,13 @@ export class DocumentDetailPageComponent implements OnInit {
   }
 
   needsManualReview(field: ExtractionField): boolean {
-    return this.isPlaceholderField(field)
-      || (this.isLowConfidenceField(field) && !field.corrected);
+    return (
+      this.isPlaceholderField(field) ||
+      this.isDateFieldRequiringReview(field) ||
+      (this.isLowConfidenceField(field) &&
+        !field.corrected &&
+        this.shouldLowConfidenceBlockConfirmation(field))
+    );
   }
 
   get missingRequiredFields(): ExtractionField[] {
@@ -450,8 +618,58 @@ export class DocumentDetailPageComponent implements OnInit {
 
   get lowConfidenceUnreviewedFields(): ExtractionField[] {
     return this.extractionFields.filter(
-      (field) => this.isLowConfidenceField(field) && !field.corrected
+      (field) =>
+        this.isLowConfidenceField(field) &&
+        !field.corrected &&
+        this.shouldLowConfidenceBlockConfirmation(field)
     );
+  }
+
+  private shouldLowConfidenceBlockConfirmation(field: ExtractionField): boolean {
+    const documentType = this.document?.documentType;
+    const fieldName = field.fieldName?.trim().toLowerCase() ?? '';
+
+    if (documentType === 'INVOICE') {
+      return true;
+    }
+
+    if (documentType === 'RECEIPT') {
+      return (
+        ['supplier_name', 'total_amount', 'currency'].includes(fieldName) ||
+        ['receipt_date', 'expense_date', 'transaction_date', 'purchase_date'].includes(fieldName)
+      );
+    }
+
+    if (documentType === 'BANK_STATEMENT') {
+      return (
+        ['account_number'].includes(fieldName) ||
+        [
+          'bank_name',
+          'client_name',
+          'account_holder_name',
+          'customer_name',
+          'statement_date',
+          'statement_start_date',
+          'statement_end_date',
+          'starting_balance',
+          'ending_balance',
+          'opening_balance',
+          'closing_balance',
+          'current_balance',
+          'table_item',
+          'table_item/transaction_date',
+          'table_item/transaction_deposit',
+          'table_item/transaction_withdrawal',
+          'table_item/transaction_amount',
+          'transaction_date',
+          'transaction_deposit',
+          'transaction_withdrawal',
+          'transaction_amount',
+        ].includes(fieldName)
+      );
+    }
+
+    return false;
   }
 
   get missingRequiredFieldNames(): string {
@@ -492,7 +710,10 @@ export class DocumentDetailPageComponent implements OnInit {
       return 'review-badge--missing';
     }
 
-    if (this.isLowConfidenceField(field) && !field.corrected) {
+    if (
+      (this.isLowConfidenceField(field) || this.isDateFieldRequiringReview(field)) &&
+      !field.corrected
+    ) {
       return 'review-badge--warning';
     }
 
@@ -509,6 +730,47 @@ export class DocumentDetailPageComponent implements OnInit {
     }
 
     return field.value?.trim() || '—';
+  }
+
+  hasAiClassificationMetadata(): boolean {
+    if (!this.document) {
+      return false;
+    }
+
+    return (
+      this.document.documentStatus === 'NEEDS_CLASSIFICATION_REVIEW' ||
+      !!this.document.detectedDocumentType ||
+      this.document.classificationConfidence !== null &&
+        this.document.classificationConfidence !== undefined
+    );
+  }
+
+  isDateField(field: ExtractionField): boolean {
+    const name = field.fieldName.toLowerCase();
+    return name.includes('date') || name.includes('datum');
+  }
+
+  getDateFormatHint(): string {
+    return 'Supported format: DD.MM.YYYY or DD/MM/YYYY. Ambiguous US format MM/DD/YYYY is not supported.';
+  }
+
+  isDateFieldRequiringReview(field: ExtractionField): boolean {
+    return (
+      this.isDateField(field) &&
+      this.isLowConfidenceField(field) &&
+      !field.corrected &&
+      this.shouldLowConfidenceBlockConfirmation(field)
+    );
+  }
+
+  hasDateFields(): boolean {
+    return this.extractionFields.some((field) => this.isDateField(field));
+  }
+
+  hasUnreviewedDateFields(): boolean {
+    return this.extractionFields.some(
+      (field) => this.isDateField(field) && !field.corrected
+    );
   }
 
   private resolveDownloadFileName(doc: DocflowDocument): string {
@@ -551,6 +813,10 @@ export class DocumentDetailPageComponent implements OnInit {
 
   private extractExtractionErrorMessage(errorBody: unknown, fallback: string): string {
     const code = this.extractErrorCode(errorBody);
+    if (code === 'DOCUMENT_CLASSIFICATION_REVIEW_REQUIRED') {
+      return 'AI classification needs manual review. Confirm the correct document type before running extraction again.';
+    }
+
     if (code === 'EXTRACTION_FAILED') {
       return 'Document extraction could not be completed. Please check OCR/AI setup or try again later.';
     }
@@ -636,6 +902,18 @@ export class DocumentDetailPageComponent implements OnInit {
         count > 1
           ? `${count} low-confidence fields need review.`
           : 'One low-confidence field needs review.'
+      );
+    }
+
+    if (codes.has('EXTRACTION_FIELD_REQUIRES_REVIEW')) {
+      const count = errors.filter(
+        (error) => error.code === 'EXTRACTION_FIELD_REQUIRES_REVIEW'
+      ).length;
+
+      parts.push(
+        count > 1
+          ? `${count} date fields need review confirmation.`
+          : 'One date field needs review confirmation.'
       );
     }
 

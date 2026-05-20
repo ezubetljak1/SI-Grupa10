@@ -4,9 +4,11 @@
     title="Documents"
     description="Browse uploaded files, view document details, download stored content, and remove documents from the archive.">
     <div page-actions class="page-actions">
-      <button type="button" routerLink="/documents/upload" class="btn btn-primary">
-        Upload document
-      </button>
+      @if (canUploadDocuments) {
+        <button type="button" routerLink="/documents/upload" class="btn btn-primary">
+          Upload document
+        </button>
+      }
 
       <button
         type="button"
@@ -41,11 +43,13 @@
           icon="[]"
           title="No documents found"
           description="Uploaded documents will appear here after they are saved.">
+          @if (canUploadDocuments) {
           <div empty-actions>
             <button type="button" routerLink="/documents/upload" class="btn btn-primary">
               Upload document
             </button>
           </div>
+          }
         </app-empty-state>
       </div>
     } @else {
@@ -77,7 +81,17 @@
                 </div>
               </td>
 
-              <td>{{ document.documentType }}</td>
+              <td>
+                <div class="document-type-cell">
+                  <span class="document-type-cell__label">
+                    {{ formatDocumentTypeLabel(document.documentType) }}
+                  </span>
+
+                  @if (needsClassificationReview(document)) {
+                    <span class="review-hint">Review type</span>
+                  }
+                </div>
+              </td>
 
               <td>
                 <app-status-badge [status]="document.documentStatus"></app-status-badge>

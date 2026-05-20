@@ -9,12 +9,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.MessageSource;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.MultipartException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.LinkedHashMap;
 import java.util.Locale;
@@ -36,6 +38,17 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<String>> handleNotFound(ApiNotFoundException ex) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(new ApiResponse<>("NOT_FOUND", ex.getMessage()));
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ApiResponse<String>> handleAccessDenied(AccessDeniedException ex) {
+        String message =
+                ex.getMessage() != null && !ex.getMessage().isBlank()
+                        ? ex.getMessage()
+                        : "You do not have permission to access this resource.";
+
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(new ApiResponse<>("FORBIDDEN", message));
     }
 
     @ExceptionHandler(MaxUploadSizeExceededException.class)
@@ -70,6 +83,14 @@ public class GlobalExceptionHandler {
                 .body(new ApiResponse<>("STORAGE_ERROR", ex.getMessage()));
     }
 
+    @ExceptionHandler(KeycloakIntegrationException.class)
+    public ResponseEntity<ApiResponse<String>> handleKeycloak(KeycloakIntegrationException ex) {
+        log.error("Keycloak integration error occurred", ex);
+
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+                .body(new ApiResponse<>("KEYCLOAK_INTEGRATION_ERROR", ex.getMessage()));
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<?> handleBeanValidation(MethodArgumentNotValidException ex) {
         Map<String, String> errors = new LinkedHashMap<>();
@@ -100,6 +121,21 @@ public class GlobalExceptionHandler {
 
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(new ApiResponse<>("EXTRACTION_FAILED", ex.getMessage()));
+    }
+
+    @ExceptionHandler(DocumentClassificationReviewRequiredException.class)
+    public ResponseEntity<ApiResponse<String>> handleDocumentClassificationReviewRequired(
+            DocumentClassificationReviewRequiredException exception) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(
+                        new ApiResponse<>(
+                                "DOCUMENT_CLASSIFICATION_REVIEW_REQUIRED", exception.getMessage()));
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ApiResponse<String>> handleNoResourceFound(NoResourceFoundException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(new ApiResponse<>("NOT_FOUND", "Resource not found: " + ex.getResourcePath()));
     }
 
     @ExceptionHandler(Exception.class)

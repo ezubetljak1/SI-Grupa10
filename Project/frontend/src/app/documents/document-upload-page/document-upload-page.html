@@ -93,14 +93,16 @@
             <label for="documentType">Document type</label>
 
             <select
-              id="documentType"
-              class="select"
-              name="documentType"
-              [(ngModel)]="documentType">
-              @for (type of documentTypes; track type) {
-                <option [value]="type">{{ type }}</option>
-              }
+                id="documentType"
+                class="select"
+                name="documentType"
+                [(ngModel)]="documentType">
+                @for (type of documentTypeOptions; track type.value) {
+                  <option [value]="type.value">{{ type.label }}</option>
+                }
             </select>
+
+            <span class="helper">{{ getSelectedDocumentTypeDescription() }}</span>
           </div>
         </div>
 
@@ -164,7 +166,10 @@
 
               <div>
                 <strong>{{ uploadedDocument.name }}</strong>
-                <span>{{ uploadedDocument.documentStatus }} | {{ uploadedDocument.documentType }}</span>
+                  <span>
+                  {{ uploadedDocument.documentStatus }} |
+                  {{ formatDocumentTypeLabel(uploadedDocument.documentType) }}
+                </span>
               </div>
             </div>
 
@@ -176,7 +181,7 @@
 
               <div class="meta-card">
                 <span>Document type</span>
-                <strong>{{ uploadedDocument.documentType }}</strong>
+                <strong>{{ formatDocumentTypeLabel(uploadedDocument.documentType) }}</strong>
               </div>
 
               <div class="meta-card">

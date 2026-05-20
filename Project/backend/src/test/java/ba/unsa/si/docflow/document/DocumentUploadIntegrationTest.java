@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -17,6 +18,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+
+import ba.unsa.si.docflow.dao.CompanyDAO;
+import ba.unsa.si.docflow.dao.UserDAO;
+import ba.unsa.si.docflow.entity.CompanyEntity;
+import ba.unsa.si.docflow.entity.UserEntity;
+import ba.unsa.si.docflow.entity.enums.AccountStatus;
+import ba.unsa.si.docflow.entity.enums.CompanyStatus;
+import ba.unsa.si.docflow.entity.enums.RoleName;
+import ba.unsa.si.docflow.service.role.RoleService;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -28,23 +38,32 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
 @SpringBootTest
-@AutoConfigureMockMvc
+@AutoConfigureMockMvc(addFilters = false)
 @ActiveProfiles("test")
 class DocumentUploadIntegrationTest {
 
@@ -52,12 +71,26 @@ class DocumentUploadIntegrationTest {
             "%PDF-1.4 test document content".getBytes(StandardCharsets.UTF_8);
 
     private static final Path UPLOAD_ROOT = createTempDirectory();
+    private static final String KEYCLOAK_USER_1 = "kc-doc-upload-user-1";
+    private static final String KEYCLOAK_USER_2 = "kc-doc-upload-user-2";
 
     @Autowired private MockMvc mockMvc;
 
     @Autowired private JdbcTemplate jdbcTemplate;
 
     @Autowired private ObjectMapper objectMapper;
+
+    @Autowired private CompanyDAO companyDAO;
+
+    @Autowired private UserDAO userDAO;
+
+    @Autowired private RoleService roleService;
+
+    @Autowired private PlatformTransactionManager transactionManager;
+
+    private Long testCompany1Id;
+    private Long testCompany2Id;
+    private Long testUser1Id;
 
     @DynamicPropertySource
     static void registerProperties(DynamicPropertyRegistry registry) {
@@ -66,10 +99,16 @@ class DocumentUploadIntegrationTest {
 
     @BeforeEach
     void setUp() throws IOException {
+        jdbcTemplate.execute("DELETE FROM extraction_field");
+        jdbcTemplate.execute("DELETE FROM extraction");
         jdbcTemplate.execute("DELETE FROM document");
+        jdbcTemplate.execute("DELETE FROM app_user");
+        jdbcTemplate.execute("DELETE FROM company");
 
         deleteChildren(UPLOAD_ROOT);
         Files.createDirectories(UPLOAD_ROOT);
+        setupTestTenants();
+        authenticateAs(KEYCLOAK_USER_1);
     }
 
     @AfterAll
@@ -85,15 +124,13 @@ class DocumentUploadIntegrationTest {
         mockMvc.perform(
                         multipart("/api/documents/upload")
                                 .file(file)
-                                .param("companyId", "1")
-                                .param("createdByUserId", "1")
                                 .param("documentType", "INVOICE")
                                 .param("name", "Test invoice"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value("OK"))
                 .andExpect(jsonPath("$.payload.name").value("Test invoice"))
-                .andExpect(jsonPath("$.payload.companyId").value(1))
-                .andExpect(jsonPath("$.payload.createdBy").value(1))
+                .andExpect(jsonPath("$.payload.companyId").value(testCompany1Id.intValue()))
+                .andExpect(jsonPath("$.payload.createdBy").value(testUser1Id.intValue()))
                 .andExpect(jsonPath("$.payload.documentType").value("INVOICE"))
                 .andExpect(jsonPath("$.payload.documentStatus").value("UPLOADED"))
                 .andExpect(jsonPath("$.payload.fileType").value("application/pdf"));
@@ -110,7 +147,7 @@ class DocumentUploadIntegrationTest {
         Path storedFile = UPLOAD_ROOT.resolve(storagePath);
 
         assertTrue(Files.exists(storedFile));
-        assertTrue(storagePath.startsWith("company-1/"));
+        assertTrue(storagePath.startsWith("company-" + testCompany1Id + "/"));
     }
 
     @Test
@@ -122,8 +159,6 @@ class DocumentUploadIntegrationTest {
         mockMvc.perform(
                         multipart("/api/documents/upload")
                                 .file(file)
-                                .param("companyId", "1")
-                                .param("createdByUserId", "1")
                                 .param("documentType", "INVOICE"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.payload.name").value("original-invoice.pdf"));
@@ -139,7 +174,7 @@ class DocumentUploadIntegrationTest {
 
     @Test
     void uploadDuplicateNameInSameCompanyThenReturnsValidationError() throws Exception {
-        uploadPdf("Duplicate invoice", 1L);
+        uploadPdf("Duplicate invoice");
 
         MockMultipartFile duplicateFile =
                 new MockMultipartFile("file", "duplicate.pdf", "application/pdf", PDF_CONTENT);
@@ -147,8 +182,6 @@ class DocumentUploadIntegrationTest {
         mockMvc.perform(
                         multipart("/api/documents/upload")
                                 .file(duplicateFile)
-                                .param("companyId", "1")
-                                .param("createdByUserId", "1")
                                 .param("documentType", "INVOICE")
                                 .param("name", "Duplicate invoice"))
                 .andExpect(status().isBadRequest())
@@ -159,14 +192,16 @@ class DocumentUploadIntegrationTest {
                         "SELECT COUNT(*) FROM document WHERE name = ? AND company_id = ?",
                         Integer.class,
                         "Duplicate invoice",
-                        1L);
+                        testCompany1Id);
 
         assertEquals(1, count);
     }
 
     @Test
     void uploadSameNameInDifferentCompanyThenSucceeds() throws Exception {
-        uploadPdf("Shared invoice name", 1L);
+        uploadPdf("Shared invoice name");
+
+        authenticateAs(KEYCLOAK_USER_2);
 
         MockMultipartFile file =
                 new MockMultipartFile("file", "shared.pdf", "application/pdf", PDF_CONTENT);
@@ -174,13 +209,13 @@ class DocumentUploadIntegrationTest {
         mockMvc.perform(
                         multipart("/api/documents/upload")
                                 .file(file)
-                                .param("companyId", "2")
-                                .param("createdByUserId", "1")
                                 .param("documentType", "INVOICE")
                                 .param("name", "Shared invoice name"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.payload.name").value("Shared invoice name"))
-                .andExpect(jsonPath("$.payload.companyId").value(2));
+                .andExpect(jsonPath("$.payload.companyId").value(testCompany2Id.intValue()));
+
+        authenticateAs(KEYCLOAK_USER_1);
 
         Integer count =
                 jdbcTemplate.queryForObject(
@@ -203,8 +238,6 @@ class DocumentUploadIntegrationTest {
         mockMvc.perform(
                         multipart("/api/documents/upload")
                                 .file(file)
-                                .param("companyId", "1")
-                                .param("createdByUserId", "1")
                                 .param("documentType", "INVOICE")
                                 .param("name", "Invalid text file"))
                 .andExpect(status().isBadRequest())
@@ -223,8 +256,6 @@ class DocumentUploadIntegrationTest {
         mockMvc.perform(
                         multipart("/api/documents/upload")
                                 .file(file)
-                                .param("companyId", "1")
-                                .param("createdByUserId", "1")
                                 .param("documentType", "CONTRACT")
                                 .param("name", "Invalid document type"))
                 .andExpect(status().isBadRequest())
@@ -245,8 +276,6 @@ class DocumentUploadIntegrationTest {
         mockMvc.perform(
                         multipart("/api/documents/upload")
                                 .file(file)
-                                .param("companyId", "1")
-                                .param("createdByUserId", "1")
                                 .param("documentType", "INVOICE")
                                 .param("name", "Large file"))
                 .andExpect(status().isBadRequest())
@@ -259,7 +288,7 @@ class DocumentUploadIntegrationTest {
 
     @Test
     void downloadUploadedFileThenReturnsStoredContent() throws Exception {
-        Long documentId = uploadPdf("Download test invoice", 1L);
+        Long documentId = uploadPdf("Download test invoice");
 
         mockMvc.perform(get("/api/documents/{id}/file", documentId))
                 .andExpect(status().isOk())
@@ -272,7 +301,7 @@ class DocumentUploadIntegrationTest {
 
     @Test
     void deleteUploadedDocumentThenRemovesMetadataAndFile() throws Exception {
-        Long documentId = uploadPdf("Delete test invoice", 1L);
+        Long documentId = uploadPdf("Delete test invoice");
 
         String storagePath =
                 jdbcTemplate.queryForObject(
@@ -295,15 +324,15 @@ class DocumentUploadIntegrationTest {
 
     @Test
     void findUploadedDocumentByIdThenReturnsDocumentPayload() throws Exception {
-        Long documentId = uploadPdf("Details test invoice", 1L);
+        Long documentId = uploadPdf("Details test invoice");
 
         mockMvc.perform(get("/api/documents/{id}", documentId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value("OK"))
                 .andExpect(jsonPath("$.payload.id").value(documentId))
                 .andExpect(jsonPath("$.payload.name").value("Details test invoice"))
-                .andExpect(jsonPath("$.payload.companyId").value(1))
-                .andExpect(jsonPath("$.payload.createdBy").value(1))
+                .andExpect(jsonPath("$.payload.companyId").value(testCompany1Id.intValue()))
+                .andExpect(jsonPath("$.payload.createdBy").value(testUser1Id.intValue()))
                 .andExpect(jsonPath("$.payload.documentType").value("INVOICE"))
                 .andExpect(jsonPath("$.payload.documentStatus").value("UPLOADED"))
                 .andExpect(jsonPath("$.payload.fileType").value("application/pdf"));
@@ -320,7 +349,7 @@ class DocumentUploadIntegrationTest {
 
     @Test
     void previewUploadedFileThenReturnsInlineContent() throws Exception {
-        Long documentId = uploadPdf("Preview test invoice", 1L);
+        Long documentId = uploadPdf("Preview test invoice");
 
         mockMvc.perform(get("/api/documents/{id}/preview", documentId))
                 .andExpect(status().isOk())
@@ -341,8 +370,6 @@ class DocumentUploadIntegrationTest {
         mockMvc.perform(
                         multipart("/api/documents/upload")
                                 .file(file)
-                                .param("companyId", "1")
-                                .param("createdByUserId", "1")
                                 .param("documentType", "INVOICE")
                                 .param("name", "Empty file"))
                 .andExpect(status().isBadRequest())
@@ -361,8 +388,6 @@ class DocumentUploadIntegrationTest {
         mockMvc.perform(
                         multipart("/api/documents/upload")
                                 .file(file)
-                                .param("companyId", "1")
-                                .param("createdByUserId", "1")
                                 .param("documentType", "INVOICE")
                                 .param("name", "Wrong content type"))
                 .andExpect(status().isBadRequest())
@@ -377,12 +402,12 @@ class DocumentUploadIntegrationTest {
     void createDocumentWithInvalidTypeThenReturnsValidationError() throws Exception {
         Map<String, Object> request =
                 Map.of(
-                        "companyId", 1L,
-                        "createdByUserId", 1L,
+                        "companyId", testCompany1Id,
+                        "createdByUserId", testUser1Id,
                         "name", "Manual invalid type",
                         "fileType", "application/pdf",
                         "documentType", "CONTRACT",
-                        "storagePath", "company-1/manual-invalid-type.pdf",
+                        "storagePath", "company-" + testCompany1Id + "/manual-invalid-type.pdf",
                         "fileSize", 123L);
 
         mockMvc.perform(
@@ -403,16 +428,17 @@ class DocumentUploadIntegrationTest {
 
     @Test
     void createDocumentWithDuplicateNameInSameCompanyThenReturnsValidationError() throws Exception {
-        uploadPdf("Existing document", 1L);
+        uploadPdf("Existing document");
 
         Map<String, Object> request =
                 Map.of(
-                        "companyId", 1L,
-                        "createdByUserId", 1L,
+                        "companyId", testCompany1Id,
+                        "createdByUserId", testUser1Id,
                         "name", "Existing document",
                         "fileType", "application/pdf",
                         "documentType", "INVOICE",
-                        "storagePath", "company-1/existing-document-copy.pdf",
+                        "storagePath",
+                                "company-" + testCompany1Id + "/existing-document-copy.pdf",
                         "fileSize", 123L);
 
         mockMvc.perform(
@@ -427,7 +453,7 @@ class DocumentUploadIntegrationTest {
                         "SELECT COUNT(*) FROM document WHERE name = ? AND company_id = ?",
                         Integer.class,
                         "Existing document",
-                        1L);
+                        testCompany1Id);
 
         assertEquals(1, count);
     }
@@ -448,7 +474,7 @@ class DocumentUploadIntegrationTest {
 
     @Test
     void updateDocumentWithInvalidStatusThenReturnsValidationError() throws Exception {
-        Long documentId = uploadPdf("Status update test", 1L);
+        Long documentId = uploadPdf("Status update test");
 
         Map<String, Object> request = Map.of("documentStatus", "ARCHIVED");
 
@@ -470,8 +496,8 @@ class DocumentUploadIntegrationTest {
 
     @Test
     void updateDocumentWithDuplicateNameThenReturnsValidationError() throws Exception {
-        uploadPdf("Original document", 1L);
-        Long secondDocumentId = uploadPdf("Second document", 1L);
+        uploadPdf("Original document");
+        Long secondDocumentId = uploadPdf("Second document");
 
         Map<String, Object> request = Map.of("name", "Original document");
 
@@ -489,7 +515,204 @@ class DocumentUploadIntegrationTest {
         assertEquals("Second document", secondDocumentName);
     }
 
-    private Long uploadPdf(String name, Long companyId) throws Exception {
+    @Test
+    void confirmDocumentTypeWhenReviewRequiredThenUpdatesTypeAndStatus() throws Exception {
+        Long documentId = uploadPdfWithType("Manual classification form", "OTHER");
+
+        jdbcTemplate.update(
+                """
+                UPDATE document
+                SET document_status = 'NEEDS_CLASSIFICATION_REVIEW',
+                    detected_document_type = 'INVOICE',
+                    classification_confidence = 0.400000,
+                    processor_id_used = 'old-processor-id'
+                WHERE id = ?
+                """,
+                documentId);
+
+        mockMvc.perform(
+                        patch("/api/documents/{id}/classification", documentId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                                        {
+                                          "documentType": "FORM"
+                                        }
+                                        """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("OK"))
+                .andExpect(jsonPath("$.payload.id").value(documentId))
+                .andExpect(jsonPath("$.payload.documentType").value("FORM"))
+                .andExpect(jsonPath("$.payload.documentStatus").value("UPLOADED"))
+                .andExpect(jsonPath("$.payload.detectedDocumentType").value("INVOICE"));
+
+        Map<String, Object> document =
+                jdbcTemplate.queryForMap(
+                        """
+                        SELECT document_type, document_status, detected_document_type,
+                               classification_confidence, processor_id_used
+                        FROM document
+                        WHERE id = ?
+                        """,
+                        documentId);
+
+        assertEquals("FORM", document.get("document_type"));
+        assertEquals("UPLOADED", document.get("document_status"));
+        assertEquals("INVOICE", document.get("detected_document_type"));
+        assertEquals(null, document.get("processor_id_used"));
+    }
+
+    @Test
+    void confirmDocumentTypeWithLowerCaseBankStatementThenNormalizesType() throws Exception {
+        Long documentId = uploadPdfWithType("Manual classification bank statement", "OTHER");
+
+        jdbcTemplate.update(
+                "UPDATE document SET document_status = 'NEEDS_CLASSIFICATION_REVIEW' WHERE id = ?",
+                documentId);
+
+        mockMvc.perform(
+                        patch("/api/documents/{id}/classification", documentId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                                        {
+                                          "documentType": "bank_statement"
+                                        }
+                                        """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("OK"))
+                .andExpect(jsonPath("$.payload.documentType").value("BANK_STATEMENT"))
+                .andExpect(jsonPath("$.payload.documentStatus").value("UPLOADED"));
+
+        Map<String, Object> document =
+                jdbcTemplate.queryForMap(
+                        "SELECT document_type, document_status FROM document WHERE id = ?",
+                        documentId);
+
+        assertEquals("BANK_STATEMENT", document.get("document_type"));
+        assertEquals("UPLOADED", document.get("document_status"));
+    }
+
+    @Test
+    void confirmDocumentTypeWhenDocumentIsNotWaitingForReviewThenReturnsValidationError()
+            throws Exception {
+        Long documentId = uploadPdfWithType("Not waiting for classification", "OTHER");
+
+        mockMvc.perform(
+                        patch("/api/documents/{id}/classification", documentId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                                        {
+                                          "documentType": "INVOICE"
+                                        }
+                                        """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$[0].code").value("DOCUMENT_STATUS_INVALID"));
+
+        Map<String, Object> document =
+                jdbcTemplate.queryForMap(
+                        "SELECT document_type, document_status FROM document WHERE id = ?",
+                        documentId);
+
+        assertEquals("OTHER", document.get("document_type"));
+        assertEquals("UPLOADED", document.get("document_status"));
+    }
+
+    @Test
+    void confirmDocumentTypeWithUnsupportedManualTypeThenReturnsValidationError() throws Exception {
+        Long documentId = uploadPdfWithType("Unsupported manual classification", "OTHER");
+
+        jdbcTemplate.update(
+                "UPDATE document SET document_status = 'NEEDS_CLASSIFICATION_REVIEW' WHERE id = ?",
+                documentId);
+
+        mockMvc.perform(
+                        patch("/api/documents/{id}/classification", documentId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                                        {
+                                          "documentType": "OTHER"
+                                        }
+                                        """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$[0].code").value("DOCUMENT_TYPE_INVALID"));
+
+        Map<String, Object> document =
+                jdbcTemplate.queryForMap(
+                        "SELECT document_type, document_status FROM document WHERE id = ?",
+                        documentId);
+
+        assertEquals("OTHER", document.get("document_type"));
+        assertEquals("NEEDS_CLASSIFICATION_REVIEW", document.get("document_status"));
+    }
+
+    @Test
+    void confirmDocumentTypeWithUnknownTypeThenReturnsValidationError() throws Exception {
+        Long documentId = uploadPdfWithType("Unknown manual classification", "OTHER");
+
+        jdbcTemplate.update(
+                "UPDATE document SET document_status = 'NEEDS_CLASSIFICATION_REVIEW' WHERE id = ?",
+                documentId);
+
+        mockMvc.perform(
+                        patch("/api/documents/{id}/classification", documentId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                                        {
+                                          "documentType": "CONTRACT"
+                                        }
+                                        """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$[0].code").value("DOCUMENT_TYPE_INVALID"));
+
+        Map<String, Object> document =
+                jdbcTemplate.queryForMap(
+                        "SELECT document_type, document_status FROM document WHERE id = ?",
+                        documentId);
+
+        assertEquals("OTHER", document.get("document_type"));
+        assertEquals("NEEDS_CLASSIFICATION_REVIEW", document.get("document_status"));
+    }
+
+    @Test
+    void confirmDocumentTypeForMissingDocumentThenReturnsNotFound() throws Exception {
+        mockMvc.perform(
+                        patch("/api/documents/{id}/classification", 999999L)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                                        {
+                                          "documentType": "INVOICE"
+                                        }
+                                        """))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("NOT_FOUND"))
+                .andExpect(
+                        jsonPath("$.payload").value("Document with the given id does not exist."));
+    }
+
+    @Test
+    void uploadUnknownDocumentTypeThenReturnsValidationError() throws Exception {
+        MockMultipartFile file =
+                new MockMultipartFile("file", "unknown.pdf", "application/pdf", PDF_CONTENT);
+
+        mockMvc.perform(
+                        multipart("/api/documents/upload")
+                                .file(file)
+                                .param("documentType", "UNKNOWN")
+                                .param("name", "Unknown document type"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$[0].code").value("DOCUMENT_TYPE_INVALID"));
+    }
+
+    private Long uploadPdf(String name) throws Exception {
+        return uploadPdfWithType(name, "INVOICE");
+    }
+
+    private Long uploadPdfWithType(String name, String documentType) throws Exception {
         MockMultipartFile file =
                 new MockMultipartFile(
                         "file",
@@ -501,9 +724,7 @@ class DocumentUploadIntegrationTest {
                 mockMvc.perform(
                                 multipart("/api/documents/upload")
                                         .file(file)
-                                        .param("companyId", String.valueOf(companyId))
-                                        .param("createdByUserId", "1")
-                                        .param("documentType", "INVOICE")
+                                        .param("documentType", documentType)
                                         .param("name", name))
                         .andExpect(status().isOk())
                         .andReturn();
@@ -511,6 +732,70 @@ class DocumentUploadIntegrationTest {
         JsonNode response = objectMapper.readTree(result.getResponse().getContentAsString());
 
         return response.get("payload").get("id").asLong();
+    }
+
+    private void setupTestTenants() {
+        new TransactionTemplate(transactionManager)
+                .executeWithoutResult(
+                        status -> {
+                            testCompany1Id =
+                                    persistCompany(
+                                            "Upload Company 1",
+                                            "upload-co-1@test.ba",
+                                            "group-upload-1");
+                            testCompany2Id =
+                                    persistCompany(
+                                            "Upload Company 2",
+                                            "upload-co-2@test.ba",
+                                            "group-upload-2");
+                            testUser1Id =
+                                    persistUser(
+                                            testCompany1Id,
+                                            KEYCLOAK_USER_1,
+                                            "upload-user-1@test.ba");
+                            persistUser(
+                                    testCompany2Id, KEYCLOAK_USER_2, "upload-user-2@test.ba");
+                            userDAO.flush();
+                        });
+    }
+
+    private Long persistCompany(String name, String email, String groupId) {
+        CompanyEntity company = new CompanyEntity();
+        company.setName(name);
+        company.setAddress("Address");
+        company.setEmail(email);
+        company.setRegistrationDate(LocalDateTime.now());
+        company.setStatus(CompanyStatus.ACTIVE);
+        company.setKeycloakGroupId(groupId);
+        return companyDAO.persist(company).getId();
+    }
+
+    private Long persistUser(Long companyId, String keycloakUserId, String email) {
+        UserEntity user = new UserEntity();
+        user.setCompanyId(companyId);
+        user.setRoleId(roleService.getByName(RoleName.OPERATOR).getId());
+        user.setKeycloakUserId(keycloakUserId);
+        user.setFirstName("Upload");
+        user.setLastName("Tester");
+        user.setEmail(email);
+        user.setAccountStatus(AccountStatus.ACTIVE);
+        return userDAO.persist(user).getId();
+    }
+
+    private void authenticateAs(String keycloakUserId) {
+        Jwt jwt =
+                Jwt.withTokenValue("doc-upload-token")
+                        .header("alg", "none")
+                        .subject(keycloakUserId)
+                        .claim("email", keycloakUserId + "@test.ba")
+                        .issuedAt(Instant.now())
+                        .expiresAt(Instant.now().plusSeconds(3600))
+                        .build();
+
+        SecurityContextHolder.getContext()
+                .setAuthentication(
+                        new JwtAuthenticationToken(
+                                jwt, List.of(new SimpleGrantedAuthority("ROLE_USER"))));
     }
 
     private static Path createTempDirectory() {
