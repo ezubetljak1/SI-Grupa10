@@ -98,13 +98,17 @@ public class UserCompanyManagementService {
     @Transactional
     public UserResponse changeStatus(Long id, UserStatusChangeRequest request) {
         currentUserService.requireAdmin();
+
         Long companyId = currentUserService.getCurrentCompanyId();
+        UserResponse updatedUser =
+                userService.changeStatus(id, request.getAccountStatus(), companyId);
+
         UserEntity user = userValidation.validateExistsInCompany(id, companyId);
 
         keycloakAdminService.setUserEnabled(
                 user.getKeycloakUserId(), request.getAccountStatus() != AccountStatus.INACTIVE);
 
-        return userService.changeStatus(id, request.getAccountStatus(), companyId);
+        return updatedUser;
     }
 
     @Transactional

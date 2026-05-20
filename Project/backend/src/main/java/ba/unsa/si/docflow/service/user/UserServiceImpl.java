@@ -146,6 +146,8 @@ public class UserServiceImpl implements UserService {
     public UserResponse update(Long id, UserUpdateRequest request, Long companyId) {
         UserEntity user = userValidation.validateExistsInCompany(id, companyId);
 
+        userValidation.validateUpdate(request);
+
         user.setFirstName(request.getFirstName().trim());
         user.setLastName(request.getLastName().trim());
 

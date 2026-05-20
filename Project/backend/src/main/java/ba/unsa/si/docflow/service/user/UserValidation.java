@@ -2,6 +2,7 @@ package ba.unsa.si.docflow.service.user;
 
 import ba.unsa.si.docflow.dao.UserDAO;
 import ba.unsa.si.docflow.dto.user.UserCreateRequest;
+import ba.unsa.si.docflow.dto.user.UserUpdateRequest;
 import ba.unsa.si.docflow.entity.UserEntity;
 import ba.unsa.si.docflow.exception.ApiNotFoundException;
 import ba.unsa.si.docflow.exception.ApiValidationException;
@@ -97,14 +98,42 @@ public class UserValidation {
         validatePersonName(
                 errors,
                 request.getFirstName(),
-                "COMPANY_ADMIN_FIRST_NAME_INVALID",
-                "company.validation.admin_first_name.invalid");
+                "USER_FIRST_NAME_INVALID",
+                "user.validation.first_name.invalid");
 
         validatePersonName(
                 errors,
                 request.getLastName(),
-                "COMPANY_ADMIN_LAST_NAME_INVALID",
-                "company.validation.admin_last_name.invalid");
+                "USER_LAST_NAME_INVALID",
+                "user.validation.last_name.invalid");
+
+        if (errors.hasErrors()) {
+            throw new ApiValidationException(errors);
+        }
+    }
+
+    public void validateUpdate(UserUpdateRequest request) {
+        ValidationErrors errors = new ValidationErrors();
+
+        if (!StringUtils.hasText(request.getFirstName())) {
+            addError(errors, "USER_FIRST_NAME_REQUIRED", "user.validation.first_name.required");
+        }
+
+        if (!StringUtils.hasText(request.getLastName())) {
+            addError(errors, "USER_LAST_NAME_REQUIRED", "user.validation.last_name.required");
+        }
+
+        validatePersonName(
+                errors,
+                request.getFirstName(),
+                "USER_FIRST_NAME_INVALID",
+                "user.validation.first_name.invalid");
+
+        validatePersonName(
+                errors,
+                request.getLastName(),
+                "USER_LAST_NAME_INVALID",
+                "user.validation.last_name.invalid");
 
         if (errors.hasErrors()) {
             throw new ApiValidationException(errors);

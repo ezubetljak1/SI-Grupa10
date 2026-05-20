@@ -22,5 +22,5 @@ export const authGuard: CanActivateFn = async (_route, state) => {
 
   // For protected pages initiate Keycloak login flow
   await authService.login(requested);
-  return router.parseUrl('/register-company');
+  return false;
 };

@@ -1,6 +1,7 @@
 {
   "id": "1c8a98fd-565f-4a09-8f9e-054beab20880",
   "realm": "docflow",
+  "loginTheme": "docflow",
   "notBefore": 0,
   "defaultSignatureAlgorithm": "RS256",
   "revokeRefreshToken": false,

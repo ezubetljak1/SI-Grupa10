@@ -20,7 +20,7 @@ export const roleGuard: CanActivateFn = async (route, state) => {
 
   if (!authService.isAuthenticated()) {
     await authService.login(requested);
-    return router.parseUrl('/register-company');
+    return false;
   }
 
   if (!authService.profile) {

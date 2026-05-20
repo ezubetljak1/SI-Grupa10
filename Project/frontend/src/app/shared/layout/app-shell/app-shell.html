@@ -1,3 +1,4 @@
+@if (initialized$ | async) {
 <div class="app-shell">
   <aside class="sidebar">
     <div class="logo">
@@ -104,3 +105,12 @@
     </section>
   </main>
 </div>
+} @else {
+  <div class="app-loading-screen">
+    <div class="app-loading-card">
+      <div class="app-loading-logo">D</div>
+      <strong>Docflow</strong>
+      <span>Preparing workspace...</span>
+    </div>
+  </div>
+}
