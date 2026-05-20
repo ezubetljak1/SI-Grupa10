@@ -4,13 +4,12 @@
 
 Uvesti organizacioni model pristupa sistemu kroz registraciju firme, kreiranje administratorskog naloga i osnovnu
 autentifikaciju korisnika. Pored toga, cilj je uspostaviti model upravljanja korisnicima i rolama unutar firme, te
-osigurati pristup funkcionalnostima prema odgovornostima korisnika. 
+osigurati pristup funkcionalnostima prema odgovornostima korisnika.
 
-<!--
-
-Pored organizacionog i sigurnosnog modela, Sprint 8 uključuje i proširenje ranije implementiranog MVP toka obrade dokumenata. Postojeći upload, OCR/AI extraction, klasifikacija, validacija i review flow prošireni su podrškom za više tipova dokumenata, odvojene Google Document AI procesore, auto-klasifikaciju, manual classification review i type-aware validaciju ekstraktovanih polja.
-
--->
+Pored organizacionog i sigurnosnog modela, Sprint 8 uključuje i proširenje ranije implementiranog toka obrade
+dokumenata. Postojeći upload, OCR/AI extraction, klasifikacija, validacija i review flow prošireni su podrškom za više
+tipova dokumenata, odvojene Google Document AI procesore, auto-klasifikaciju, ručni pregled klasifikacije i validaciju
+ekstraktovanih polja u zavisnosti od tipa dokumenta.
 
 ## Ključne stavke koje tim želi završiti
 
