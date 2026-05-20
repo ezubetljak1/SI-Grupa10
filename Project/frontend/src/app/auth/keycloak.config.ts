@@ -1,11 +1,7 @@
-export interface KeycloakClientConfig {
-  url: string;
-  realm: string;
-  clientId: string;
-}
+import { environment } from "../../environments/environment";
 
-export const keycloakConfig: KeycloakClientConfig = {
-  url: 'http://localhost:8081',
-  realm: 'docflow',
-  clientId: 'docflow-frontend',
+export const keycloakConfig = {
+  url: environment.keycloakUrl,
+  realm: environment.keycloakRealm,
+  clientId: environment.keycloakClientId,
 };
