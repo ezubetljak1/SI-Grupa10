@@ -49,10 +49,7 @@ export class DocumentUploadPageComponent {
     text: '',
   };
 
-  // izmijeniti kasnije nakon sto se implementiraju firme i users
-  readonly companyId = 1;
-  readonly createdByUserId = 1;
-  // ***
+
   documentType: DocumentType = 'INVOICE';
   name = '';
   loading = false;
@@ -112,8 +109,6 @@ export class DocumentUploadPageComponent {
     this.documentApiService
       .upload({
         file: this.selectedFile,
-        companyId: this.companyId,
-        createdByUserId: this.createdByUserId,
         documentType: this.documentType,
         name: this.name,
       })

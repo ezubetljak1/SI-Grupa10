@@ -7,6 +7,7 @@ import { ToastrService } from 'ngx-toastr';
 import { CompanyRegisterRequest, CompanyRegisterResponse } from '../../../companies/models/company.models';
 import { CompanyApiService } from '../../../companies/services/company-api.service';
 import { AuthService } from '../../services/auth.service';
+import { extractApiErrorMessage } from '../../../models/api.models';
 
 @Component({
   selector: 'app-register-company-page',
@@ -33,8 +34,10 @@ export class RegisterCompanyPageComponent {
   result: CompanyRegisterResponse | null = null;
 
   submit(): void {
-    if (!this.isFormValid()) {
-      this.toastr.warning('Fill all required company and admin fields.', 'Validation');
+    const validationErrors = this.validateForm();
+
+    if (validationErrors.length > 0) {
+      this.toastr.warning(validationErrors.join('\n'), 'Validation');
       return;
     }
 
@@ -49,7 +52,10 @@ export class RegisterCompanyPageComponent {
       },
       error: (error: HttpErrorResponse) => {
         this.submitting = false;
-        this.toastr.error(this.extractErrorMessage(error.error), 'Registration failed');
+        this.toastr.error(
+          extractApiErrorMessage(error.error, 'Company registration failed.'),
+          'Registration failed'
+        );
       },
     });
   }
@@ -73,16 +79,51 @@ export class RegisterCompanyPageComponent {
     };
   }
 
-  private extractErrorMessage(errorBody: unknown): string {
-    if (typeof errorBody === 'string') {
-      return errorBody;
+  private validateForm(): string[] {
+    const errors: string[] = [];
+
+    if (!this.form.companyName.trim()) {
+      errors.push('Company name is required.');
     }
 
-    if (errorBody && typeof errorBody === 'object') {
-      const body = errorBody as { message?: string; payload?: string; code?: string };
-      return body.message ?? body.payload ?? body.code ?? 'Company registration failed.';
+    if (!this.form.companyAddress.trim()) {
+      errors.push('Company address is required.');
     }
 
-    return 'Company registration failed.';
+    if (!this.form.companyEmail.trim()) {
+      errors.push('Company email is required.');
+    }
+
+    if (!this.form.adminFirstName.trim()) {
+      errors.push('Admin first name is required.');
+    }
+
+    if (!this.form.adminLastName.trim()) {
+      errors.push('Admin last name is required.');
+    }
+
+    if (!this.form.adminEmail.trim()) {
+      errors.push('Admin email is required.');
+    }
+
+    if (
+      this.form.companyEmail.trim() &&
+      !this.isValidEmail(this.form.companyEmail.trim())
+    ) {
+      errors.push('Company email must be a valid email address.');
+    }
+
+    if (
+      this.form.adminEmail.trim() &&
+      !this.isValidEmail(this.form.adminEmail.trim())
+    ) {
+      errors.push('Admin email must be a valid email address.');
+    }
+
+    return errors;
+  }
+
+  private isValidEmail(value: string): boolean {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
   }
 }

@@ -92,9 +92,7 @@ export interface DocumentCreateRequest {
 
 export interface DocumentUploadRequest {
   file: File;
-  companyId: number;
-  createdByUserId: number;
-  documentType: DocumentType;
+  documentType: string;
   name?: string;
 }
 

@@ -40,8 +40,6 @@ export class DocumentApiService {
     const formData = new FormData();
 
     formData.append('file', request.file);
-    formData.append('companyId', String(request.companyId));
-    formData.append('createdByUserId', String(request.createdByUserId));
     formData.append('documentType', request.documentType);
 
     if (request.name?.trim()) {

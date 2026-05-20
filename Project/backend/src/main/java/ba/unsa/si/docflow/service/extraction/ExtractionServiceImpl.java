@@ -11,6 +11,7 @@ import ba.unsa.si.docflow.entity.ExtractionEntity;
 import ba.unsa.si.docflow.entity.ExtractionFieldEntity;
 import ba.unsa.si.docflow.entity.enums.DocumentStatus;
 import ba.unsa.si.docflow.entity.enums.DocumentType;
+import ba.unsa.si.docflow.entity.enums.RoleName;
 import ba.unsa.si.docflow.exception.ApiNotFoundException;
 import ba.unsa.si.docflow.exception.ApiValidationException;
 import ba.unsa.si.docflow.exception.DocumentClassificationReviewRequiredException;
@@ -18,7 +19,6 @@ import ba.unsa.si.docflow.exception.ExtractionException;
 import ba.unsa.si.docflow.mapper.ExtractionMapper;
 import ba.unsa.si.docflow.response.ApiResponse;
 import ba.unsa.si.docflow.response.ValidationErrors;
-import ba.unsa.si.docflow.entity.enums.RoleName;
 import ba.unsa.si.docflow.security.CurrentUserService;
 import ba.unsa.si.docflow.service.document.DocumentValidation;
 import ba.unsa.si.docflow.service.ocr.DocumentAiProcessorRouter;
@@ -44,7 +44,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.time.format.ResolverStyle;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -74,6 +78,17 @@ public class ExtractionServiceImpl implements ExtractionService {
 
     private static final BigDecimal AMOUNT_TOTAL_TOLERANCE = new BigDecimal("0.01");
     private static final BigDecimal CLASSIFICATION_CONFIDENCE_THRESHOLD = new BigDecimal("0.70");
+    private static final DateTimeFormatter ISO_DATE_FORMATTER =
+            DateTimeFormatter.ISO_LOCAL_DATE.withResolverStyle(ResolverStyle.STRICT);
+
+    private static final DateTimeFormatter EUROPEAN_DOT_DATE_FORMATTER =
+            DateTimeFormatter.ofPattern("dd.MM.uuuu").withResolverStyle(ResolverStyle.STRICT);
+
+    private static final DateTimeFormatter EUROPEAN_SLASH_DATE_FORMATTER =
+            DateTimeFormatter.ofPattern("dd/MM/uuuu").withResolverStyle(ResolverStyle.STRICT);
+
+    private static final DateTimeFormatter EUROPEAN_OUTPUT_DATE_FORMATTER =
+            DateTimeFormatter.ofPattern("dd.MM.uuuu");
 
     private final ExtractionDAO extractionDAO;
     private final ExtractionFieldDAO extractionFieldDAO;
@@ -502,11 +517,16 @@ public class ExtractionServiceImpl implements ExtractionService {
 
     private String sanitizeFieldValue(OcrExtractedField field) {
         String value = resolveFieldValue(field);
+
         if (!StringUtils.hasText(value)) {
             return value;
         }
 
         String normalizedFieldName = normalizeFieldName(field.getType());
+
+        if (isDateField(normalizedFieldName)) {
+            return sanitizeDateValue(value);
+        }
 
         if (isDecimalField(normalizedFieldName)) {
             return sanitizeNumericValue(value);
@@ -523,8 +543,7 @@ public class ExtractionServiceImpl implements ExtractionService {
         String sanitized = value.trim();
 
         sanitized = sanitized.replaceAll("[€$£₣₤₥₦₧₨₪฿₱₭₮₵₴]", "");
-        sanitized =
-                sanitized.replaceAll("^[A-Z]{2,3}\\s+", "").replaceAll("\\s+[A-Z]{2,3}$", "");
+        sanitized = sanitized.replaceAll("^[A-Z]{2,3}\\s+", "").replaceAll("\\s+[A-Z]{2,3}$", "");
         sanitized =
                 sanitized.replaceAll(
                         "(?i)\\s+(mark|kuna|rupee|dinar|rial|peso|franc|corona|won|baht|dong|rupiah|pound|dollar|euro|cent|pence)?s?$",
@@ -534,11 +553,61 @@ public class ExtractionServiceImpl implements ExtractionService {
     }
 
     private String resolveFieldValue(OcrExtractedField field) {
+        String normalizedFieldName = normalizeFieldName(field.getType());
+
+        if ((isDateField(normalizedFieldName) || isDecimalField(normalizedFieldName))
+                && StringUtils.hasText(field.getNormalizedValue())) {
+            return field.getNormalizedValue();
+        }
+
         if (StringUtils.hasText(field.getValue())) {
             return field.getValue();
         }
 
         return field.getNormalizedValue();
+    }
+
+    private String sanitizeDateValue(String value) {
+        if (!StringUtils.hasText(value)) {
+            return value;
+        }
+
+        String trimmed = value.trim();
+
+        LocalDate isoDate = parseIsoDate(trimmed);
+        if (isoDate != null) {
+            return isoDate.format(EUROPEAN_OUTPUT_DATE_FORMATTER);
+        }
+
+        LocalDate europeanDotDate = parseDate(trimmed, EUROPEAN_DOT_DATE_FORMATTER);
+        if (europeanDotDate != null) {
+            return europeanDotDate.format(EUROPEAN_OUTPUT_DATE_FORMATTER);
+        }
+
+        LocalDate europeanSlashDate = parseDate(trimmed, EUROPEAN_SLASH_DATE_FORMATTER);
+        if (europeanSlashDate != null) {
+            return europeanSlashDate.format(EUROPEAN_OUTPUT_DATE_FORMATTER);
+        }
+
+        return trimmed;
+    }
+
+    private LocalDate parseIsoDate(String value) {
+        String candidate = value;
+
+        if (value.matches("\\d{4}-\\d{2}-\\d{2}.*")) {
+            candidate = value.substring(0, 10);
+        }
+
+        return parseDate(candidate, ISO_DATE_FORMATTER);
+    }
+
+    private LocalDate parseDate(String value, DateTimeFormatter formatter) {
+        try {
+            return LocalDate.parse(value, formatter);
+        } catch (DateTimeParseException exception) {
+            return null;
+        }
     }
 
     private BigDecimal scaleConfidence(BigDecimal confidence) {

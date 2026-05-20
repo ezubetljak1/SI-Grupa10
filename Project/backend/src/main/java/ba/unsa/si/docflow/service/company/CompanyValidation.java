@@ -24,7 +24,9 @@ public class CompanyValidation {
 
     private static final Pattern EMAIL_PATTERN =
             Pattern.compile("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$");
-
+    private static final Pattern PERSON_NAME_PATTERN =
+            Pattern.compile("^[A-Za-zČĆŽŠĐčćžšđ]+([ '-][A-Za-zČĆŽŠĐčćžšđ]+)*$");
+    private static final Pattern ADDRESS_HAS_NUMBER_PATTERN = Pattern.compile(".*\\d.*");
     private final CompanyDAO companyDAO;
     private final MessageSource messageSource;
 
@@ -74,8 +76,15 @@ public class CompanyValidation {
             }
         }
 
-        if (StringUtils.hasText(request.getStatus())
-                && !isValidStatus(request.getStatus())) {
+        if (StringUtils.hasText(request.getAddress())
+                && !ADDRESS_HAS_NUMBER_PATTERN.matcher(request.getAddress().trim()).matches()) {
+            addError(
+                    errors,
+                    "COMPANY_ADDRESS_NUMBER_REQUIRED",
+                    "company.validation.address.number_required");
+        }
+
+        if (StringUtils.hasText(request.getStatus()) && !isValidStatus(request.getStatus())) {
             addError(errors, "COMPANY_STATUS_INVALID", "company.validation.status.invalid");
         }
 
@@ -90,8 +99,10 @@ public class CompanyValidation {
         validateRequiredText(errors, request.getCompanyName(), "COMPANY_NAME_REQUIRED");
         validateRequiredText(errors, request.getCompanyAddress(), "COMPANY_ADDRESS_REQUIRED");
         validateRequiredText(errors, request.getCompanyEmail(), "COMPANY_EMAIL_REQUIRED");
-        validateRequiredText(errors, request.getAdminFirstName(), "COMPANY_ADMIN_FIRST_NAME_REQUIRED");
-        validateRequiredText(errors, request.getAdminLastName(), "COMPANY_ADMIN_LAST_NAME_REQUIRED");
+        validateRequiredText(
+                errors, request.getAdminFirstName(), "COMPANY_ADMIN_FIRST_NAME_REQUIRED");
+        validateRequiredText(
+                errors, request.getAdminLastName(), "COMPANY_ADMIN_LAST_NAME_REQUIRED");
         validateRequiredText(errors, request.getAdminEmail(), "COMPANY_ADMIN_EMAIL_REQUIRED");
 
         if (StringUtils.hasText(request.getCompanyEmail())) {
@@ -114,6 +125,28 @@ public class CompanyValidation {
                     "COMPANY_ADMIN_EMAIL_SAME_AS_COMPANY",
                     "company.validation.admin_email.same_as_company");
         }
+
+        if (StringUtils.hasText(request.getCompanyAddress())
+                && !ADDRESS_HAS_NUMBER_PATTERN
+                        .matcher(request.getCompanyAddress().trim())
+                        .matches()) {
+            addError(
+                    errors,
+                    "COMPANY_ADDRESS_NUMBER_REQUIRED",
+                    "company.validation.address.number_required");
+        }
+
+        validatePersonName(
+                errors,
+                request.getAdminFirstName(),
+                "COMPANY_ADMIN_FIRST_NAME_INVALID",
+                "company.validation.admin_first_name.invalid");
+
+        validatePersonName(
+                errors,
+                request.getAdminLastName(),
+                "COMPANY_ADMIN_LAST_NAME_INVALID",
+                "company.validation.admin_last_name.invalid");
 
         if (errors.hasErrors()) {
             throw new ApiValidationException(errors);
@@ -143,5 +176,12 @@ public class CompanyValidation {
 
     private void addError(ValidationErrors errors, String code, String messageKey) {
         errors.add(code, messageSource.getMessage(messageKey, null, Locale.getDefault()));
+    }
+
+    private void validatePersonName(
+            ValidationErrors errors, String value, String code, String messageKey) {
+        if (StringUtils.hasText(value) && !PERSON_NAME_PATTERN.matcher(value.trim()).matches()) {
+            addError(errors, code, messageKey);
+        }
     }
 }

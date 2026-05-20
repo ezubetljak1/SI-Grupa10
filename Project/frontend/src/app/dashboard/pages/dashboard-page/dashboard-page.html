@@ -1,89 +1,257 @@
 <section class="dashboard-page">
+  <div class="dashboard-hero">
+    <div>
+      <span class="eyebrow">Company overview</span>
+      <h1>Document Operations Dashboard</h1>
+      <p>
+        Monitor document intake, extraction health, review pressure and team workload from one
+        workspace.
+      </p>
+    </div>
+
+    <div class="hero-actions">
+      <button class="btn btn-secondary" type="button" (click)="loadDashboard()" [disabled]="loading">
+        {{ loading ? 'Refreshing...' : 'Refresh dashboard' }}
+      </button>
+    </div>
+  </div>
 
   @if (loading) {
-  <div class="loading-state">
-    <div class="loading-spinner"></div>
-    <span>Loading dashboard...</span>
-  </div>
+    <div class="loading-state">
+      <span class="loading-spinner" aria-hidden="true"></span>
+      <span>Loading dashboard...</span>
+    </div>
+  }
+
+  @if (!loading && !dashboard) {
+    <div class="empty-panel">
+      <strong>Dashboard unavailable</strong>
+      <span>Dashboard data could not be loaded. Try refreshing the page.</span>
+    </div>
   }
 
   @if (!loading && dashboard) {
-
-  <div class="stats-grid">
-
-    <div class="stat-card">
-      <span class="stat-title">Total documents</span>
-      <strong class="stat-value">
-        {{ dashboard.totalDocuments }}
-      </strong>
-    </div>
-
-  </div>
-
-  <div class="dashboard-section">
-
-    <h3>Documents by status</h3>
-
-    <div class="status-grid">
-
-      @for (
-      status of dashboard.documentsByStatus | keyvalue;
-      track status.key
-      ) {
-
-      <div class="status-card">
-            <span class="status-name">
-              {{ status.key }}
-            </span>
-
-        <strong class="status-value">
-          {{ status.value }}
-        </strong>
-      </div>
-
+    <section class="kpi-grid" aria-label="Dashboard key metrics">
+      @for (card of kpiCards; track card.title) {
+        <article class="kpi-card" [ngClass]="'kpi-card--' + card.tone">
+          <span>{{ card.title }}</span>
+          <strong>{{ card.value }}</strong>
+          <small>{{ card.subtitle }}</small>
+        </article>
       }
+    </section>
 
-    </div>
+    @if (!hasDashboardData) {
+      <div class="empty-panel">
+        <strong>No document activity yet</strong>
+        <span>Upload and process documents to populate dashboard statistics.</span>
+      </div>
+    }
 
-  </div>
+    @if (hasDashboardData) {
+      <section class="main-grid">
+        <article class="panel panel--health">
+          <div class="panel-header">
+            <div>
+              <span class="eyebrow">Workflow health</span>
+              <h2>{{ healthLabel }}</h2>
+            </div>
 
-  <div class="dashboard-section">
+            <div class="health-score">
+              <strong>{{ needsActionCount }}</strong>
+              <span>need action</span>
+            </div>
+          </div>
 
-    <h3>Documents by responsible user</h3>
+          <p class="panel-description">{{ healthDescription }}</p>
 
-    <div class="table-wrapper">
+          <div class="lifecycle">
+            <div
+              class="lifecycle-donut"
+              [style.background]="lifecycleGradient"
+              aria-hidden="true"
+            >
+              <div>
+                <strong>{{ totalDocuments }}</strong>
+                <span>docs</span>
+              </div>
+            </div>
 
-      <table class="dashboard-table">
+            <div class="lifecycle-list">
+              @for (segment of lifecycleSegments; track segment.label) {
+                <div class="lifecycle-row">
+                  <span class="dot" [ngClass]="'dot--' + segment.tone"></span>
 
-        <thead>
-        <tr>
-          <th>User</th>
-          <th>Documents</th>
-        </tr>
-        </thead>
+                  <div>
+                    <strong>{{ segment.label }}</strong>
+                    <small>{{ segment.value }} document(s)</small>
+                  </div>
 
-        <tbody>
+                  <b>{{ segment.percent }}%</b>
+                </div>
+              }
+            </div>
+          </div>
+        </article>
 
-        @for (
-        user of dashboard.documentsByResponsibleUser;
-        track user.userId
-        ) {
+        <article class="panel">
+          <div class="panel-header">
+            <div>
+              <span class="eyebrow">Team workload</span>
+              <h2>Responsible users</h2>
+            </div>
+          </div>
 
-        <tr>
-          <td>{{ user.fullName }}</td>
-          <td>{{ user.documentCount }}</td>
-        </tr>
+          @if (topWorkloadUsers.length === 0) {
+            <div class="soft-empty">No responsible-user workload data available.</div>
+          }
 
+          @if (topWorkloadUsers.length > 0) {
+            <div class="workload-list">
+              @for (user of topWorkloadUsers; track user.userId) {
+                <div class="workload-row">
+                  <div class="workload-user">
+                    <strong>{{ user.fullName || 'Unassigned user' }}</strong>
+                    <span>{{ user.documentCount }} document(s)</span>
+                  </div>
+
+                  <div class="bar-track" aria-hidden="true">
+                    <div
+                      class="bar-fill bar-fill--primary"
+                      [style.width]="workloadPercent(user.documentCount) + '%'"
+                    ></div>
+                  </div>
+                </div>
+              }
+            </div>
+
+            <div class="workload-summary">
+              @if (busiestUser) {
+                <span>Highest load: {{ busiestUser.fullName }} with {{ busiestUser.documentCount }} document(s).</span>
+              }
+
+              @if (unassignedDocuments > 0) {
+                <span>{{ unassignedDocuments }} document(s) are not represented in the user workload list.</span>
+              }
+            </div>
+          }
+        </article>
+      </section>
+
+      <article class="panel">
+        <div class="panel-header">
+          <div>
+            <span class="eyebrow">Status distribution</span>
+            <h2>Documents by workflow status</h2>
+          </div>
+        </div>
+
+        @if (statusEntries.length === 0) {
+          <div class="soft-empty">No status distribution available.</div>
         }
 
-        </tbody>
+        @if (statusEntries.length > 0) {
+          <div class="status-grid">
+            @for (status of statusEntries; track status.key) {
+              <div class="status-row">
+                <div class="status-title">
+                  <span class="status-badge" [ngClass]="'status-badge--' + status.tone">
+                    {{ status.label }}
+                  </span>
 
-      </table>
+                  <strong>{{ status.value }}</strong>
+                </div>
 
-    </div>
+                <div class="bar-track" aria-hidden="true">
+                  <div
+                    class="bar-fill"
+                    [ngClass]="'bar-fill--' + status.tone"
+                    [style.width]="status.percent + '%'"
+                  ></div>
+                </div>
 
-  </div>
+                <small>{{ status.percent }}% of total documents</small>
+              </div>
+            }
+          </div>
+        }
+      </article>
 
+      <section class="insight-grid">
+        <article class="panel">
+          <div class="panel-header">
+            <div>
+              <span class="eyebrow">Operational summary</span>
+              <h2>Current state</h2>
+            </div>
+          </div>
+
+          <div class="summary-list">
+            <div class="summary-item">
+              <span>In intake/extraction</span>
+              <strong>{{ intakeCount }}</strong>
+              <small>Uploaded or extracted documents still moving through processing.</small>
+            </div>
+
+            <div class="summary-item">
+              <span>Manual pressure</span>
+              <strong>{{ needsActionCount }}</strong>
+              <small>Documents needing classification review, review or approval.</small>
+            </div>
+
+            <div class="summary-item">
+              <span>Completed</span>
+              <strong>{{ completedCount }}</strong>
+              <small>Approved or completed documents.</small>
+            </div>
+
+            <div class="summary-item">
+              <span>Issues</span>
+              <strong>{{ issueCount }}</strong>
+              <small>Failed or rejected documents.</small>
+            </div>
+          </div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-header">
+            <div>
+              <span class="eyebrow">Recommended next actions</span>
+              <h2>What to do next</h2>
+            </div>
+          </div>
+
+          <div class="next-actions">
+            @if (failedCount > 0) {
+              <div class="next-action next-action--error">
+                <strong>Resolve failed processing</strong>
+                <span>Check OCR/extraction failures first because these documents are blocked.</span>
+              </div>
+            }
+
+            @if (needsActionCount > 0) {
+              <div class="next-action next-action--warning">
+                <strong>Reduce review queue</strong>
+                <span>Handle documents waiting for classification review, manual review or approval.</span>
+              </div>
+            }
+
+            @if (failedCount === 0 && needsActionCount === 0) {
+              <div class="next-action next-action--success">
+                <strong>Workflow is stable</strong>
+                <span>No urgent dashboard issues detected from the current statistics.</span>
+              </div>
+            }
+
+            @if (intakeCount > completedCount && totalDocuments > 0) {
+              <div class="next-action next-action--info">
+                <strong>Watch intake volume</strong>
+                <span>There are more documents in intake/extraction than completed documents.</span>
+              </div>
+            }
+          </div>
+        </article>
+      </section>
+    }
   }
-
 </section>

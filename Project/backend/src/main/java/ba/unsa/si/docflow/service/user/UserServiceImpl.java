@@ -7,8 +7,10 @@ import ba.unsa.si.docflow.entity.UserEntity;
 import ba.unsa.si.docflow.entity.enums.AccountStatus;
 import ba.unsa.si.docflow.entity.enums.RoleName;
 import ba.unsa.si.docflow.exception.ApiNotFoundException;
+import ba.unsa.si.docflow.exception.ApiValidationException;
 import ba.unsa.si.docflow.mapper.UserMapper;
 import ba.unsa.si.docflow.response.PagedResponse;
+import ba.unsa.si.docflow.response.ValidationErrors;
 import ba.unsa.si.docflow.service.role.RoleService;
 
 import lombok.AllArgsConstructor;
@@ -90,22 +92,19 @@ public class UserServiceImpl implements UserService {
         List<UserEntity> users = userDAO.findByFilter(filter, companyId);
         long total = userDAO.countByFilter(filter, companyId);
 
-        List<UserResponse> responses = users.stream()
-                .map(user -> {
-                    RoleEntity role = roleService.getById(user.getRoleId());
-                    return userMapper.entityToDto(user, role);
-                })
-                .toList();
+        List<UserResponse> responses =
+                users.stream()
+                        .map(
+                                user -> {
+                                    RoleEntity role = roleService.getById(user.getRoleId());
+                                    return userMapper.entityToDto(user, role);
+                                })
+                        .toList();
 
         int totalPages = (int) Math.ceil((double) total / filter.getSize());
 
         return new PagedResponse<>(
-                "OK",
-                responses,
-                filter.getPage(),
-                filter.getSize(),
-                total,
-                totalPages);
+                "OK", responses, filter.getPage(), filter.getSize(), total, totalPages);
     }
 
     @Override
@@ -117,7 +116,8 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public UserResponse createUser(Long companyId, UserCreateApiRequest request, String keycloakUserId) {
+    public UserResponse createUser(
+            Long companyId, UserCreateApiRequest request, String keycloakUserId) {
         UserCreateRequest createRequest = new UserCreateRequest();
         createRequest.setCompanyId(companyId);
         createRequest.setRole(request.getRole());
@@ -146,6 +146,8 @@ public class UserServiceImpl implements UserService {
     public UserResponse update(Long id, UserUpdateRequest request, Long companyId) {
         UserEntity user = userValidation.validateExistsInCompany(id, companyId);
 
+        userValidation.validateUpdate(request);
+
         user.setFirstName(request.getFirstName().trim());
         user.setLastName(request.getLastName().trim());
 
@@ -159,6 +161,18 @@ public class UserServiceImpl implements UserService {
         UserEntity user = userValidation.validateExistsInCompany(id, companyId);
         RoleEntity newRole = roleService.getByName(roleName);
 
+        RoleEntity currentRole = roleService.getById(user.getRoleId());
+
+        if (currentRole.getName() == RoleName.ADMIN
+                && roleName != RoleName.ADMIN
+                && userDAO.countActiveAdminsByCompanyId(companyId) <= 1) {
+            ValidationErrors errors = new ValidationErrors();
+            errors.add(
+                    "LAST_ADMIN_ROLE_CHANGE_FORBIDDEN",
+                    "At least one active administrator must remain in the company.");
+            throw new ApiValidationException(errors);
+        }
+
         user.setRoleId(newRole.getId());
 
         UserEntity updated = userDAO.merge(user);
@@ -169,10 +183,21 @@ public class UserServiceImpl implements UserService {
     public UserResponse changeStatus(Long id, AccountStatus status, Long companyId) {
         UserEntity user = userValidation.validateExistsInCompany(id, companyId);
 
+        RoleEntity role = roleService.getById(user.getRoleId());
+
+        if (role.getName() == RoleName.ADMIN
+                && status == AccountStatus.INACTIVE
+                && userDAO.countActiveAdminsByCompanyId(companyId) <= 1) {
+            ValidationErrors errors = new ValidationErrors();
+            errors.add(
+                    "LAST_ADMIN_DEACTIVATION_FORBIDDEN",
+                    "At least one active administrator must remain in the company.");
+            throw new ApiValidationException(errors);
+        }
+
         user.setAccountStatus(status);
 
         UserEntity updated = userDAO.merge(user);
-        RoleEntity role = roleService.getById(updated.getRoleId());
         return userMapper.entityToDto(updated, role);
     }
 }

@@ -15,6 +15,7 @@ import { AuthService } from '../../../auth/services/auth.service';
 export class AppShellComponent {
   private readonly authService = inject(AuthService);
 
+  readonly initialized$ = this.authService.initialized$;
   readonly profile$ = this.authService.profile$;
   readonly authenticated$ = this.authService.authenticated$;
 

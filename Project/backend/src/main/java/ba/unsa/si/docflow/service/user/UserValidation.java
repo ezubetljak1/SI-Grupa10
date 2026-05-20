@@ -2,6 +2,7 @@ package ba.unsa.si.docflow.service.user;
 
 import ba.unsa.si.docflow.dao.UserDAO;
 import ba.unsa.si.docflow.dto.user.UserCreateRequest;
+import ba.unsa.si.docflow.dto.user.UserUpdateRequest;
 import ba.unsa.si.docflow.entity.UserEntity;
 import ba.unsa.si.docflow.exception.ApiNotFoundException;
 import ba.unsa.si.docflow.exception.ApiValidationException;
@@ -23,6 +24,8 @@ public class UserValidation {
 
     private static final Pattern EMAIL_PATTERN =
             Pattern.compile("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$");
+    private static final Pattern PERSON_NAME_PATTERN =
+            Pattern.compile("^[A-Za-zČĆŽŠĐčćžšđ]+([ '-][A-Za-zČĆŽŠĐčćžšđ]+)*$");
 
     private final UserDAO userDAO;
     private final CompanyValidation companyValidation;
@@ -84,16 +87,63 @@ public class UserValidation {
         }
 
         if (!StringUtils.hasText(request.getKeycloakUserId())) {
-            addError(errors, "USER_KEYCLOAK_ID_REQUIRED", "user.validation.keycloak_user_id.required");
-        } else if (userDAO.findByKeycloakUserId(request.getKeycloakUserId()) != null) {
             addError(
                     errors,
-                    "USER_KEYCLOAK_ID_EXISTS",
-                    "user.validation.keycloak_user_id.exists");
+                    "USER_KEYCLOAK_ID_REQUIRED",
+                    "user.validation.keycloak_user_id.required");
+        } else if (userDAO.findByKeycloakUserId(request.getKeycloakUserId()) != null) {
+            addError(errors, "USER_KEYCLOAK_ID_EXISTS", "user.validation.keycloak_user_id.exists");
         }
+
+        validatePersonName(
+                errors,
+                request.getFirstName(),
+                "USER_FIRST_NAME_INVALID",
+                "user.validation.first_name.invalid");
+
+        validatePersonName(
+                errors,
+                request.getLastName(),
+                "USER_LAST_NAME_INVALID",
+                "user.validation.last_name.invalid");
 
         if (errors.hasErrors()) {
             throw new ApiValidationException(errors);
+        }
+    }
+
+    public void validateUpdate(UserUpdateRequest request) {
+        ValidationErrors errors = new ValidationErrors();
+
+        if (!StringUtils.hasText(request.getFirstName())) {
+            addError(errors, "USER_FIRST_NAME_REQUIRED", "user.validation.first_name.required");
+        }
+
+        if (!StringUtils.hasText(request.getLastName())) {
+            addError(errors, "USER_LAST_NAME_REQUIRED", "user.validation.last_name.required");
+        }
+
+        validatePersonName(
+                errors,
+                request.getFirstName(),
+                "USER_FIRST_NAME_INVALID",
+                "user.validation.first_name.invalid");
+
+        validatePersonName(
+                errors,
+                request.getLastName(),
+                "USER_LAST_NAME_INVALID",
+                "user.validation.last_name.invalid");
+
+        if (errors.hasErrors()) {
+            throw new ApiValidationException(errors);
+        }
+    }
+
+    private void validatePersonName(
+            ValidationErrors errors, String value, String code, String messageKey) {
+        if (StringUtils.hasText(value) && !PERSON_NAME_PATTERN.matcher(value.trim()).matches()) {
+            addError(errors, code, messageKey);
         }
     }
 

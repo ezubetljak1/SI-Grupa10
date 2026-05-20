@@ -75,7 +75,7 @@ export class AuthService {
     this.authenticatedSubject.next(false);
 
     return this.keycloak.logout({
-      redirectUri: window.location.origin + '/register-company',
+      redirectUri: window.location.origin + '/',
     });
   }
 
