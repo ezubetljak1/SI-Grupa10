@@ -146,7 +146,7 @@ class ExtractionIntegrationTest {
                                 .value("Test Company d.o.o."))
                 .andExpect(
                         jsonPath("$.payload.fields[?(@.fieldName == 'total_amount')].value")
-                                .value("117.00"));
+                                .value("117"));
 
         Integer extractionCount =
                 jdbcTemplate.queryForObject(
@@ -738,7 +738,7 @@ class ExtractionIntegrationTest {
                 .andExpect(jsonPath("$.payload[?(@.fieldName == 'currency')].value").value("EUR"))
                 .andExpect(
                         jsonPath("$.payload[?(@.fieldName == 'invoice_date')].value")
-                                .value("2026-05-06"));
+                                .value("06.05.2026"));
     }
 
     @Test
@@ -778,8 +778,7 @@ class ExtractionIntegrationTest {
                 .andExpect(jsonPath("$.code").value("OK"))
                 .andExpect(jsonPath("$.payload.length()").value(5))
                 .andExpect(
-                        jsonPath("$.payload[?(@.fieldName == 'total_amount')].value")
-                                .value("117.00"));
+                        jsonPath("$.payload[?(@.fieldName == 'total_amount')].value").value("117"));
     }
 
     @Test
@@ -857,7 +856,7 @@ class ExtractionIntegrationTest {
         assertEquals(firstExtractionId, retryExtractionId);
         assertEquals(5, retryFieldCount);
         assertEquals(2, placeholderCount);
-        assertEquals("250.00", totalAmount);
+        assertEquals("250", totalAmount);
         verify(ocrProvider, times(2))
                 .process(any(byte[].class), eq("application/pdf"), eq(TEST_INVOICE_PROCESSOR_ID));
     }
@@ -1086,7 +1085,7 @@ class ExtractionIntegrationTest {
                         """,
                         firstFieldId);
 
-        assertEquals("117.00", unchangedField.get("value"));
+        assertEquals("117", unchangedField.get("value"));
         assertEquals(false, unchangedField.get("is_corrected"));
     }
 
@@ -1106,7 +1105,7 @@ class ExtractionIntegrationTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$[0].code").value("EXTRACTION_FIELD_AMOUNT_INVALID"));
 
-        assertFieldUnchanged(extractionId, fieldId, "117.00", false);
+        assertFieldUnchanged(extractionId, fieldId, "117", false);
     }
 
     @Test
@@ -1125,7 +1124,7 @@ class ExtractionIntegrationTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$[0].code").value("EXTRACTION_FIELD_AMOUNT_INVALID"));
 
-        assertFieldUnchanged(extractionId, fieldId, "117.00", false);
+        assertFieldUnchanged(extractionId, fieldId, "117", false);
     }
 
     @Test
@@ -1144,7 +1143,7 @@ class ExtractionIntegrationTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$[0].code").value("EXTRACTION_FIELD_AMOUNT_INVALID"));
 
-        assertFieldUnchanged(extractionId, fieldId, "117.00", false);
+        assertFieldUnchanged(extractionId, fieldId, "117", false);
     }
 
     @Test
@@ -1163,7 +1162,7 @@ class ExtractionIntegrationTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$[0].code").value("EXTRACTION_FIELD_AMOUNT_INVALID"));
 
-        assertFieldUnchanged(extractionId, fieldId, "117.00", false);
+        assertFieldUnchanged(extractionId, fieldId, "117", false);
     }
 
     @Test
@@ -1200,7 +1199,7 @@ class ExtractionIntegrationTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$[0].code").value("EXTRACTION_FIELD_DATE_FORMAT_INVALID"));
 
-        assertFieldUnchanged(extractionId, fieldId, "2026-05-06", false);
+        assertFieldUnchanged(extractionId, fieldId, "06.05.2026", false);
     }
 
     @Test
@@ -1237,7 +1236,7 @@ class ExtractionIntegrationTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$[0].code").value("EXTRACTION_FIELD_AMOUNT_INCONSISTENT"));
 
-        assertFieldUnchanged(extractionId, totalFieldId, "117.00", false);
+        assertFieldUnchanged(extractionId, totalFieldId, "117", false);
     }
 
     @Test
@@ -1778,7 +1777,7 @@ class ExtractionIntegrationTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$[0].code").value("EXTRACTION_FIELD_AMOUNT_INVALID"));
 
-        assertFieldUnchanged(extractionId, fieldId, "117.00", false);
+        assertFieldUnchanged(extractionId, fieldId, "117", false);
     }
 
     private OcrResult sampleOcrResultWithTotalSmallerThanNet() {
