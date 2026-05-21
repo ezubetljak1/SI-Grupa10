@@ -24,6 +24,22 @@ Za sprint 8 nema nezavršenih zadataka, svi planirani zadaci su uspješno realiz
 
 # 4. Demonstrirane funkcionalnosti ili artefakti
 
+Demonstrirane funkcionalnosti uključuju:
+
+- Registracija firme i kreiranje administratorskog naloga
+- Autentifikacija korisnika
+- Upravljanje korisnicima i rolama unutar firme
+- Dashboard za menadžere sa pregledom korisnika i njihovih aktivnosti
+- Prošireni tok obrade dokumenata sa podrškom za više tipova dokumenata, odvojene Google Document AI procesore,
+  auto-klasifikaciju,
+
+Demonstrirani artefakti uključuju:
+
+- Sprint Goal
+- Sprint Backlog
+- Sprint Review Summary
+- TestBook
+
 # 5. Glavni problemi i blokeri
 
 Za implementaciju organizacionog i sigurnosnog modela problema nije bilo. Manji problem se javio zbog ograničenja kako
@@ -40,5 +56,12 @@ Sve ključne odluke su navedene u dokumentu DecisionLog, počevši od LD-025, a 
 
 # 7. Povratna informacija Product Ownera
 
+Product Owner je izrazio zadovoljstvo demonstriranim funkcionalnostima i napretkom ostvarenim tokom sprinta.
+Također, Product Owner je rekao da svaki član tima popuni uplatnicu sa svojim rukopisom, kako bi se pokazalo na koji
+način ekstrakcija radi sa različitim rukopisima.
+
 # 8. Zaključak za naredni sprint
 
+Obzirom na uspješno završene zadatke i pozitivnu povratnu informaciju Product Ownera, tim može nastaviti sa
+implementacijom sljedeće faze sistema. Fokus će biti na razvijanju funkcionalnosti vezanih za odobravatelja dokumenata u
+sistemu (APPROVER rola).
