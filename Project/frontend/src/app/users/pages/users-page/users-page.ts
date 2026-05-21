@@ -2,6 +2,7 @@ import { CommonModule } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, OnInit, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+
 import { ToastrService } from 'ngx-toastr';
 
 import { AccountStatus, RoleName } from '../../../auth/models/auth.models';
@@ -48,9 +49,8 @@ export class UsersPageComponent implements OnInit {
   saving = false;
   actionUserId: number | null = null;
   currentUserId: number | null = null;
+  statusConfirmationUser: UserResponse | null = null;
   search = '';
-
-  emailResult: { email: string; action: 'created' | 'reset' } | null = null;
 
   readonly newUser: UserCreateRequest = {
     firstName: '',
@@ -97,15 +97,10 @@ export class UsersPageComponent implements OnInit {
     this.userApi.create(this.trimmedNewUser()).subscribe({
       next: (response) => {
         this.saving = false;
-
-        this.emailResult = {
-          email: response.payload.email,
-          action: 'created',
-        };
-
         this.resetForm();
+
         this.toastr.success(
-          'User created successfully. Password setup email has been sent.',
+          `User created successfully. Password setup email has been sent to ${response.payload.email}.`,
           'Success'
         );
 
@@ -138,18 +133,48 @@ export class UsersPageComponent implements OnInit {
     });
   }
 
+  requestStatusChange(user: UserResponse): void {
+    if (this.isCurrentUser(user)) {
+      return;
+    }
+
+    if (user.accountStatus === 'INACTIVE') {
+      this.changeStatus(user);
+      return;
+    }
+
+    this.statusConfirmationUser = user;
+  }
+
+  closeStatusConfirmation(): void {
+    this.statusConfirmationUser = null;
+  }
+
+  confirmDeactivateUser(): void {
+    const user = this.statusConfirmationUser;
+
+    if (!user) {
+      return;
+    }
+
+    this.statusConfirmationUser = null;
+    this.changeStatus(user);
+  }
+
   changeStatus(user: UserResponse): void {
     if (this.isCurrentUser(user)) {
       return;
     }
 
     const nextStatus: AccountStatus = user.accountStatus === 'INACTIVE' ? 'ACTIVE' : 'INACTIVE';
+
     this.actionUserId = user.id;
 
     this.userApi.changeStatus(user.id, { accountStatus: nextStatus }).subscribe({
       next: (response) => {
         this.actionUserId = null;
         this.replaceUser(response.payload);
+
         this.toastr.success(
           nextStatus === 'ACTIVE' ? 'User activated.' : 'User deactivated.',
           'Success'
@@ -158,29 +183,6 @@ export class UsersPageComponent implements OnInit {
       error: (error: HttpErrorResponse) => {
         this.actionUserId = null;
         this.toastr.error(this.extractErrorMessage(error.error), 'Status update failed');
-      },
-    });
-  }
-
-  resetPassword(user: UserResponse): void {
-    this.actionUserId = user.id;
-
-    this.userApi.resetPassword(user.id).subscribe({
-      next: (response) => {
-        this.actionUserId = null;
-
-        this.emailResult = {
-          email: user.email,
-          action: 'reset',
-        };
-        this.toastr.success(
-          response.payload || 'Password reset email has been sent.',
-          'Success'
-        );
-      },
-      error: (error: HttpErrorResponse) => {
-        this.actionUserId = null;
-        this.toastr.error(this.extractErrorMessage(error.error), 'Reset failed');
       },
     });
   }
@@ -204,6 +206,7 @@ export class UsersPageComponent implements OnInit {
   getInitials(user: UserResponse): string {
     const first = user.firstName?.trim().charAt(0) ?? '';
     const last = user.lastName?.trim().charAt(0) ?? '';
+
     return `${first}${last}`.toUpperCase() || '?';
   }
 
@@ -287,11 +290,13 @@ export class UsersPageComponent implements OnInit {
 
     if (Array.isArray(errorBody) && errorBody.length > 0) {
       const firstError = errorBody[0] as { message?: string; payload?: string; code?: string };
+
       return firstError.message ?? firstError.payload ?? firstError.code ?? 'Request failed.';
     }
 
     if (errorBody && typeof errorBody === 'object') {
       const body = errorBody as { message?: string; payload?: string; code?: string };
+
       return body.message ?? body.payload ?? body.code ?? 'Request failed.';
     }
 

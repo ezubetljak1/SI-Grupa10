@@ -5,76 +5,101 @@
       <h1>Register company</h1>
       <span>Create a company workspace and the first administrator account.</span>
     </div>
-
-    <!-- login button removed from page content; header contains the global login button -->
   </header>
 
-  <div class="register-grid">
-    <form class="form-panel" (ngSubmit)="submit()" #companyForm="ngForm">
-      <div class="panel-heading">
-        <h2>Company details</h2>
-        <span>These values are used to create the tenant and initial admin.</span>
+  @if (result) {
+    <div class="success-banner" aria-live="polite">
+      <span class="success-mark">✓</span>
+
+      <div>
+        <strong>{{ result.companyName }} registered successfully.</strong>
+        <p>
+          {{ result.message }}
+        </p>
+      </div>
+    </div>
+  }
+
+  <form class="form-panel" (ngSubmit)="submit()" #companyForm="ngForm">
+    <div class="panel-heading">
+      <h2>Company details</h2>
+      <span>These values are used to create the tenant and initial admin.</span>
+    </div>
+
+    <div class="form-grid">
+      <div class="field">
+        <label for="companyName">Company name</label>
+        <input
+          id="companyName"
+          class="input"
+          name="companyName"
+          [(ngModel)]="form.companyName"
+          required
+        />
       </div>
 
-      <div class="form-grid">
-        <div class="field">
-          <label for="companyName">Company name</label>
-          <input id="companyName" class="input" name="companyName" [(ngModel)]="form.companyName" required />
-        </div>
-
-        <div class="field">
-          <label for="companyEmail">Company email</label>
-          <input id="companyEmail" class="input" type="email" name="companyEmail" [(ngModel)]="form.companyEmail" required />
-        </div>
-
-        <div class="field field--wide">
-          <label for="companyAddress">Company address</label>
-          <input id="companyAddress" class="input" name="companyAddress" [(ngModel)]="form.companyAddress" required />
-        </div>
-
-        <div class="field">
-          <label for="adminFirstName">Admin first name</label>
-          <input id="adminFirstName" class="input" name="adminFirstName" [(ngModel)]="form.adminFirstName" required />
-        </div>
-
-        <div class="field">
-          <label for="adminLastName">Admin last name</label>
-          <input id="adminLastName" class="input" name="adminLastName" [(ngModel)]="form.adminLastName" required />
-        </div>
-
-        <div class="field field--wide">
-          <label for="adminEmail">Admin email</label>
-          <input id="adminEmail" class="input" type="email" name="adminEmail" [(ngModel)]="form.adminEmail" required />
-        </div>
+      <div class="field">
+        <label for="companyEmail">Company email</label>
+        <input
+          id="companyEmail"
+          class="input"
+          type="email"
+          name="companyEmail"
+          [(ngModel)]="form.companyEmail"
+          required
+        />
       </div>
 
-      <div class="form-actions">
-        <button type="submit" class="btn btn-primary" [disabled]="submitting || companyForm.invalid">
-          {{ submitting ? 'Registering...' : 'Register company' }}
-        </button>
+      <div class="field field--wide">
+        <label for="companyAddress">Company address</label>
+        <input
+          id="companyAddress"
+          class="input"
+          name="companyAddress"
+          [(ngModel)]="form.companyAddress"
+          required
+        />
       </div>
-    </form>
 
-    <aside class="result-panel">
-      @if (result) {
-        <div class="success-block">
-          <span class="success-mark">✓</span>
-          <h2>{{ result.companyName }}</h2>
-          <p>{{ result.message }}</p>
+      <div class="field">
+        <label for="adminFirstName">Admin first name</label>
+        <input
+          id="adminFirstName"
+          class="input"
+          name="adminFirstName"
+          [(ngModel)]="form.adminFirstName"
+          required
+        />
+      </div>
 
-          <div class="credential-box">
-            <span>A password setup email has been sent to the administrator email address.</span>
-          </div>
+      <div class="field">
+        <label for="adminLastName">Admin last name</label>
+        <input
+          id="adminLastName"
+          class="input"
+          name="adminLastName"
+          [(ngModel)]="form.adminLastName"
+          required
+        />
+      </div>
 
-            <!-- login with Keycloak button removed from page content; use header Login button -->
-        </div>
-      } @else {
-        <div class="empty-result">
-          <span class="empty-icon">+</span>
-          <h2>Registration result</h2>
-          <p>After successful registration, the administrator will receive a password setup email.</p>
-        </div>
-      }
-    </aside>
-  </div>
+      <div class="field field--wide">
+        <label for="adminEmail">Admin email</label>
+        <input
+          id="adminEmail"
+          class="input"
+          type="email"
+          name="adminEmail"
+          [(ngModel)]="form.adminEmail"
+          required
+        />
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary" [disabled]="submitting || companyForm.invalid">
+        {{ submitting ? 'Registering...' : 'Register company' }}
+      </button>
+    </div>
+  </form>
 </section>

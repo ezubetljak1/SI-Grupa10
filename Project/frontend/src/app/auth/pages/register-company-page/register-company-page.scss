@@ -5,9 +5,8 @@
 }
 
 .page-intro,
-.register-grid,
 .form-panel,
-.result-panel {
+.success-banner {
   width: 100%;
 }
 
@@ -38,28 +37,52 @@ h1 {
 }
 
 .page-intro span,
-.panel-heading span,
-.empty-result p,
-.success-block p {
+.panel-heading span {
   color: var(--text-muted);
 }
 
-.register-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.7fr) minmax(300px, 0.8fr);
-  gap: 20px;
-  align-items: stretch;
+.success-banner {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  border: 1px solid var(--success-border);
+  border-radius: 8px;
+  padding: 16px 18px;
+  background: var(--success-soft);
+  box-shadow: var(--shadow-sm);
 }
 
-.form-panel,
-.result-panel {
+.success-mark {
+  flex: 0 0 auto;
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--success);
+  color: #fff;
+  font-weight: 900;
+}
+
+.success-banner strong {
+  display: block;
+  color: var(--success);
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.success-banner p {
+  margin-top: 4px;
+  color: var(--success);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.form-panel {
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface);
   box-shadow: var(--shadow-sm);
-}
-
-.form-panel {
   padding: 24px;
 }
 
@@ -85,65 +108,12 @@ h1 {
   margin-top: 22px;
 }
 
-.result-panel {
-  padding: 24px;
-  display: grid;
-  align-content: center;
-}
-
-.success-block,
-.empty-result {
-  display: grid;
-  gap: 16px;
-}
-
-.success-mark,
-.empty-icon {
-  width: 42px;
-  height: 42px;
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  font-weight: 900;
-}
-
-.success-mark {
-  background: var(--success-soft);
-  color: var(--success);
-}
-
-.empty-icon {
-  background: var(--primary-soft);
-  color: var(--primary);
-}
-
-.credential-box {
-  display: grid;
-  gap: 8px;
-  border: 1px solid var(--success-border);
-  border-radius: 8px;
-  padding: 16px;
-  background: var(--success-soft);
-}
-
-.credential-box span {
-  color: var(--success);
-  font-size: 12px;
-  font-weight: 900;
-  text-transform: uppercase;
-}
-
-.credential-box strong {
-  overflow-wrap: anywhere;
-}
-
 @media (max-width: 900px) {
   .page-intro {
     align-items: flex-start;
     flex-direction: column;
   }
 
-  .register-grid,
   .form-grid {
     grid-template-columns: 1fr;
   }
