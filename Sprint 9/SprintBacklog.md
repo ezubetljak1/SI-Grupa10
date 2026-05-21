@@ -2,9 +2,14 @@
 
 ## Product Backlog stavke za Sprint 9
 
-| ID | Naziv stavke | Opis | Tip | Prioritet | Složenost | Status | 
-|----|--------------|------|-----|-----------|-----------|--------|
-| -  | -            | -    | -   | -         | -         | -      |
+| ID  | Naziv stavke                                 | Opis                                                                                                        | Tip | Prioritet | Složenost | Status | 
+|-----|----------------------------------------------|-------------------------------------------------------------------------------------------------------------|-----|-----------|-----------|--------|
+| PB1 | Ograničenja osobe za odobravanje             | Osoba za odobravanje treba da ima ograničene akcije u sistemu kao i ograničen pregled detalja o dokumentima | F   | P1        | M         | TODO   |
+| PB2 | Lista dokumenata na čekanju	                 | Osoba za odobravanje treba samo da vidi listu dokumenata koji čekaju na odobrenje, a ne sve dokumente       | F   | P2        | S         | TODO   |
+| PB3 | Odobravanje/odbijanje ili vraćanje dokumenta | Donošenje odluke o dokumentu uz komentar                                                                    | F   | P1        | M         | TODO   | 
+| PB4 | Historija statusa dokumenta	                 | Prikaz historije statusa dokumenta, uključujući odobrenja, odbijanja i vraćanja na doradu                   | F   | P2        | M         | TODO   |
+| PB5 | Obavještenja o dokumentima	                  | Obavještenja za odobravanje, odbijanje i vraćanje na doradu                                                 | F   | P2        | M         | TODO   |
+| PB6 | Slanje privremene šifre na mail              | Slanje privremene šifre na mail prilikom kreiranja korisnika ili reseta lozinke                             | F   | P1        | S         | TODO   |
 
 ---
 
@@ -21,6 +26,8 @@ fokusirati na svoj dio posla bez rizika od nenamjernih izmjena i grešaka.
   odobravanje dokumenata.
 - Sistem ne smije dozvoliti odobravatelju da mijenja validirana polja ili vrši akcije koje nisu vezane za odobravanje.
 - Sistem mora jasno prikazati koje su akcije dostupne odobravatelju.
+
+---
 
 ### US-9.2 - Pregled dokumenata koji čekaju odobravanje
 
@@ -138,6 +145,8 @@ ponovna ili dodatna obrada.
   odgovornog operatera.
 - Kada postoji komentar pri odbijanju, tada sistem mora povezati obavještenje sa tim komentarom.
 - Korisnik treba dobiti jasnu informaciju da je potrebna dodatna obrada dokumenta.
+
+---
 
 ### US-9.10 - Slanje privremene šifre na mail
 
