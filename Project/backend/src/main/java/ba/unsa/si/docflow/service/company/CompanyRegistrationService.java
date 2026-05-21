@@ -54,11 +54,11 @@ public class CompanyRegistrationService {
             keycloakUserId = adminUser.userId();
 
             userProvisioningService.provisionFirstAdmin(company.getId(), keycloakUserId, request);
+            keycloakAdminService.sendPasswordSetupEmail(keycloakUserId);
 
             return new CompanyRegisterResponse(
                     company.getId(),
                     company.getName(),
-                    adminUser.temporaryPassword(),
                     messageSource.getMessage(
                             "company.registration.success", null, Locale.getDefault()));
         } catch (RuntimeException ex) {

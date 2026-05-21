@@ -13,12 +13,6 @@ import {
 import { UserCreateRequest, UserResponse } from '../../models/user.models';
 import { UserApiService } from '../../services/user-api.service';
 
-type PasswordResult = {
-  email: string;
-  temporaryPassword: string;
-  action: 'created' | 'reset';
-};
-
 type RoleOption = {
   value: RoleName;
   label: string;
@@ -56,7 +50,7 @@ export class UsersPageComponent implements OnInit {
   currentUserId: number | null = null;
   search = '';
 
-  passwordResult: PasswordResult | null = null;
+  emailResult: { email: string; action: 'created' | 'reset' } | null = null;
 
   readonly newUser: UserCreateRequest = {
     firstName: '',
@@ -104,16 +98,17 @@ export class UsersPageComponent implements OnInit {
       next: (response) => {
         this.saving = false;
 
-        this.passwordResult = response.payload.temporaryPassword
-          ? {
-              email: response.payload.email,
-              temporaryPassword: response.payload.temporaryPassword,
-              action: 'created',
-            }
-          : null;
+        this.emailResult = {
+          email: response.payload.email,
+          action: 'created',
+        };
 
         this.resetForm();
-        this.toastr.success('User created successfully.', 'Success');
+        this.toastr.success(
+          'User created successfully. Password setup email has been sent.',
+          'Success'
+        );
+
         this.loadUsers();
       },
       error: (error: HttpErrorResponse) => {
@@ -174,28 +169,20 @@ export class UsersPageComponent implements OnInit {
       next: (response) => {
         this.actionUserId = null;
 
-        this.passwordResult = response.payload
-          ? { email: user.email, temporaryPassword: response.payload, action: 'reset' }
-          : null;
-
-        this.toastr.success('Temporary password generated.', 'Success');
+        this.emailResult = {
+          email: user.email,
+          action: 'reset',
+        };
+        this.toastr.success(
+          response.payload || 'Password reset email has been sent.',
+          'Success'
+        );
       },
       error: (error: HttpErrorResponse) => {
         this.actionUserId = null;
         this.toastr.error(this.extractErrorMessage(error.error), 'Reset failed');
       },
     });
-  }
-
-  copyTemporaryPassword(): void {
-    if (!this.passwordResult?.temporaryPassword || !navigator.clipboard) {
-      return;
-    }
-
-    navigator.clipboard
-      .writeText(this.passwordResult.temporaryPassword)
-      .then(() => this.toastr.success('Temporary password copied.', 'Copied'))
-      .catch(() => this.toastr.warning('Could not copy password automatically.', 'Copy failed'));
   }
 
   isBusy(user: UserResponse): boolean {

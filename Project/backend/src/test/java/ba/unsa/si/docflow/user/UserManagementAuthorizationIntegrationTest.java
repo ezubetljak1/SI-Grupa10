@@ -13,8 +13,8 @@ import ba.unsa.si.docflow.config.KeycloakTestConfiguration;
 import ba.unsa.si.docflow.dao.CompanyDAO;
 import ba.unsa.si.docflow.dao.UserDAO;
 import ba.unsa.si.docflow.dto.user.UserCreateApiRequest;
-import ba.unsa.si.docflow.entity.RoleEntity;
 import ba.unsa.si.docflow.entity.CompanyEntity;
+import ba.unsa.si.docflow.entity.RoleEntity;
 import ba.unsa.si.docflow.entity.UserEntity;
 import ba.unsa.si.docflow.entity.enums.AccountStatus;
 import ba.unsa.si.docflow.entity.enums.CompanyStatus;
@@ -40,7 +40,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
-import java.util.List;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -127,7 +126,10 @@ class UserManagementAuthorizationIntegrationTest {
                                 .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.payload.role", equalTo("OPERATOR")))
-                .andExpect(jsonPath("$.payload.temporaryPassword", equalTo("TempPass123!")));
+                .andExpect(jsonPath("$.payload.temporaryPassword").doesNotExist());
+
+        verify(keycloakAdminService)
+                .sendPasswordSetupEmail("kc-user-" + request.getEmail().hashCode());
     }
 
     @Test
@@ -263,9 +265,9 @@ class UserManagementAuthorizationIntegrationTest {
                         post("/api/company/users/{id}/reset-password", operatorUserId)
                                 .with(jwtFor(KEYCLOAK_ADMIN)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.payload", equalTo("ResetTemp123!")));
+                .andExpect(jsonPath("$.payload", equalTo("Password reset email has been sent.")));
 
-        verify(keycloakAdminService).resetUserPassword(KEYCLOAK_OPERATOR);
+        verify(keycloakAdminService).sendPasswordSetupEmail(KEYCLOAK_OPERATOR);
     }
 
     @Test
@@ -293,7 +295,8 @@ class UserManagementAuthorizationIntegrationTest {
                 .andExpect(jsonPath("$.code", equalTo("FORBIDDEN")));
     }
 
-    private Long persistUser(Long tenantCompanyId, String keycloakUserId, RoleName role, String email) {
+    private Long persistUser(
+            Long tenantCompanyId, String keycloakUserId, RoleName role, String email) {
         UserEntity user = new UserEntity();
         RoleEntity roleEntity = roleService.getByName(role);
         user.setCompanyId(tenantCompanyId);

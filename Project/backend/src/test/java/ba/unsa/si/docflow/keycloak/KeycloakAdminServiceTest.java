@@ -35,8 +35,12 @@ class KeycloakAdminServiceTest {
 
         assertNotNull(result);
         assertNotNull(result.userId());
-        assertNotNull(result.temporaryPassword());
         assertTrue(result.userId().startsWith("kc-user-"));
+    }
+
+    @Test
+    void mockSendsPasswordSetupEmail() {
+        keycloakAdminService.sendPasswordSetupEmail("kc-user-test");
     }
 
     @Test

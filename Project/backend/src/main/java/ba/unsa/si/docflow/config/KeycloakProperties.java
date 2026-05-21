@@ -11,12 +11,11 @@ import org.springframework.stereotype.Component;
 public class KeycloakProperties {
 
     private String realm = "docflow";
-
     private String serverUrl = "http://localhost:8081";
-
     private String frontendClientId = "docflow-frontend";
-
     private String backendAdminClientId = "docflow-backend-admin";
-
     private String backendAdminClientSecret = "change_me_later";
+
+    private String frontendRedirectUri = "http://localhost:4200/documents";
+    private Integer passwordSetupLinkLifespanSeconds = 86400;
 }

@@ -86,19 +86,17 @@
       </div>
     </form>
 
-    @if (passwordResult) {
+    @if (emailResult) {
       <div class="password-result">
-        <div>
-          <span>{{ passwordResult.action === 'created' ? 'Temporary password generated' : 'Password reset completed' }}</span>
-          <strong>{{ passwordResult.email }}</strong>
-        </div>
+        <span>
+          {{ emailResult.action === 'created' ? 'Password setup email sent' : 'Password reset email sent' }}
+        </span>
 
-        <button class="password-code" type="button" (click)="copyTemporaryPassword()">
-          <code>{{ passwordResult.temporaryPassword }}</code>
-          <span>Copy</span>
-        </button>
+        <strong>{{ emailResult.email }}</strong>
 
-        <p>The user must sign in with this password and update it on first login.</p>
+        <p>
+          The user should open the email link and set a new password before signing in.
+        </p>
       </div>
     }
   </app-ui-card>
