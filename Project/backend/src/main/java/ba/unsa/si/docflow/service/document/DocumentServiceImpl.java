@@ -1,7 +1,12 @@
 package ba.unsa.si.docflow.service.document;
 
+import ba.unsa.si.docflow.dao.AuditLogDAO;
+import ba.unsa.si.docflow.dao.CommentDAO;
 import ba.unsa.si.docflow.dao.DocumentDAO;
 import ba.unsa.si.docflow.dao.ExtractionDAO;
+import ba.unsa.si.docflow.dao.NotificationDAO;
+import ba.unsa.si.docflow.dao.StatusHistoryDAO;
+import ba.unsa.si.docflow.dao.TaskDAO;
 import ba.unsa.si.docflow.dto.document.*;
 import ba.unsa.si.docflow.entity.DocumentEntity;
 import ba.unsa.si.docflow.dto.workflow.CommentResponse;
@@ -48,6 +53,16 @@ public class DocumentServiceImpl implements DocumentService {
     private final StorageService storageService;
 
     private final ExtractionDAO extractionDAO;
+
+    private final StatusHistoryDAO statusHistoryDAO;
+
+    private final CommentDAO commentDAO;
+
+    private final NotificationDAO notificationDAO;
+
+    private final TaskDAO taskDAO;
+
+    private final AuditLogDAO auditLogDAO;
 
     private final CurrentUserService currentUserService;
 
@@ -187,6 +202,11 @@ public class DocumentServiceImpl implements DocumentService {
 
         String storagePath = entity.getStoragePath();
 
+        statusHistoryDAO.deleteByDocumentId(id);
+        notificationDAO.deleteByDocumentId(id);
+        commentDAO.deleteByDocumentId(id);
+        taskDAO.deleteByDocumentId(id);
+        auditLogDAO.deleteByDocumentId(id);
         extractionDAO.deleteByDocumentId(id);
 
         documentDAO.remove(entity);

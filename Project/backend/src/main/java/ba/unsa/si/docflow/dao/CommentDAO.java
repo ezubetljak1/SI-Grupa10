@@ -44,4 +44,12 @@ public class CommentDAO extends AbstractDAO<CommentEntity, Long> {
                 .findFirst()
                 .orElse(null);
     }
+
+    public void deleteByDocumentId(Long documentId) {
+        entityManager
+                .createQuery(
+                        "DELETE FROM CommentEntity c WHERE c.document.id = :documentId")
+                .setParameter("documentId", documentId)
+                .executeUpdate();
+    }
 }

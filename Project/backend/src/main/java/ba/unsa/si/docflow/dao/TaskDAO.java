@@ -69,4 +69,11 @@ public class TaskDAO extends AbstractDAO<TaskEntity, Long> {
                 .findFirst()
                 .orElse(null);
     }
+
+    public void deleteByDocumentId(Long documentId) {
+        entityManager
+                .createQuery("DELETE FROM TaskEntity t WHERE t.document.id = :documentId")
+                .setParameter("documentId", documentId)
+                .executeUpdate();
+    }
 }
