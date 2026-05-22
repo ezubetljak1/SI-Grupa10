@@ -16,13 +16,16 @@ import ba.unsa.si.docflow.entity.CompanyEntity;
 import ba.unsa.si.docflow.entity.UserEntity;
 import ba.unsa.si.docflow.entity.enums.AccountStatus;
 import ba.unsa.si.docflow.entity.enums.CompanyStatus;
+import ba.unsa.si.docflow.entity.enums.DocumentType;
 import ba.unsa.si.docflow.entity.enums.RoleName;
 import ba.unsa.si.docflow.exception.ApiValidationException;
+import ba.unsa.si.docflow.service.ocr.DocumentClassificationService;
 import ba.unsa.si.docflow.service.ocr.OcrProvider;
-import ba.unsa.si.docflow.service.workflow.CommentService;
+import ba.unsa.si.docflow.service.ocr.model.DocumentClassificationResult;
 import ba.unsa.si.docflow.service.ocr.model.OcrExtractedField;
 import ba.unsa.si.docflow.service.ocr.model.OcrResult;
 import ba.unsa.si.docflow.service.role.RoleService;
+import ba.unsa.si.docflow.service.workflow.CommentService;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -51,6 +54,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -83,6 +87,7 @@ class StatusHistoryCommentsIntegrationTest {
     @Autowired private CommentService commentService;
 
     @MockitoBean private OcrProvider ocrProvider;
+    @MockitoBean private DocumentClassificationService documentClassificationService;
 
     @DynamicPropertySource
     static void registerProperties(DynamicPropertyRegistry registry) {
@@ -108,7 +113,7 @@ class StatusHistoryCommentsIntegrationTest {
 
         setupTestTenant();
         authenticateAs(KEYCLOAK_USER);
-        reset(ocrProvider);
+        reset(ocrProvider, documentClassificationService);
     }
 
     @AfterAll
@@ -194,7 +199,7 @@ class StatusHistoryCommentsIntegrationTest {
                         documentId);
 
         mockMvc.perform(delete("/api/documents/{id}/status-history", documentId))
-                .andExpect(status().is5xxServerError());
+                .andExpect(status().isMethodNotAllowed());
 
         Integer countAfter =
                 jdbcTemplate.queryForObject(
@@ -212,7 +217,8 @@ class StatusHistoryCommentsIntegrationTest {
                         ApiValidationException.class,
                         () -> commentService.validateRequiredComment("   "));
 
-        assertEquals("COMMENT_REQUIRED", exception.getValidationErrors().getErrors().get(0).getCode());
+        assertEquals(
+                "COMMENT_REQUIRED", exception.getValidationErrors().getErrors().get(0).getCode());
     }
 
     @Test
@@ -266,8 +272,7 @@ class StatusHistoryCommentsIntegrationTest {
                                         """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.payload.type", equalTo("GENERAL")))
-                .andExpect(
-                        jsonPath("$.payload.content", equalTo("Please review supplier name.")));
+                .andExpect(jsonPath("$.payload.content", equalTo("Please review supplier name.")));
 
         mockMvc.perform(get("/api/documents/{id}/comments", documentId))
                 .andExpect(status().isOk())
@@ -276,7 +281,310 @@ class StatusHistoryCommentsIntegrationTest {
                         jsonPath("$.payload[0].content", equalTo("Please review supplier name.")));
     }
 
+    @Test
+    void deleteDocumentWithStatusHistoryCommentsAndExtractionDeletesRelatedData() throws Exception {
+        Long documentId = uploadPdf("Delete with workflow data test");
+
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_INVOICE_PROCESSOR_ID)))
+                .thenReturn(sampleOcrResult());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(
+                        post("/api/documents/{id}/comments", documentId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                                        {
+                                          "content": "Comment before deleting document."
+                                        }
+                                        """))
+                .andExpect(status().isOk());
+
+        Integer documentCountBefore =
+                jdbcTemplate.queryForObject(
+                        "SELECT COUNT(*) FROM document WHERE id = ?", Integer.class, documentId);
+
+        Integer historyCountBefore =
+                jdbcTemplate.queryForObject(
+                        "SELECT COUNT(*) FROM status_history WHERE document_id = ?",
+                        Integer.class,
+                        documentId);
+
+        Integer commentCountBefore =
+                jdbcTemplate.queryForObject(
+                        "SELECT COUNT(*) FROM document_comment WHERE document_id = ?",
+                        Integer.class,
+                        documentId);
+
+        Integer extractionCountBefore =
+                jdbcTemplate.queryForObject(
+                        "SELECT COUNT(*) FROM extraction WHERE document_id = ?",
+                        Integer.class,
+                        documentId);
+
+        Integer extractionFieldCountBefore =
+                jdbcTemplate.queryForObject(
+                        """
+                        SELECT COUNT(ef.id)
+                        FROM extraction_field ef
+                        JOIN extraction e ON ef.extraction_id = e.id
+                        WHERE e.document_id = ?
+                        """,
+                        Integer.class,
+                        documentId);
+
+        assertEquals(1, documentCountBefore);
+        assertTrue(historyCountBefore != null && historyCountBefore > 0);
+        assertEquals(1, commentCountBefore);
+        assertEquals(1, extractionCountBefore);
+        assertTrue(extractionFieldCountBefore != null && extractionFieldCountBefore > 0);
+
+        mockMvc.perform(delete("/api/documents/{id}", documentId)).andExpect(status().isOk());
+
+        Integer documentCountAfter =
+                jdbcTemplate.queryForObject(
+                        "SELECT COUNT(*) FROM document WHERE id = ?", Integer.class, documentId);
+
+        Integer historyCountAfter =
+                jdbcTemplate.queryForObject(
+                        "SELECT COUNT(*) FROM status_history WHERE document_id = ?",
+                        Integer.class,
+                        documentId);
+
+        Integer commentCountAfter =
+                jdbcTemplate.queryForObject(
+                        "SELECT COUNT(*) FROM document_comment WHERE document_id = ?",
+                        Integer.class,
+                        documentId);
+
+        Integer extractionCountAfter =
+                jdbcTemplate.queryForObject(
+                        "SELECT COUNT(*) FROM extraction WHERE document_id = ?",
+                        Integer.class,
+                        documentId);
+
+        Integer extractionFieldCountAfter =
+                jdbcTemplate.queryForObject(
+                        """
+                        SELECT COUNT(ef.id)
+                        FROM extraction_field ef
+                        JOIN extraction e ON ef.extraction_id = e.id
+                        WHERE e.document_id = ?
+                        """,
+                        Integer.class,
+                        documentId);
+
+        assertEquals(0, documentCountAfter);
+        assertEquals(0, historyCountAfter);
+        assertEquals(0, commentCountAfter);
+        assertEquals(0, extractionCountAfter);
+        assertEquals(0, extractionFieldCountAfter);
+    }
+
+    @Test
+    void createCommentWithWhitespaceContentIsRejected() throws Exception {
+        Long documentId = uploadPdf("Comment whitespace validation test");
+
+        mockMvc.perform(
+                        post("/api/documents/{id}/comments", documentId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                                        {
+                                          "content": "   "
+                                        }
+                                        """))
+                .andExpect(status().isBadRequest());
+
+        Integer commentCount =
+                jdbcTemplate.queryForObject(
+                        "SELECT COUNT(*) FROM document_comment WHERE document_id = ?",
+                        Integer.class,
+                        documentId);
+
+        assertEquals(0, commentCount);
+    }
+
+    @Test
+    void getStatusHistoryForMissingDocumentReturnsNotFound() throws Exception {
+        mockMvc.perform(get("/api/documents/{id}/status-history", 999999L))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code", equalTo("NOT_FOUND")));
+    }
+
+    @Test
+    void getCommentsForMissingDocumentReturnsNotFound() throws Exception {
+        mockMvc.perform(get("/api/documents/{id}/comments", 999999L))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code", equalTo("NOT_FOUND")));
+    }
+
+    @Test
+    void createCommentForMissingDocumentReturnsNotFound() throws Exception {
+        mockMvc.perform(
+                        post("/api/documents/{id}/comments", 999999L)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                                        {
+                                          "content": "This comment should not be saved."
+                                        }
+                                        """))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code", equalTo("NOT_FOUND")));
+
+        Integer commentCount =
+                jdbcTemplate.queryForObject("SELECT COUNT(*) FROM document_comment", Integer.class);
+
+        assertEquals(0, commentCount);
+    }
+
+    @Test
+    void getStatusHistoryReturnsFullWorkflowInChronologicalOrder() throws Exception {
+        Long documentId = uploadPdf("History ordering full workflow test");
+
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_INVOICE_PROCESSOR_ID)))
+                .thenReturn(sampleOcrResult());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction/confirm", documentId))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/documents/{id}/status-history", documentId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code", equalTo("OK")))
+                .andExpect(jsonPath("$.payload", hasSize(3)))
+                .andExpect(jsonPath("$.payload[0].action", equalTo("DOCUMENT_UPLOADED")))
+                .andExpect(jsonPath("$.payload[0].oldStatus").doesNotExist())
+                .andExpect(jsonPath("$.payload[0].newStatus", equalTo("UPLOADED")))
+                .andExpect(jsonPath("$.payload[1].action", equalTo("EXTRACTION_COMPLETED")))
+                .andExpect(jsonPath("$.payload[1].oldStatus", equalTo("UPLOADED")))
+                .andExpect(jsonPath("$.payload[1].newStatus", equalTo("EXTRACTED")))
+                .andExpect(jsonPath("$.payload[2].action", equalTo("EXTRACTION_CONFIRMED")))
+                .andExpect(jsonPath("$.payload[2].oldStatus", equalTo("EXTRACTED")))
+                .andExpect(jsonPath("$.payload[2].newStatus", equalTo("READY_FOR_APPROVAL")));
+    }
+
+    @Test
+    void getCommentsReturnsCommentsInChronologicalOrder() throws Exception {
+        Long documentId = uploadPdf("Comments ordering test");
+
+        mockMvc.perform(
+                        post("/api/documents/{id}/comments", documentId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                                        {
+                                          "content": "First comment."
+                                        }
+                                        """))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(
+                        post("/api/documents/{id}/comments", documentId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                                        {
+                                          "content": "Second comment."
+                                        }
+                                        """))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/documents/{id}/comments", documentId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code", equalTo("OK")))
+                .andExpect(jsonPath("$.payload", hasSize(2)))
+                .andExpect(jsonPath("$.payload[0].content", equalTo("First comment.")))
+                .andExpect(jsonPath("$.payload[1].content", equalTo("Second comment.")));
+    }
+
+    @Test
+    void processExtractionFailureCreatesFailedStatusHistoryEntry() throws Exception {
+        Long documentId = uploadPdf("History extraction failure test");
+
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_INVOICE_PROCESSOR_ID)))
+                .thenThrow(new RuntimeException("Simulated OCR failure"));
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.code", equalTo("EXTRACTION_FAILED")));
+
+        String documentStatus =
+                jdbcTemplate.queryForObject(
+                        "SELECT document_status FROM document WHERE id = ?",
+                        String.class,
+                        documentId);
+
+        Map<String, Object> latestHistory =
+                jdbcTemplate.queryForMap(
+                        """
+                        SELECT old_status, new_status, action, details
+                        FROM status_history
+                        WHERE document_id = ?
+                        ORDER BY changed_at DESC, id DESC
+                        LIMIT 1
+                        """,
+                        documentId);
+
+        assertEquals("PROCESSING_FAILED", documentStatus);
+        assertEquals("UPLOADED", latestHistory.get("old_status"));
+        assertEquals("PROCESSING_FAILED", latestHistory.get("new_status"));
+        assertEquals("EXTRACTION_FAILED", latestHistory.get("action"));
+        assertTrue(String.valueOf(latestHistory.get("details")).contains("Simulated OCR failure"));
+    }
+
+    @Test
+    void manualClassificationReviewCreatesStatusHistoryAndDoesNotBecomeProcessingFailed()
+            throws Exception {
+        Long documentId = uploadPdf("Classification review history test", "OTHER");
+
+        when(documentClassificationService.classify(any(byte[].class), eq("application/pdf")))
+                .thenReturn(
+                        new DocumentClassificationResult(
+                                DocumentType.OTHER, new BigDecimal("0.42")));
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code", equalTo("DOCUMENT_CLASSIFICATION_REVIEW_REQUIRED")));
+
+        String documentStatus =
+                jdbcTemplate.queryForObject(
+                        "SELECT document_status FROM document WHERE id = ?",
+                        String.class,
+                        documentId);
+
+        Map<String, Object> latestHistory =
+                jdbcTemplate.queryForMap(
+                        """
+                        SELECT old_status, new_status, action, details
+                        FROM status_history
+                        WHERE document_id = ?
+                        ORDER BY changed_at DESC, id DESC
+                        LIMIT 1
+                        """,
+                        documentId);
+
+        assertEquals("NEEDS_CLASSIFICATION_REVIEW", documentStatus);
+        assertEquals("UPLOADED", latestHistory.get("old_status"));
+        assertEquals("NEEDS_CLASSIFICATION_REVIEW", latestHistory.get("new_status"));
+        assertEquals("SYSTEM_STATUS_CHANGE", latestHistory.get("action"));
+        assertEquals(
+                "Document classification requires manual review.", latestHistory.get("details"));
+    }
+
     private Long uploadPdf(String name) throws Exception {
+        return uploadPdf(name, "INVOICE");
+    }
+
+    private Long uploadPdf(String name, String documentType) throws Exception {
         MockMultipartFile file =
                 new MockMultipartFile(
                         "file",
@@ -288,7 +596,7 @@ class StatusHistoryCommentsIntegrationTest {
                 mockMvc.perform(
                                 multipart("/api/documents/upload")
                                         .file(file)
-                                        .param("documentType", "INVOICE")
+                                        .param("documentType", documentType)
                                         .param("name", name))
                         .andExpect(status().isOk())
                         .andReturn();
