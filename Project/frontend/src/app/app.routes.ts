@@ -9,6 +9,7 @@ import { AuthCallbackPageComponent } from './auth/pages/auth-callback-page/auth-
 import { UsersPageComponent } from './users/pages/users-page/users-page';
 import { authGuard } from './auth/services/auth.guard';
 import { roleGuard } from './auth/services/role.guard';
+import { ProfilePageComponent } from './users/pages/profile-page/profile-page';
 
 export const routes: Routes = [
     {
@@ -55,5 +56,10 @@ export const routes: Routes = [
         component: UsersPageComponent,
         canActivate: [authGuard, roleGuard],
         data: { roles: ['ADMIN'] }
-    }
+    },
+    {
+        path: 'profile', 
+        component: ProfilePageComponent,
+        canActivate: [authGuard],
+    },
 ];
