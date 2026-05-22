@@ -1,11 +1,23 @@
 package ba.unsa.si.docflow.service.document;
 
+import ba.unsa.si.docflow.dao.AuditLogDAO;
+import ba.unsa.si.docflow.dao.CommentDAO;
 import ba.unsa.si.docflow.dao.DocumentDAO;
 import ba.unsa.si.docflow.dao.ExtractionDAO;
+import ba.unsa.si.docflow.dao.NotificationDAO;
+import ba.unsa.si.docflow.dao.StatusHistoryDAO;
+import ba.unsa.si.docflow.dao.TaskDAO;
 import ba.unsa.si.docflow.dto.document.*;
 import ba.unsa.si.docflow.entity.DocumentEntity;
+import ba.unsa.si.docflow.dto.workflow.CommentResponse;
+import ba.unsa.si.docflow.dto.workflow.CreateCommentRequest;
+import ba.unsa.si.docflow.dto.workflow.StatusHistoryResponse;
 import ba.unsa.si.docflow.entity.enums.DocumentStatus;
 import ba.unsa.si.docflow.entity.enums.DocumentType;
+import ba.unsa.si.docflow.entity.enums.StatusHistoryAction;
+import ba.unsa.si.docflow.service.workflow.CommentService;
+import ba.unsa.si.docflow.service.workflow.DocumentStatusTransitionService;
+import ba.unsa.si.docflow.service.workflow.StatusHistoryService;
 import ba.unsa.si.docflow.exception.ApiValidationException;
 import ba.unsa.si.docflow.mapper.DocumentMapper;
 import ba.unsa.si.docflow.response.ApiResponse;
@@ -42,7 +54,23 @@ public class DocumentServiceImpl implements DocumentService {
 
     private final ExtractionDAO extractionDAO;
 
+    private final StatusHistoryDAO statusHistoryDAO;
+
+    private final CommentDAO commentDAO;
+
+    private final NotificationDAO notificationDAO;
+
+    private final TaskDAO taskDAO;
+
+    private final AuditLogDAO auditLogDAO;
+
     private final CurrentUserService currentUserService;
+
+    private final DocumentStatusTransitionService documentStatusTransitionService;
+
+    private final StatusHistoryService statusHistoryService;
+
+    private final CommentService commentService;
 
     @Override
     @Transactional(readOnly = true)
@@ -118,6 +146,12 @@ public class DocumentServiceImpl implements DocumentService {
 
             DocumentEntity saved = documentDAO.persist(entity);
 
+            documentStatusTransitionService.recordInitialStatus(
+                    saved,
+                    createdByUserId,
+                    StatusHistoryAction.DOCUMENT_UPLOADED,
+                    "Document uploaded.");
+
             return new ApiResponse<>("OK", documentMapper.entityToDto(saved));
         } catch (RuntimeException exception) {
             if (storedFileInfo != null) {
@@ -168,6 +202,11 @@ public class DocumentServiceImpl implements DocumentService {
 
         String storagePath = entity.getStoragePath();
 
+        statusHistoryDAO.deleteByDocumentId(id);
+        notificationDAO.deleteByDocumentId(id);
+        commentDAO.deleteByDocumentId(id);
+        taskDAO.deleteByDocumentId(id);
+        auditLogDAO.deleteByDocumentId(id);
         extractionDAO.deleteByDocumentId(id);
 
         documentDAO.remove(entity);
@@ -195,13 +234,40 @@ public class DocumentServiceImpl implements DocumentService {
             throw new ApiValidationException(errors);
         }
 
+        Long currentUserId = currentUserService.getCurrentUserId();
+
         entity.setDocumentType(confirmedType);
-        entity.setDocumentStatus(DocumentStatus.UPLOADED);
         entity.setProcessorIdUsed(null);
 
-        DocumentEntity saved = documentDAO.merge(entity);
+        DocumentEntity saved =
+                documentStatusTransitionService
+                        .changeStatus(
+                                entity,
+                                DocumentStatus.UPLOADED,
+                                StatusHistoryAction.DOCUMENT_TYPE_CONFIRMED,
+                                currentUserId,
+                                null,
+                                "Manual classification confirmed as " + confirmedType + ".")
+                        .getDocument();
 
         return new ApiResponse<>("OK", documentMapper.entityToDto(saved));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ApiResponse<List<StatusHistoryResponse>> getStatusHistory(Long id) {
+        return statusHistoryService.getStatusHistory(id);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ApiResponse<List<CommentResponse>> getComments(Long id) {
+        return commentService.getComments(id);
+    }
+
+    @Override
+    public ApiResponse<CommentResponse> createComment(Long id, CreateCommentRequest request) {
+        return commentService.createGeneralComment(id, request);
     }
 
     private DocumentType parseConfirmedDocumentType(String rawDocumentType) {

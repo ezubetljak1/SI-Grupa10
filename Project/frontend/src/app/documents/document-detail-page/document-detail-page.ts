@@ -20,6 +20,7 @@ import {
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { ToastrService } from 'ngx-toastr';
 import { Extraction, ExtractionField } from '../models/extraction.models';
+import { DocumentComment, StatusHistoryEntry } from '../models/workflow.models';
 import { AuthService } from '../../auth/services/auth.service';
 
 interface EditState {
@@ -83,6 +84,16 @@ export class DocumentDetailPageComponent implements OnInit {
   selectedManualDocumentType: ManualClassificationDocumentType = 'FORM';
   confirmingDocumentType = false;
 
+  statusHistory: StatusHistoryEntry[] = [];
+  statusHistoryLoading = false;
+  statusHistoryError: string | null = null;
+
+  documentComments: DocumentComment[] = [];
+  commentsLoading = false;
+  commentsError: string | null = null;
+  newCommentContent = '';
+  submittingComment = false;
+
   get canManageExtraction(): boolean {
     return this.authService.hasRole(['ADMIN', 'OPERATOR']);
   }
@@ -135,6 +146,8 @@ export class DocumentDetailPageComponent implements OnInit {
         if (this.shouldLoadExtractionForStatus(this.document.documentStatus)) {
           this.loadExtraction();
         }
+
+        this.loadWorkflowData(this.document.id);
       },
       error: (err: HttpErrorResponse) => {
         this.loading = false;
@@ -590,6 +603,103 @@ export class DocumentDetailPageComponent implements OnInit {
     });
   }
 
+  loadWorkflowData(documentId: number): void {
+    this.loadStatusHistory(documentId);
+    this.loadComments(documentId);
+  }
+
+  loadStatusHistory(documentId: number): void {
+    this.statusHistoryLoading = true;
+    this.statusHistoryError = null;
+
+    this.documentApiService.getStatusHistory(documentId).subscribe({
+      next: (response) => {
+        this.statusHistoryLoading = false;
+        this.statusHistory = response.payload ?? [];
+      },
+      error: (err: HttpErrorResponse) => {
+        this.statusHistoryLoading = false;
+        this.statusHistory = [];
+        this.statusHistoryError =
+          this.extractErrorMessage(err.error) ?? 'Failed to load status history.';
+      },
+    });
+  }
+
+  loadComments(documentId: number): void {
+    this.commentsLoading = true;
+    this.commentsError = null;
+
+    this.documentApiService.getComments(documentId).subscribe({
+      next: (response) => {
+        this.commentsLoading = false;
+        this.documentComments = response.payload ?? [];
+      },
+      error: (err: HttpErrorResponse) => {
+        this.commentsLoading = false;
+        this.documentComments = [];
+        this.commentsError =
+          this.extractErrorMessage(err.error) ?? 'Failed to load comments.';
+      },
+    });
+  }
+
+  submitComment(): void {
+    if (!this.document || !this.newCommentContent.trim()) {
+      this.toastr.warning('Enter a comment before submitting.', 'Comment required');
+      return;
+    }
+
+    const documentId = this.document.id;
+    this.submittingComment = true;
+
+    this.documentApiService
+      .createComment(documentId, { content: this.newCommentContent.trim() })
+      .subscribe({
+        next: () => {
+          this.submittingComment = false;
+          this.newCommentContent = '';
+          this.toastr.success('Comment added.', 'Success');
+          this.loadComments(documentId);
+        },
+        error: (err: HttpErrorResponse) => {
+          this.submittingComment = false;
+          const message =
+            this.extractErrorMessage(err.error) ?? 'Failed to add comment.';
+          this.toastr.error(message, 'Error');
+        },
+      });
+  }
+
+  formatHistoryAction(action: string): string {
+    const labels: Record<string, string> = {
+      DOCUMENT_UPLOADED: 'Document uploaded',
+      DOCUMENT_TYPE_CONFIRMED: 'Document type confirmed',
+      EXTRACTION_COMPLETED: 'Extraction completed',
+      EXTRACTION_FAILED: 'Extraction failed',
+      EXTRACTION_CONFIRMED: 'Extraction confirmed',
+      EXTRACTION_RECONFIRMED: 'Extraction reconfirmed',
+      DOCUMENT_APPROVED: 'Document approved',
+      DOCUMENT_REJECTED: 'Document rejected',
+      DOCUMENT_RETURNED_FOR_CORRECTION: 'Returned for correction',
+      SYSTEM_STATUS_CHANGE: 'Status updated',
+    };
+
+    return labels[action] ?? action.replaceAll('_', ' ').toLowerCase();
+  }
+
+  formatCommentType(type: string): string {
+    const labels: Record<string, string> = {
+      GENERAL: 'General',
+      APPROVAL: 'Approval',
+      REJECTION: 'Rejection',
+      CORRECTION_REQUEST: 'Correction request',
+      SYSTEM: 'System',
+    };
+
+    return labels[type] ?? type;
+  }
+
   isPlaceholderField(field: ExtractionField): boolean {
     return field.placeholder === true;
   }
@@ -835,6 +945,14 @@ export class DocumentDetailPageComponent implements OnInit {
     this.extractionRunning = false;
     this.editState = null;
     this.confirmingExtraction = false;
+    this.statusHistory = [];
+    this.statusHistoryLoading = false;
+    this.statusHistoryError = null;
+    this.documentComments = [];
+    this.commentsLoading = false;
+    this.commentsError = null;
+    this.newCommentContent = '';
+    this.submittingComment = false;
   }
 
   private shouldLoadExtractionForStatus(status: string | null | undefined): boolean {

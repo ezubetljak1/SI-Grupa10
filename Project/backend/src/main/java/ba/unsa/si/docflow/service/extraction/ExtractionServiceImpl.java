@@ -12,6 +12,8 @@ import ba.unsa.si.docflow.entity.ExtractionFieldEntity;
 import ba.unsa.si.docflow.entity.enums.DocumentStatus;
 import ba.unsa.si.docflow.entity.enums.DocumentType;
 import ba.unsa.si.docflow.entity.enums.RoleName;
+import ba.unsa.si.docflow.entity.enums.StatusHistoryAction;
+import ba.unsa.si.docflow.service.workflow.DocumentStatusTransitionService;
 import ba.unsa.si.docflow.exception.ApiNotFoundException;
 import ba.unsa.si.docflow.exception.ApiValidationException;
 import ba.unsa.si.docflow.exception.DocumentClassificationReviewRequiredException;
@@ -103,10 +105,13 @@ public class ExtractionServiceImpl implements ExtractionService {
     private final DocumentClassificationService documentClassificationService;
     private final CurrentUserService currentUserService;
 
+    private final DocumentStatusTransitionService documentStatusTransitionService;
+
     @Override
     public ApiResponse<ExtractionResponse> process(Long documentId) {
         currentUserService.requireAnyRole(RoleName.ADMIN, RoleName.OPERATOR);
         DocumentEntity document = requireDocumentInCurrentCompany(documentId);
+        Long currentUserId = currentUserService.getCurrentUserId();
 
         try {
             byte[] fileContent = readDocumentContent(document);
@@ -121,23 +126,39 @@ public class ExtractionServiceImpl implements ExtractionService {
 
             document.setDocumentType(documentType);
             document.setProcessorIdUsed(processorId);
-            document.setDocumentStatus(DocumentStatus.EXTRACTED);
-            documentDAO.merge(document);
+
+            documentStatusTransitionService.changeStatus(
+                    document,
+                    DocumentStatus.EXTRACTED,
+                    StatusHistoryAction.EXTRACTION_COMPLETED,
+                    currentUserId,
+                    null,
+                    "Document extraction completed.");
 
             ExtractionResponse response = extractionMapper.entityToDto(extraction);
             return new ApiResponse<>("OK", response);
 
         } catch (ExtractionException exception) {
             if (document.getDocumentStatus() != DocumentStatus.NEEDS_CLASSIFICATION_REVIEW) {
-                document.setDocumentStatus(DocumentStatus.PROCESSING_FAILED);
-                documentDAO.merge(document);
+                documentStatusTransitionService.changeStatus(
+                        document,
+                        DocumentStatus.PROCESSING_FAILED,
+                        StatusHistoryAction.EXTRACTION_FAILED,
+                        currentUserId,
+                        null,
+                        exception.getMessage());
             }
 
             throw exception;
 
         } catch (Exception exception) {
-            document.setDocumentStatus(DocumentStatus.PROCESSING_FAILED);
-            documentDAO.merge(document);
+            documentStatusTransitionService.changeStatus(
+                    document,
+                    DocumentStatus.PROCESSING_FAILED,
+                    StatusHistoryAction.EXTRACTION_FAILED,
+                    currentUserId,
+                    null,
+                    exception.getMessage());
 
             throw new ExtractionException(
                     "Document extraction failed: " + exception.getMessage(), exception);
@@ -215,8 +236,18 @@ public class ExtractionServiceImpl implements ExtractionService {
 
         extractionValidation.validateRequiredFields(extraction);
 
-        document.setDocumentStatus(DocumentStatus.READY_FOR_APPROVAL);
-        documentDAO.merge(document);
+        StatusHistoryAction confirmAction =
+                document.getDocumentStatus() == DocumentStatus.NEEDS_CORRECTION
+                        ? StatusHistoryAction.EXTRACTION_RECONFIRMED
+                        : StatusHistoryAction.EXTRACTION_CONFIRMED;
+
+        documentStatusTransitionService.changeStatus(
+                document,
+                DocumentStatus.READY_FOR_APPROVAL,
+                confirmAction,
+                currentUserService.getCurrentUserId(),
+                null,
+                "Extraction confirmed and sent for approval.");
 
         return new ApiResponse<>("OK", extractionMapper.entityToDto(extraction));
     }
@@ -276,8 +307,13 @@ public class ExtractionServiceImpl implements ExtractionService {
 
         if (!supportedDetectedType
                 || confidence.compareTo(CLASSIFICATION_CONFIDENCE_THRESHOLD) < 0) {
-            document.setDocumentStatus(DocumentStatus.NEEDS_CLASSIFICATION_REVIEW);
-            documentDAO.merge(document);
+            documentStatusTransitionService.changeStatus(
+                    document,
+                    DocumentStatus.NEEDS_CLASSIFICATION_REVIEW,
+                    StatusHistoryAction.SYSTEM_STATUS_CHANGE,
+                    currentUserService.getCurrentUserId(),
+                    null,
+                    "Document classification requires manual review.");
 
             throw new DocumentClassificationReviewRequiredException(
                     document.getId(), detectedType, confidence);

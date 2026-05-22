@@ -409,6 +409,98 @@
           </div>
         }
       </app-ui-card>
+
+      <app-ui-card
+        title="Status history"
+        subtitle="Chronological record of document status changes.">
+        @if (statusHistoryLoading) {
+          <div class="workflow-state">Loading status history...</div>
+        } @else if (statusHistoryError) {
+          <div class="message-card message-card--error">{{ statusHistoryError }}</div>
+        } @else if (statusHistory.length === 0) {
+          <div class="workflow-state">
+            @if (document) {
+              <p>No status history recorded yet.</p>
+              <p>
+                Current status:
+                <app-status-badge [status]="document.documentStatus"></app-status-badge>
+              </p>
+            }
+          </div>
+        } @else {
+          <ul class="history-timeline">
+            @for (entry of statusHistory; track entry.id) {
+              <li class="history-timeline__item">
+                <div class="history-timeline__header">
+                  <strong>{{ formatHistoryAction(entry.action) }}</strong>
+                  <span class="history-timeline__time">{{ formatDate(entry.changedAt) }}</span>
+                </div>
+                <div class="history-timeline__meta">
+                  <app-status-badge [status]="entry.newStatus"></app-status-badge>
+                  @if (entry.oldStatus) {
+                    <span class="meta-chip meta-chip--muted">from {{ entry.oldStatus }}</span>
+                  }
+                  <span class="meta-chip">
+                    {{ entry.changedByUserName || ('User #' + entry.changedByUserId) }}
+                  </span>
+                </div>
+                @if (entry.commentContent) {
+                  <p class="history-timeline__comment">{{ entry.commentContent }}</p>
+                } @else if (entry.details) {
+                  <p class="history-timeline__details">{{ entry.details }}</p>
+                }
+              </li>
+            }
+          </ul>
+        }
+      </app-ui-card>
+
+      <app-ui-card
+        title="Comments"
+        subtitle="Notes and decision comments linked to this document.">
+        @if (commentsLoading) {
+          <div class="workflow-state">Loading comments...</div>
+        } @else if (commentsError) {
+          <div class="message-card message-card--error">{{ commentsError }}</div>
+        } @else if (documentComments.length === 0) {
+          <div class="workflow-state">No comments yet.</div>
+        } @else {
+          <ul class="comments-list">
+            @for (comment of documentComments; track comment.id) {
+              <li class="comments-list__item">
+                <div class="comments-list__header">
+                  <span class="meta-chip">{{ formatCommentType(comment.type) }}</span>
+                  <span class="comments-list__meta">
+                    {{ comment.userName || ('User #' + comment.userId) }}
+                    · {{ formatDate(comment.createdAt) }}
+                  </span>
+                </div>
+                <p class="comments-list__content">{{ comment.content }}</p>
+              </li>
+            }
+          </ul>
+        }
+
+        <form class="comment-form" (ngSubmit)="submitComment()">
+          <label class="comment-form__label" for="newComment">Add a general comment</label>
+          <textarea
+            id="newComment"
+            class="comment-form__input"
+            rows="3"
+            [(ngModel)]="newCommentContent"
+            name="newComment"
+            placeholder="Write a comment for other reviewers or operators..."
+            [disabled]="submittingComment"></textarea>
+          <div class="comment-form__actions">
+            <button
+              type="submit"
+              class="btn btn-primary"
+              [disabled]="submittingComment || !newCommentContent.trim()">
+              {{ submittingComment ? 'Saving...' : 'Add comment' }}
+            </button>
+          </div>
+        </form>
+      </app-ui-card>
     </div>
   }
 </section>

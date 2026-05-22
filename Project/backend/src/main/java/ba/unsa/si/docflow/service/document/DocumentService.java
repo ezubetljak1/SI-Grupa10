@@ -1,10 +1,15 @@
 package ba.unsa.si.docflow.service.document;
 
 import ba.unsa.si.docflow.dto.document.*;
+import ba.unsa.si.docflow.dto.workflow.CommentResponse;
+import ba.unsa.si.docflow.dto.workflow.CreateCommentRequest;
+import ba.unsa.si.docflow.dto.workflow.StatusHistoryResponse;
 import ba.unsa.si.docflow.response.ApiResponse;
 import ba.unsa.si.docflow.response.PagedResponse;
 
 import org.springframework.web.multipart.MultipartFile;
+
+import java.util.List;
 
 public interface DocumentService {
     PagedResponse<Document> find(DocumentFilterRequest request);
@@ -22,4 +27,10 @@ public interface DocumentService {
     ApiResponse<Document> confirmDocumentType(Long id, ConfirmDocumentTypeRequest request);
 
     DocumentFileResponse downloadFile(Long id);
+
+    ApiResponse<List<StatusHistoryResponse>> getStatusHistory(Long id);
+
+    ApiResponse<List<CommentResponse>> getComments(Long id);
+
+    ApiResponse<CommentResponse> createComment(Long id, CreateCommentRequest request);
 }

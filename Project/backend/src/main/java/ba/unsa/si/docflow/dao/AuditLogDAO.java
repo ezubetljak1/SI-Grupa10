@@ -23,4 +23,11 @@ public class AuditLogDAO extends AbstractDAO<AuditLogEntity, Long> {
                 .setParameter("documentId", documentId)
                 .getResultList();
     }
+
+    public void deleteByDocumentId(Long documentId) {
+        entityManager
+                .createQuery("DELETE FROM AuditLogEntity a WHERE a.document.id = :documentId")
+                .setParameter("documentId", documentId)
+                .executeUpdate();
+    }
 }

@@ -47,4 +47,12 @@ public class StatusHistoryDAO extends AbstractDAO<StatusHistoryEntity, Long> {
 
         return query.getResultStream().findFirst().orElse(null);
     }
+
+    public void deleteByDocumentId(Long documentId) {
+        entityManager
+                .createQuery(
+                        "DELETE FROM StatusHistoryEntity sh WHERE sh.document.id = :documentId")
+                .setParameter("documentId", documentId)
+                .executeUpdate();
+    }
 }

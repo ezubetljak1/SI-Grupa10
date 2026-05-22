@@ -58,4 +58,12 @@ public class NotificationDAO extends AbstractDAO<NotificationEntity, Long> {
                 .setParameter("userId", userId)
                 .getResultList();
     }
+
+    public void deleteByDocumentId(Long documentId) {
+        entityManager
+                .createQuery(
+                        "DELETE FROM NotificationEntity n WHERE n.document.id = :documentId")
+                .setParameter("documentId", documentId)
+                .executeUpdate();
+    }
 }
