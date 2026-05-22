@@ -2,6 +2,7 @@ package ba.unsa.si.docflow.config;
 
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -30,11 +31,11 @@ public class KeycloakTestConfiguration {
                         invocation ->
                                 new KeycloakUserCreationResult(
                                         "kc-user-"
-                                                + invocation.getArgument(0).toString().hashCode(),
-                                        "TempPass123!"));
+                                                + invocation.getArgument(0).toString().hashCode()));
 
-        org.mockito.Mockito.doNothing().when(service).setUserEnabled(anyString(), anyBoolean());
-        when(service.resetUserPassword(anyString())).thenReturn("ResetTemp123!");
+        doNothing().when(service).sendPasswordSetupEmail(anyString());
+        doNothing().when(service).setUserEnabled(anyString(), anyBoolean());
+
         when(service.isPasswordUpdateRequired(anyString())).thenReturn(false);
 
         return service;

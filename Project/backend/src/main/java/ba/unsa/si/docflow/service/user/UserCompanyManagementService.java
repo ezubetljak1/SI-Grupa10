@@ -65,21 +65,31 @@ public class UserCompanyManagementService {
     @Transactional
     public UserResponse createUser(UserCreateApiRequest request) {
         currentUserService.requireAdmin();
+
         Long companyId = currentUserService.getCurrentCompanyId();
         CompanyEntity company = companyService.getEntityById(companyId);
 
-        KeycloakUserCreationResult keycloakUser =
-                keycloakAdminService.createUser(
-                        request.getEmail(),
-                        request.getFirstName(),
-                        request.getLastName(),
-                        company.getKeycloakGroupId(),
-                        true);
+        String keycloakUserId = null;
 
-        UserResponse response = userService.createUser(companyId, request, keycloakUser.userId());
-        response.setTemporaryPassword(keycloakUser.temporaryPassword());
+        try {
+            KeycloakUserCreationResult keycloakUser =
+                    keycloakAdminService.createUser(
+                            request.getEmail(),
+                            request.getFirstName(),
+                            request.getLastName(),
+                            company.getKeycloakGroupId(),
+                            true);
 
-        return response;
+            keycloakUserId = keycloakUser.userId();
+
+            UserResponse response = userService.createUser(companyId, request, keycloakUserId);
+            keycloakAdminService.sendPasswordSetupEmail(keycloakUserId);
+
+            return response;
+        } catch (RuntimeException ex) {
+            keycloakAdminService.deleteUser(keycloakUserId);
+            throw ex;
+        }
     }
 
     @Transactional
@@ -118,11 +128,10 @@ public class UserCompanyManagementService {
         Long companyId = currentUserService.getCurrentCompanyId();
         UserEntity user = userValidation.validateExistsInCompany(id, companyId);
 
-        String temporaryPassword = keycloakAdminService.resetUserPassword(user.getKeycloakUserId());
-
+        keycloakAdminService.sendPasswordSetupEmail(user.getKeycloakUserId());
         userService.changeStatus(id, AccountStatus.PENDING_PASSWORD_CHANGE, companyId);
 
-        return new ApiResponse<>("OK", temporaryPassword);
+        return new ApiResponse<>("OK", "Password reset email has been sent.");
     }
 
     private UserResponse syncPasswordChangeStatus(UserResponse response, Long companyId) {
