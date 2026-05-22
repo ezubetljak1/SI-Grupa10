@@ -13,6 +13,11 @@ import {
   ManualClassificationDocumentType,
 } from '../documents/models/document.models';
 import { Extraction, ExtractionField } from '../documents/models/extraction.models';
+import {
+  CreateCommentRequest,
+  DocumentComment,
+  StatusHistoryEntry,
+} from '../documents/models/workflow.models';
 
 @Injectable({
   providedIn: 'root',
@@ -117,6 +122,28 @@ export class DocumentApiService {
     return this.http.post<ApiResponse<Extraction>>(
       `${this.baseUrl}/${documentId}/extraction/confirm`,
       {}
+    );
+  }
+
+  getStatusHistory(documentId: number): Observable<ApiResponse<StatusHistoryEntry[]>> {
+    return this.http.get<ApiResponse<StatusHistoryEntry[]>>(
+      `${this.baseUrl}/${documentId}/status-history`
+    );
+  }
+
+  getComments(documentId: number): Observable<ApiResponse<DocumentComment[]>> {
+    return this.http.get<ApiResponse<DocumentComment[]>>(
+      `${this.baseUrl}/${documentId}/comments`
+    );
+  }
+
+  createComment(
+    documentId: number,
+    payload: CreateCommentRequest
+  ): Observable<ApiResponse<DocumentComment>> {
+    return this.http.post<ApiResponse<DocumentComment>>(
+      `${this.baseUrl}/${documentId}/comments`,
+      payload
     );
   }
 

@@ -1,6 +1,9 @@
 package ba.unsa.si.docflow.controller;
 
 import ba.unsa.si.docflow.dto.document.*;
+import ba.unsa.si.docflow.dto.workflow.CreateCommentRequest;
+import ba.unsa.si.docflow.dto.workflow.CommentResponse;
+import ba.unsa.si.docflow.dto.workflow.StatusHistoryResponse;
 import ba.unsa.si.docflow.response.ApiResponse;
 import ba.unsa.si.docflow.response.PagedResponse;
 import ba.unsa.si.docflow.service.document.DocumentService;
@@ -18,6 +21,8 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/documents")
@@ -90,5 +95,21 @@ public class DocumentController {
     public ApiResponse<Document> confirmDocumentType(
             @PathVariable Long id, @Valid @RequestBody ConfirmDocumentTypeRequest request) {
         return documentService.confirmDocumentType(id, request);
+    }
+
+    @GetMapping("/{id}/status-history")
+    public ApiResponse<List<StatusHistoryResponse>> getStatusHistory(@PathVariable Long id) {
+        return documentService.getStatusHistory(id);
+    }
+
+    @GetMapping("/{id}/comments")
+    public ApiResponse<List<CommentResponse>> getComments(@PathVariable Long id) {
+        return documentService.getComments(id);
+    }
+
+    @PostMapping("/{id}/comments")
+    public ApiResponse<CommentResponse> createComment(
+            @PathVariable Long id, @Valid @RequestBody CreateCommentRequest request) {
+        return documentService.createComment(id, request);
     }
 }
