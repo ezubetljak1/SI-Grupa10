@@ -1,0 +1,10 @@
+package ba.unsa.si.docflow.entity.enums;
+
+public enum NotificationType {
+    DOCUMENT_ASSIGNED,
+    DOCUMENT_READY_FOR_APPROVAL,
+    DOCUMENT_RETURNED_FOR_CORRECTION,
+    DOCUMENT_REJECTED,
+    DOCUMENT_APPROVED,
+    PENDING_ACTION_REMINDER
+}
