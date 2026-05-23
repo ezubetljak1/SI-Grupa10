@@ -3,7 +3,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Component, inject, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
-
+import { AuditLog } from '../models/audit.models';
 import { DocumentApiService} from '../../services/document-api.service';
 import {
   FileTypeIconComponent,
@@ -93,9 +93,16 @@ export class DocumentDetailPageComponent implements OnInit {
   commentsError: string | null = null;
   newCommentContent = '';
   submittingComment = false;
+  auditLogs: AuditLog[] = [];
+  auditLoading = false;
+  auditError: string | null = null;
 
   get canManageExtraction(): boolean {
     return this.authService.hasRole(['ADMIN', 'OPERATOR']);
+  }
+
+  get canViewAudit(): boolean {
+    return this.authService.hasRole(['ADMIN', 'MANAGER']);
   }
 
   ngOnInit(): void {
@@ -606,6 +613,7 @@ export class DocumentDetailPageComponent implements OnInit {
   loadWorkflowData(documentId: number): void {
     this.loadStatusHistory(documentId);
     this.loadComments(documentId);
+    this.loadAuditLogs(documentId);
   }
 
   loadStatusHistory(documentId: number): void {
@@ -641,6 +649,26 @@ export class DocumentDetailPageComponent implements OnInit {
         this.commentsError =
           this.extractErrorMessage(err.error) ?? 'Failed to load comments.';
       },
+    });
+  }
+
+  loadAuditLogs(documentId: number): void {
+    if (!this.canViewAudit) {
+      return;
+    }
+
+    this.auditLoading = true;
+
+    this.documentApiService.getAuditLog(documentId).subscribe({
+      next: (response) => {
+        this.auditLoading = false;
+        this.auditLogs = response.payload ?? [];
+      },
+      error: (err) => {
+        this.auditLoading = false;
+        this.auditError =
+          this.extractErrorMessage(err.error) ?? 'Failed to load audit log.';
+      }
     });
   }
 

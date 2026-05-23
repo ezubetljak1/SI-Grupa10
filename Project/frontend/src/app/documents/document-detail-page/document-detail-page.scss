@@ -608,6 +608,31 @@ img {
   border-color: rgba(245, 158, 11, 0.28);
 }
 
+.audit-details {
+  margin-top: 0.75rem;
+  padding: 0.75rem;
+  border-radius: 0.75rem;
+  background: rgba(255, 193, 7, 0.08);
+  border: 1px solid rgba(255, 193, 7, 0.2);
+
+  strong {
+    display: block;
+    margin-bottom: 0.4rem;
+    font-size: 0.85rem;
+  }
+}
+
+.history-timeline__item--audit {
+  border-left: 4px solid #f59e0b;
+  padding-left: 1rem;
+}
+
+.history-timeline__details {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 @media (max-width: 900px) {
   .extraction-table th,
   .extraction-table td {

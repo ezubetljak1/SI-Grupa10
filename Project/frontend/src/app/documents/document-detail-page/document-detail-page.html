@@ -430,7 +430,9 @@
         } @else {
           <ul class="history-timeline">
             @for (entry of statusHistory; track entry.id) {
-              <li class="history-timeline__item">
+              <li
+                class="history-timeline__item"
+                [class.history-timeline__item--audit]="entry.details">
                 <div class="history-timeline__header">
                   <strong>{{ formatHistoryAction(entry.action) }}</strong>
                   <span class="history-timeline__time">{{ formatDate(entry.changedAt) }}</span>
@@ -454,6 +456,51 @@
           </ul>
         }
       </app-ui-card>
+
+      @if (canViewAudit) {
+      <app-ui-card
+        title="Audit log"
+        subtitle="Audit trail of document actions.">
+
+        @if (auditLoading) {
+        <div class="workflow-state">Loading audit log...</div>
+        } @else if (auditError) {
+        <div class="message-card message-card--error">
+          {{ auditError }}
+        </div>
+        } @else if (auditLogs.length === 0) {
+        <div class="workflow-state">
+          No audit events found.
+        </div>
+        } @else {
+        <ul class="history-timeline">
+          @for (log of auditLogs; track log.id) {
+          <li class="history-timeline__item">
+            <div class="history-timeline__header">
+              <strong>{{ log.action }}</strong>
+
+              <span class="history-timeline__time">
+                {{ formatDate(log.timestamp) }}
+              </span>
+            </div>
+
+            <div class="history-timeline__meta">
+              <span class="meta-chip">
+                User #{{ log.userId }}
+              </span>
+            </div>
+
+            @if (log.details) {
+            <p class="history-timeline__details">
+              {{ log.details }}
+            </p>
+            }
+          </li>
+          }
+        </ul>
+        }
+      </app-ui-card>
+      }
 
       <app-ui-card
         title="Comments"
