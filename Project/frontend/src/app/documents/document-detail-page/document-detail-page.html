@@ -486,7 +486,7 @@
 
             <div class="history-timeline__meta">
               <span class="meta-chip">
-                User #{{ log.userId }}
+                {{ log.userFullName || ('User #' + log.userId) }}
               </span>
             </div>
 

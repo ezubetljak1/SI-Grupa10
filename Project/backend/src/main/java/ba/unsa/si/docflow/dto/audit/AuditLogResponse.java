@@ -11,6 +11,7 @@ public record AuditLogResponse(
         AuditAction action,
         String details,
         LocalDateTime timestamp,
-        Long userId
+        Long userId,
+        String userFullName
 ) {
 }

@@ -2,8 +2,7 @@ package ba.unsa.si.docflow.service.security;
 
 import ba.unsa.si.docflow.entity.DocumentEntity;
 import ba.unsa.si.docflow.entity.enums.RoleName;
-import ba.unsa.si.docflow.exception.ApiValidationException;
-import ba.unsa.si.docflow.response.ValidationErrors;
+import org.springframework.security.access.AccessDeniedException;
 import ba.unsa.si.docflow.security.CurrentUserService;
 
 import lombok.RequiredArgsConstructor;
@@ -48,16 +47,7 @@ public class WorkflowPermissionServiceImpl
 
     @Override
     public void requireCanViewNotifications() {
-
-        RoleName role = RoleName.valueOf(
-                currentUserService.getCurrentUser().role()
-        );
-
-        if (role == RoleName.APPROVER) {
-            throwForbidden(
-                    "You do not have permission to view notifications."
-            );
-        }
+        // ne mogu se vidjeti tudje notifikacije, implementira se kasnije kroz notification endpointe
     }
 
     @Override
@@ -190,14 +180,6 @@ public class WorkflowPermissionServiceImpl
     }
 
     private void throwForbidden(String message) {
-
-        ValidationErrors errors = new ValidationErrors();
-
-        errors.add(
-                "FORBIDDEN",
-                message
-        );
-
-        throw new ApiValidationException(errors);
+        throw new AccessDeniedException(message);
     }
 }
