@@ -458,48 +458,52 @@
       </app-ui-card>
 
       @if (canViewAudit) {
-      <app-ui-card
-        title="Audit log"
-        subtitle="Audit trail of document actions.">
-
-        @if (auditLoading) {
-        <div class="workflow-state">Loading audit log...</div>
-        } @else if (auditError) {
-        <div class="message-card message-card--error">
-          {{ auditError }}
-        </div>
-        } @else if (auditLogs.length === 0) {
-        <div class="workflow-state">
-          No audit events found.
-        </div>
-        } @else {
-        <ul class="history-timeline">
-          @for (log of auditLogs; track log.id) {
-          <li class="history-timeline__item">
-            <div class="history-timeline__header">
-              <strong>{{ log.action }}</strong>
-
-              <span class="history-timeline__time">
-                {{ formatDate(log.timestamp) }}
-              </span>
+        <section class="audit-log-card">
+          <div class="section-header">
+            <div>
+              <h2>Audit log</h2>
+              <p>Audit trail of document actions.</p>
             </div>
+          </div>
 
-            <div class="history-timeline__meta">
-              <span class="meta-chip">
-                {{ log.userFullName || ('User #' + log.userId) }}
-              </span>
+          @if (auditLogs.length === 0) {
+            <div class="audit-empty">
+              No audit actions recorded yet.
             </div>
+          } @else {
+            <div class="audit-timeline">
+              @for (entry of auditLogs; track entry.id) {
+                <article class="audit-entry" [ngClass]="getAuditActionClass(entry.action)">
+                  <div class="audit-icon">
+                    {{ getAuditIcon(entry.action) }}
+                  </div>
 
-            @if (log.details) {
-            <p class="history-timeline__details">
-              {{ log.details }}
-            </p>
-            }
-          </li>
+                  <div class="audit-content">
+                    <div class="audit-entry-header">
+                      <div>
+                        <h3>{{ formatAuditAction(entry.action) }}</h3>
+
+                        <div class="audit-meta">
+                          <span class="audit-user">
+                            {{ entry.userFullName || 'Unknown user' }}
+                          </span>
+                        </div>
+                      </div>
+
+                      <span class="audit-date">
+                        {{ entry.timestamp | date:'dd MMM yyyy, HH:mm' }}
+                      </span>
+                    </div>
+
+                    <p class="audit-details">
+                      {{ formatAuditDetails(entry.details) }}
+                    </p>
+                  </div>
+                </article>
+              }
+            </div>
           }
-        </ul>
-        }
-      </app-ui-card>
+        </section>
       }
 
       <app-ui-card
