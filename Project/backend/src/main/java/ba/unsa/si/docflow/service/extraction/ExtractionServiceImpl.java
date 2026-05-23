@@ -9,10 +9,9 @@ import ba.unsa.si.docflow.dto.extraction.UpdateExtractionFieldRequest;
 import ba.unsa.si.docflow.entity.DocumentEntity;
 import ba.unsa.si.docflow.entity.ExtractionEntity;
 import ba.unsa.si.docflow.entity.ExtractionFieldEntity;
-import ba.unsa.si.docflow.entity.enums.DocumentStatus;
-import ba.unsa.si.docflow.entity.enums.DocumentType;
-import ba.unsa.si.docflow.entity.enums.RoleName;
-import ba.unsa.si.docflow.entity.enums.StatusHistoryAction;
+import ba.unsa.si.docflow.entity.enums.*;
+import ba.unsa.si.docflow.service.audit.AuditLogService;
+import ba.unsa.si.docflow.service.security.WorkflowPermissionService;
 import ba.unsa.si.docflow.service.workflow.DocumentStatusTransitionService;
 import ba.unsa.si.docflow.exception.ApiNotFoundException;
 import ba.unsa.si.docflow.exception.ApiValidationException;
@@ -107,10 +106,14 @@ public class ExtractionServiceImpl implements ExtractionService {
 
     private final DocumentStatusTransitionService documentStatusTransitionService;
 
+    private final WorkflowPermissionService workflowPermissionService;
+    private final AuditLogService auditLogService;
+
     @Override
     public ApiResponse<ExtractionResponse> process(Long documentId) {
         currentUserService.requireAnyRole(RoleName.ADMIN, RoleName.OPERATOR);
         DocumentEntity document = requireDocumentInCurrentCompany(documentId);
+        workflowPermissionService.requireCanRunExtraction(document);
         Long currentUserId = currentUserService.getCurrentUserId();
 
         try {
@@ -226,7 +229,7 @@ public class ExtractionServiceImpl implements ExtractionService {
     public ApiResponse<ExtractionResponse> confirmExtraction(Long documentId) {
         currentUserService.requireAnyRole(RoleName.ADMIN, RoleName.OPERATOR);
         DocumentEntity document = requireDocumentInCurrentCompany(documentId);
-
+        workflowPermissionService.requireCanConfirmExtraction(document);
         ExtractionEntity extraction = extractionDAO.findByDocumentId(documentId);
 
         if (extraction == null) {
@@ -268,13 +271,21 @@ public class ExtractionServiceImpl implements ExtractionService {
                                                         + " and field id: "
                                                         + fieldId));
 
+        DocumentEntity document = field.getExtraction().getDocument();
+        workflowPermissionService.requireCanEditExtraction(document);
         validateUpdatedFieldValue(field, request.getValue());
-
         field.setValue(request.getValue());
         field.setCorrected(true);
         field.setPlaceholder(false);
 
         ExtractionFieldEntity updatedField = extractionFieldDAO.merge(field);
+
+        auditLogService.log(
+                document,
+                currentUserService.getCurrentUserId(),
+                AuditAction.FIELD_UPDATED,
+                "{\"fieldId\":" + fieldId + ",\"fieldName\":\"" + field.getFieldName() + "\"}"
+        );
 
         return new ApiResponse<>("OK", extractionMapper.fieldToDto(updatedField));
     }

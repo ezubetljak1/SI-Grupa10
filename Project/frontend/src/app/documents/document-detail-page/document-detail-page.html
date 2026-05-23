@@ -430,7 +430,9 @@
         } @else {
           <ul class="history-timeline">
             @for (entry of statusHistory; track entry.id) {
-              <li class="history-timeline__item">
+              <li
+                class="history-timeline__item"
+                [class.history-timeline__item--audit]="entry.details">
                 <div class="history-timeline__header">
                   <strong>{{ formatHistoryAction(entry.action) }}</strong>
                   <span class="history-timeline__time">{{ formatDate(entry.changedAt) }}</span>
@@ -454,6 +456,55 @@
           </ul>
         }
       </app-ui-card>
+
+      @if (canViewAudit) {
+        <section class="audit-log-card">
+          <div class="section-header">
+            <div>
+              <h2>Audit log</h2>
+              <p>Audit trail of document actions.</p>
+            </div>
+          </div>
+
+          @if (auditLogs.length === 0) {
+            <div class="audit-empty">
+              No audit actions recorded yet.
+            </div>
+          } @else {
+            <div class="audit-timeline">
+              @for (entry of auditLogs; track entry.id) {
+                <article class="audit-entry" [ngClass]="getAuditActionClass(entry.action)">
+                  <div class="audit-icon">
+                    {{ getAuditIcon(entry.action) }}
+                  </div>
+
+                  <div class="audit-content">
+                    <div class="audit-entry-header">
+                      <div>
+                        <h3>{{ formatAuditAction(entry.action) }}</h3>
+
+                        <div class="audit-meta">
+                          <span class="audit-user">
+                            {{ entry.userFullName || 'Unknown user' }}
+                          </span>
+                        </div>
+                      </div>
+
+                      <span class="audit-date">
+                        {{ entry.timestamp | date:'dd MMM yyyy, HH:mm' }}
+                      </span>
+                    </div>
+
+                    <p class="audit-details">
+                      {{ formatAuditDetails(entry.details) }}
+                    </p>
+                  </div>
+                </article>
+              }
+            </div>
+          }
+        </section>
+      }
 
       <app-ui-card
         title="Comments"

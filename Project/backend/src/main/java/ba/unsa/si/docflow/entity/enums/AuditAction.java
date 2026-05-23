@@ -20,5 +20,4 @@ public enum AuditAction {
     EMAIL_REMINDER_SENT,
 
     PERMISSION_DENIED,
-    SYSTEM_ACTION
 }

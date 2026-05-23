@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
-
+import { AuditLog } from '../documents/models/audit.models';
 import { ApiResponse, PagedResponse } from '../models/api.models';
 import {
   ConfirmDocumentTypeRequest,
@@ -161,5 +161,11 @@ export class DocumentApiService {
     });
 
     return httpParams;
+  }
+
+  getAuditLog(documentId: number) {
+    return this.http.get<{ code: string; payload: AuditLog[] }>(
+      `/api/documents/${documentId}/audit-log`
+    );
   }
 }

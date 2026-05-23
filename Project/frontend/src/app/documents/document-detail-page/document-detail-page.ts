@@ -3,7 +3,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Component, inject, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
-
+import { AuditLog } from '../models/audit.models';
 import { DocumentApiService} from '../../services/document-api.service';
 import {
   FileTypeIconComponent,
@@ -93,9 +93,16 @@ export class DocumentDetailPageComponent implements OnInit {
   commentsError: string | null = null;
   newCommentContent = '';
   submittingComment = false;
+  auditLogs: AuditLog[] = [];
+  auditLoading = false;
+  auditError: string | null = null;
 
   get canManageExtraction(): boolean {
     return this.authService.hasRole(['ADMIN', 'OPERATOR']);
+  }
+
+  get canViewAudit(): boolean {
+    return this.authService.hasRole(['ADMIN', 'MANAGER']);
   }
 
   ngOnInit(): void {
@@ -606,6 +613,7 @@ export class DocumentDetailPageComponent implements OnInit {
   loadWorkflowData(documentId: number): void {
     this.loadStatusHistory(documentId);
     this.loadComments(documentId);
+    this.loadAuditLogs(documentId);
   }
 
   loadStatusHistory(documentId: number): void {
@@ -641,6 +649,26 @@ export class DocumentDetailPageComponent implements OnInit {
         this.commentsError =
           this.extractErrorMessage(err.error) ?? 'Failed to load comments.';
       },
+    });
+  }
+
+  loadAuditLogs(documentId: number): void {
+    if (!this.canViewAudit) {
+      return;
+    }
+
+    this.auditLoading = true;
+
+    this.documentApiService.getAuditLog(documentId).subscribe({
+      next: (response) => {
+        this.auditLoading = false;
+        this.auditLogs = response.payload ?? [];
+      },
+      error: (err) => {
+        this.auditLoading = false;
+        this.auditError =
+          this.extractErrorMessage(err.error) ?? 'Failed to load audit log.';
+      }
     });
   }
 
@@ -881,6 +909,92 @@ export class DocumentDetailPageComponent implements OnInit {
     return this.extractionFields.some(
       (field) => this.isDateField(field) && !field.corrected
     );
+  }
+
+  formatAuditAction(action: string): string {
+    const labels: Record<string, string> = {
+      DOCUMENT_ASSIGNED: 'Document assigned',
+      TASK_STARTED: 'Task started',
+      TASK_COMPLETED: 'Task completed',
+      TASK_CANCELLED: 'Task cancelled',
+
+      FIELD_ADDED: 'Field added',
+      FIELD_UPDATED: 'Field updated',
+
+      DOCUMENT_APPROVED: 'Document approved',
+      DOCUMENT_REJECTED: 'Document rejected',
+      DOCUMENT_RETURNED_FOR_CORRECTION: 'Returned for correction',
+
+      NOTIFICATION_CREATED: 'Notification created',
+      NOTIFICATION_READ: 'Notification read',
+      NOTIFICATIONS_READ_ALL: 'All notifications read',
+
+      EMAIL_REMINDER_SENT: 'Email reminder sent',
+      PERMISSION_DENIED: 'Permission denied',
+      SYSTEM_ACTION: 'System action',
+    };
+
+    return labels[action] ?? this.toReadableText(action);
+  }
+
+  formatAuditDetails(details?: string | null): string {
+    if (!details) {
+      return 'No additional details.';
+    }
+
+    try {
+      const parsed = JSON.parse(details);
+
+      if (parsed.fieldName) {
+        return `Updated field: ${this.formatFieldName(parsed.fieldName)}`;
+      }
+
+      if (parsed.assignedUserId) {
+        return `Assigned to user ID ${parsed.assignedUserId}.`;
+      }
+
+      return Object.entries(parsed)
+        .map(([key, value]) => `${this.formatFieldName(key)}: ${value}`)
+        .join(' · ');
+    } catch {
+      return details;
+    }
+  }
+
+  formatFieldName(value: string): string {
+    return value
+      .replace(/^custom\./, '')
+      .split('_')
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(' ');
+  }
+
+  getAuditIcon(action: string): string {
+    if (action.includes('FIELD')) return '✎';
+    if (action.includes('APPROVED')) return '✓';
+    if (action.includes('REJECTED')) return '!';
+    if (action.includes('RETURNED')) return '↩';
+    if (action.includes('ASSIGNED') || action.includes('TASK')) return '→';
+    if (action.includes('NOTIFICATION')) return '🔔';
+    return '•';
+  }
+
+  getAuditActionClass(action: string): string {
+    if (action.includes('APPROVED')) return 'audit-success';
+    if (action.includes('REJECTED') || action.includes('DENIED')) return 'audit-danger';
+    if (action.includes('RETURNED')) return 'audit-warning';
+    if (action.includes('FIELD')) return 'audit-info';
+    return 'audit-neutral';
+  }
+
+  private toReadableText(value: string): string {
+    return value
+      .toLowerCase()
+      .split('_')
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(' ');
   }
 
   private resolveDownloadFileName(doc: DocflowDocument): string {
