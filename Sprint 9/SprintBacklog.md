@@ -2,14 +2,20 @@
 
 ## Product Backlog stavke za Sprint 9
 
-| ID  | Naziv stavke                                 | Opis                                                                                                        | Tip | Prioritet | Složenost | Status | 
-|-----|----------------------------------------------|-------------------------------------------------------------------------------------------------------------|-----|-----------|-----------|--------|
-| PB1 | Ograničenja osobe za odobravanje             | Osoba za odobravanje treba da ima ograničene akcije u sistemu kao i ograničen pregled detalja o dokumentima | F   | P1        | M         | TODO   |
-| PB2 | Lista dokumenata na čekanju	                 | Osoba za odobravanje treba samo da vidi listu dokumenata koji čekaju na odobrenje, a ne sve dokumente       | F   | P2        | S         | TODO   |
-| PB3 | Odobravanje/odbijanje ili vraćanje dokumenta | Donošenje odluke o dokumentu uz komentar                                                                    | F   | P1        | M         | TODO   | 
-| PB4 | Historija statusa dokumenta	                 | Prikaz historije statusa dokumenta, uključujući odobrenja, odbijanja i vraćanja na doradu                   | F   | P2        | M         | TODO   |
-| PB5 | Obavještenja o dokumentima	                  | Obavještenja za odobravanje, odbijanje i vraćanje na doradu                                                 | F   | P2        | M         | TODO   |
-| PB6 | Slanje privremene šifre na mail              | Slanje privremene šifre na mail prilikom kreiranja korisnika ili reseta lozinke                             | F   | P1        | S         | TODO   |
+| ID   | Naziv stavke                                 | Opis                                                                                                         | Tip | Prioritet | Složenost | Status |
+|------|----------------------------------------------|--------------------------------------------------------------------------------------------------------------|-----|-----------|-----------|--------|
+| PB1  | Ograničenja osobe za odobravanje             | Osoba za odobravanje treba da ima ograničene akcije u sistemu kao i ograničen pregled detalja o dokumentima  | F   | P1        | M         | TODO   |
+| PB2  | Lista dokumenata na čekanju                  | Osoba za odobravanje treba samo da vidi listu dokumenata koji čekaju na odobrenje, a ne sve dokumente        | F   | P2        | S         | TODO   |
+| PB3  | Odobravanje/odbijanje ili vraćanje dokumenta | Donošenje odluke o dokumentu uz komentar                                                                     | F   | P1        | M         | TODO   |
+| PB4  | Historija statusa dokumenta                  | Prikaz historije statusa dokumenta, uključujući odobrenja, odbijanja i vraćanja na doradu                    | F   | P2        | M         | TODO   |
+| PB5  | Obavještenja o dokumentima                   | Obavještenja za odobravanje, odbijanje i vraćanje na doradu                                                  | F   | P2        | M         | TODO   |
+| PB6  | Slanje linka za ažuriranje lozinke na email  | Slanje emaila za ažuriranje lozinke u slučaju kreiranja korisnika ili resetovanja lozinke                    | F   | P1        | S         | TODO   |
+| PB7  | Dodjela zadataka korisnicima                 | Admin/Manager može dodijeliti dokument konkretnom operateru ili odobravatelju putem Task entiteta            | F   | P2        | M         | TODO   |
+| PB8  | Moji zadaci                                  | Korisnik može pregledati listu zadataka koji su mu dodijeljeni, filtrirati ih po statusu i otvoriti dokument | F   | P2        | S         | TODO   |
+| PB9  | Ručno dodavanje ekstraktovanog polja         | Operator može ručno dodati polje koje OCR nije ekstraktovao, sa canonical ključem i prikaznim imenom         | F   | P2        | M         | TODO   |
+| PB10 | Notification centar                          | Korisnik ima pregled svih in-app obavještenja sa unread badge-om, označavanjem pročitanog i navigacijom      | F   | P2        | M         | TODO   |
+| PB11 | Email reminder za nepročitana obavještenja   | Sistem automatski šalje email digest za stara nepročitana obavještenja putem scheduled job-a                 | F   | P3        | S         | TODO   |
+| PB12 | Audit log za ključne akcije                  | Sistem bilježi audit trail za assignment, approval, odbijanje, vraćanje, dodavanje polja i email remind.     | T   | P2        | M         | TODO   |
 
 ---
 
@@ -36,8 +42,8 @@ pregledati.
 
 **Acceptance Criteria**
 
-- Kada osoba za odobravanje otvori listu dokumenata, tada sistem mora prikazati samo dokumente u statusu “na
-  odobrenju”.
+- Kada osoba za odobravanje otvori listu dokumenata, tada sistem mora prikazati samo dokumente u statusu "na
+  odobrenju".
 - Kada nema dokumenata za odobravanje, tada treba ispisati poruku.
 - Sistem mora omogućiti otvaranje detalja dokumenta sa liste čekanja.
 
@@ -55,8 +61,6 @@ ekstraktovane podatke i historiju statusa, kako bih mogao donijeti odluku o odob
 - Sistem mora prikazati trenutno stanje dokumenta.
 - Sistem mora omogućiti pregled prethodnih komentara.
 - Osoba za odobravanje ne smije moći mijenjati validirana polja.
-
-<!-- Ovaj US diskutovati i implementirati ako nije nepotrebno komplikovanje -->
 
 ---
 
@@ -79,23 +83,21 @@ ekstraktovane podatke i historiju statusa, kako bih mogao donijeti odluku o odob
 **Acceptance Criteria**
 
 - Kada osoba za odobravanje odbije dokument, tada sistem mora promijeniti status dokumenta u
-  `REJECTED`. <!-- Status REJECTED podrazumijeva kao kada je status UPLOADED (mora se opet pokrenut ekstrakcija da bi se dobila polja itd) -->
+  `REJECTED`.
 - Sistem mora sačuvati odbijanje i komentar u historiji statusa.
-- Kada je dokument odbijen, sistem ga automatski vraća u prethodnu fazu
+- Kada je dokument odbijen, sistem ga automatski vraća u prethodnu fazu.
 - Sistem ne smije dozvoliti odbijanje dokumenta bez navođenja komentara.
 
 ---
 
 ### US-9.6 - Vraćanje dokumenta na doradu
 
-<!-- Ključna razlika između ovog US-a i prethodnog je u tome što odbijanje podrazumijeva da je dokument besmislen, ekstraktovani podaci nikako ne valjaju i slično. Vraćanje na NEEDS CORRECTION podrazumijeva da je operteru "promakla" sitna greška, slovo broj i slično pa da nema potrebe za ponovnom ekstrakcijom i slično --> 
-
 **Opis** - Kao osoba za odobravanje, želim vratiti dokument na doradu uz komentar bez finalnog odbijanja, kako bi
 operater mogao izvršiti manje korekcije.
 
 **Acceptance Criteria**
 
-- Kada approver odabere “Return for correction”, tada sistem mora promijeniti status dokumenta u `NEEDS CORRECTION`
+- Kada approver odabere "Return for correction", tada sistem mora promijeniti status dokumenta u `NEEDS CORRECTION`.
 - Sistem mora zahtijevati komentar razloga vraćanja.
 - Dokument mora ponovo biti dostupan operateru za izmjene.
 
@@ -118,8 +120,6 @@ obrade.
 
 ### US-9.8 - Obavještenje o dokumentu koji čeka odobravanje
 
-<!-- Trebamo se dogovoriti hoće li obavještenja biti u sistemu real-time ili će obavještenja dolaziti na mail -->
-
 **Opis** - Kao osoba za odobravanje, želim dobiti obavještenje kada dokument čeka moju akciju, kako bih mogao
 pravovremeno reagovati.
 
@@ -127,14 +127,12 @@ pravovremeno reagovati.
 
 - Kada dokument pređe u status `READY FOR APPROVAL`, tada sistem mora generisati obavještenje za korisnika koji ima
   ulogu za odobravanje dokumenata.
-- Sistem mora omogućiti da obavještenje bude povezano sa konkretnim dokumentom
+- Sistem mora omogućiti da obavještenje bude povezano sa konkretnim dokumentom.
 - Korisnik treba dobiti signal da postoji nova stavka koja traži akciju.
 
 ---
 
 ### US-9.9 - Obavještenje o odbijenom ili vraćenom dokumentu
-
-<!-- Trebamo se dogovoriti hoće li obavještenja biti u sistemu real-time ili će obavještenja dolaziti na mail -->
 
 **Opis** - Kao operater, želim dobiti obavještenje kada je dokument odbijen ili vraćen, kako bih znao da je potrebna
 ponovna ili dodatna obrada.
@@ -148,18 +146,115 @@ ponovna ili dodatna obrada.
 
 ---
 
-### US-9.10 - Slanje privremene šifre na mail
+### US-9.10 - Slanje linka za ažuriranje lozinke na email
 
-**Opis** - Kao korisnik sistema, želim da se privremene šifre šalju na odgovarajuču mail adresu, prilikom kreiranja
-korisnika ili reseta lozinke, kako bih mogao pristupiti sistemu.
+**Opis** - Kao korisnik sistema, želim da prilikom kreiranja korisnika ili resetovanja lozinke dobijem email sa linkom
+za ažuriranje lozinke, kako bih na siguran način mogao postaviti novu lozinku i pristupiti sistemu.
 
 **Acceptance Criteria**
 
-- Kada se kreira novi korisnik ili resetuje lozinka, tada sistem mora generisati privremenu šifru i poslati je na
-  mail adresu korisnika.
-- Sistem mora osigurati da privremena šifra bude sigurna i da se ne šalje u nešifriranom obliku.
-- Korisnik treba dobiti jasne instrukcije u mailu o tome kako koristiti privremenu šifru te da odmah treba postaviti
-  novu šifru.
+- Kada se kreira novi korisnik ili resetuje lozinka, sistem mora poslati email korisniku sa jedinstvenim linkom za
+  ažuriranje lozinke.
+- Link za ažuriranje lozinke mora biti vremenski ograničen i isteći nakon definisanog perioda (npr. 12 sati)
+- Sistem ne smije slati privremene šifre putem emaila.
+- Email mora sadržavati jasne instrukcije za postavljanje nove lozinke putem dostavljenog linka.
+
+---
+
+### US-9.11 - Dodjela zadatka korisniku
+
+**Opis** - Kao Admin ili Manager, želim dodijeliti dokument konkretnom operateru ili odobravatelju putem zadatka, kako
+bi bilo jasno ko je odgovoran za obradu dokumenta.
+
+**Acceptance Criteria**
+
+- Kada Admin ili Manager kreira zadatak, tada sistem mora kreirati Task zapis sa odgovarajućim tipom, dodijeljenim
+  korisnikom i opcionim rokom.
+- Sistem mora validirati da je dodijeljeni korisnik iz iste firme i da ima odgovarajuću ulogu za tip zadatka.
+- Sistem ne smije dozvoliti kreiranje duplog aktivnog zadatka istog tipa za isti dokument.
+- Sistem mora kreirati in-app obavještenje za korisnika kome je zadatak dodijeljen.
+- Sistem mora zabilježiti dodjelu u audit logu.
+
+---
+
+### US-9.12 - Pregled mojih zadataka
+
+**Opis** - Kao operator ili odobravatelj, želim imati pregled zadataka koji su mi dodijeljeni, kako bih znao šta trebam
+raditi.
+
+**Acceptance Criteria**
+
+- Kada korisnik otvori stranicu "Moji zadaci", tada sistem mora prikazati samo zadatke dodijeljene trenutnom korisniku.
+- Klik na zadatak mora otvoriti detalje relevantnog dokumenta.
+- Kada nema aktivnih zadataka, sistem treba prikazati odgovarajuću poruku praznog stanja.
+
+---
+
+### US-9.13 - Ručno dodavanje ekstraktovanog polja
+
+**Opis** - Kao operator, želim ručno dodati polje koje OCR nije ekstraktovao, kako bi dokument imao kompletne podatke
+za odobravanje.
+
+**Acceptance Criteria**
+
+- Kada operator otvori modal za dodavanje polja, tada sistem mora ponuditi listu poznatih canonical ključeva za tip
+  dokumenta, kao i opciju za unos prilagođenog polja.
+- Sistem mora zahtijevati non-empty vrijednost polja.
+- Sistem mora odbiti fieldName koji nije ni poznati canonical ključ ni odgovarajući format.
+- Dodano polje mora biti označeno kao `manual=true`, `corrected=true`, a `confidence` mora biti `null`.
+- Sistem mora prikazati ručno dodano polje sa čitljivom labelom i oznakom "Manual" u UI-u.
+- Sistem mora zabilježiti dodavanje polja u audit logu (`FIELD_ADDED`).
+- Ručno dodavanje polja je dozvoljeno samo u statusima `EXTRACTED` i `NEEDS_CORRECTION`.
+
+---
+
+### US-9.14 - Notification centar i unread badge
+
+**Opis** - Kao korisnik sistema, želim imati pregled svih mojih obavještenja na jednom mjestu, kako bih mogao lako
+pratiti šta zahtijeva moju akciju.
+
+**Acceptance Criteria**
+
+- Kada korisnik ima nepročitana obavještenja, tada sistem mora prikazati unread badge u navigacijskoj traci sa brojem
+  nepročitanih obavještenja.
+- Kada korisnik otvori notification centar, tada sistem mora prikazati listu obavještenja.
+- Korisnik mora moći označiti pojedinačno obavještenje kao pročitano ili sve odjednom.
+- Klik na obavještenje mora označiti obavještenje kao pročitano i navigirati korisnika na relevantnu stranicu.
+- Unread badge mora biti ažuriran nakon svakog označavanja pročitanog.
+
+---
+
+### US-9.15 - Email reminder za nepročitana obavještenja
+
+**Opis** - Kao korisnik sistema, želim dobiti email podsjetnik kada imam dugo nepročitana obavještenja, kako bih bio
+obaviješten čak i kada nisam aktivan u sistemu.
+
+**Acceptance Criteria**
+
+- Kada postoje obavještenja koja su starija od konfigurabilnog praga (npr. 24 sata) i nisu pročitana te email još
+  nije poslan, tada sistem mora automatski poslati email digest korisniku.
+- Sistem mora grupirati sva nepročitana obavještenja u jedan email po korisniku kako bi se izbjegao spam.
+- SMTP kredencijali moraju biti konfigurisani isključivo putem environment varijabli i ne smiju biti vidljivi u
+  kodu, logovima niti frontend dijelu aplikacije.
+
+---
+
+### US-9.16 - Audit log za ključne akcije
+
+**Opis** - Kao Admin ili Manager, želim imati uvid u audit log ključnih akcija na dokumentu, kako bih mogao pratiti ko
+je šta radio i kada.
+
+**Acceptance Criteria**
+
+- Sistem mora bilježiti sljedeće akcije u audit log: dodjela zadatka, odobravanje, odbijanje, vraćanje na doradu,
+  ručno dodavanje polja, otkazivanje zadatka i slanje email reminders.
+- Kada Admin ili Manager otvori audit log za dokument, tada sistem mora prikazati hronološki sortiran popis akcija sa
+  akterom, akcijom, timestampom i kratkim detaljima.
+- Operator i odobravatelj ne smiju imati pristup audit logu.
+- Audit log mora biti append-only; nije dozvoljen update ni delete.
+- Audit log ne smije sadržavati osjetljive podatke kao što su lozinke, tokeni ili SMTP kredencijali.
+
+---
 
 ## Legenda za Product Backlog stavke
 
