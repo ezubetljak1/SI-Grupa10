@@ -1785,6 +1785,200 @@ class ExtractionIntegrationTest {
         assertFieldUnchanged(extractionId, fieldId, "117", false);
     }
 
+    @Test
+    void addManualCustomFieldThenStoresManualMetadataAndAuditLog() throws Exception {
+        long extractionId = uploadAndExtractWith(sampleOcrResult())[0];
+
+        mockMvc.perform(
+                        post("/api/extractions/{extractionId}/fields", extractionId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                                        {
+                                          "fieldName": "custom.contract_reference",
+                                          "displayName": "Contract reference",
+                                          "value": "CTR-15/2026"
+                                        }
+                                        """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("OK"))
+                .andExpect(jsonPath("$.payload.fieldName").value("custom.contract_reference"))
+                .andExpect(jsonPath("$.payload.displayName").value("Contract reference"))
+                .andExpect(jsonPath("$.payload.value").value("CTR-15/2026"))
+                .andExpect(jsonPath("$.payload.manual").value(true))
+                .andExpect(jsonPath("$.payload.corrected").value(true))
+                .andExpect(jsonPath("$.payload.confidence").doesNotExist());
+
+        Map<String, Object> row =
+                jdbcTemplate.queryForMap(
+                        """
+                        SELECT field_name, display_name, is_manual, is_corrected, confidence
+                        FROM extraction_field
+                        WHERE extraction_id = ?
+                          AND field_name = 'custom.contract_reference'
+                        """,
+                        extractionId);
+
+        assertEquals("custom.contract_reference", row.get("field_name"));
+        assertEquals("Contract reference", row.get("display_name"));
+        assertEquals(true, row.get("is_manual"));
+        assertEquals(true, row.get("is_corrected"));
+        assertNull(row.get("confidence"));
+
+        Integer auditCount =
+                jdbcTemplate.queryForObject(
+                        """
+                        SELECT COUNT(*)
+                        FROM audit_log
+                        WHERE action = 'FIELD_ADDED'
+                        """,
+                        Integer.class);
+
+        assertTrue(auditCount >= 1);
+    }
+
+    @Test
+    void addManualFieldWithEmptyValueThenReturnsBadRequest() throws Exception {
+        long extractionId = uploadAndExtractWith(sampleOcrResult())[0];
+
+        mockMvc.perform(
+                        post("/api/extractions/{extractionId}/fields", extractionId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                                        {
+                                          "fieldName": "custom.empty_value_test",
+                                          "displayName": "Empty value test",
+                                          "value": "   "
+                                        }
+                                        """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$[0].code").value("EXTRACTION_FIELD_EMPTY"));
+    }
+
+    @Test
+    void addManualFieldWithInvalidFieldNameThenReturnsBadRequest() throws Exception {
+        long extractionId = uploadAndExtractWith(sampleOcrResult())[0];
+
+        mockMvc.perform(
+                        post("/api/extractions/{extractionId}/fields", extractionId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                                        {
+                                          "fieldName": "Not A Valid Key",
+                                          "value": "test"
+                                        }
+                                        """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$[0].code").value("EXTRACTION_FIELD_NAME_INVALID"));
+    }
+
+    @Test
+    void addManualFieldWhenDocumentNeedsCorrectionThenSucceeds() throws Exception {
+        long extractionId = uploadAndExtractWith(sampleOcrResult())[0];
+        Long documentId =
+                jdbcTemplate.queryForObject(
+                        "SELECT document_id FROM extraction WHERE id = ?", Long.class, extractionId);
+
+        jdbcTemplate.update(
+                "UPDATE document SET document_status = 'NEEDS_CORRECTION' WHERE id = ?", documentId);
+
+        mockMvc.perform(
+                        post("/api/extractions/{extractionId}/fields", extractionId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                                        {
+                                          "fieldName": "due_date",
+                                          "value": "15.05.2026"
+                                        }
+                                        """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.payload.fieldName").value("due_date"))
+                .andExpect(jsonPath("$.payload.manual").value(true));
+    }
+
+    @Test
+    void confirmExtractionFromNeedsCorrectionThenReturnsReadyForApproval() throws Exception {
+        Long documentId = uploadPdf("Needs correction reconfirm");
+
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_INVOICE_PROCESSOR_ID)))
+                .thenReturn(sampleOcrResultMissingSupplierAndCurrency());
+
+        MvcResult processResult =
+                mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
+                        .andExpect(status().isOk())
+                        .andReturn();
+
+        long extractionId =
+                objectMapper
+                        .readTree(processResult.getResponse().getContentAsString())
+                        .get("payload")
+                        .get("id")
+                        .asLong();
+
+        updateField(extractionId, findFieldId(extractionId, "supplier_name"), "Manual Supplier d.o.o.");
+        updateField(extractionId, findFieldId(extractionId, "currency"), "EUR");
+
+        jdbcTemplate.update(
+                "UPDATE document SET document_status = 'NEEDS_CORRECTION' WHERE id = ?", documentId);
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction/confirm", documentId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("OK"));
+
+        String documentStatus =
+                jdbcTemplate.queryForObject(
+                        "SELECT document_status FROM document WHERE id = ?",
+                        String.class,
+                        documentId);
+
+        assertEquals("READY_FOR_APPROVAL", documentStatus);
+    }
+
+    @Test
+    void approverCannotAddManualFieldThenReturnsForbidden() throws Exception {
+        long extractionId = uploadAndExtractWith(sampleOcrResult())[0];
+
+        Long companyId =
+                jdbcTemplate.queryForObject(
+                        "SELECT company_id FROM app_user WHERE keycloak_user_id = ?",
+                        Long.class,
+                        KEYCLOAK_USER);
+
+        String approverKeycloakId = "kc-extraction-approver-user";
+        new TransactionTemplate(transactionManager)
+                .executeWithoutResult(
+                        status -> {
+                            UserEntity approver = new UserEntity();
+                            approver.setCompanyId(companyId);
+                            approver.setRoleId(roleService.getByName(RoleName.APPROVER).getId());
+                            approver.setKeycloakUserId(approverKeycloakId);
+                            approver.setFirstName("Approver");
+                            approver.setLastName("User");
+                            approver.setEmail("approver-extraction@test.ba");
+                            approver.setAccountStatus(AccountStatus.ACTIVE);
+                            userDAO.persist(approver);
+                            userDAO.flush();
+                        });
+
+        authenticateAs(approverKeycloakId);
+
+        mockMvc.perform(
+                        post("/api/extractions/{extractionId}/fields", extractionId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                                        {
+                                          "fieldName": "currency",
+                                          "value": "EUR"
+                                        }
+                                        """))
+                .andExpect(status().isForbidden());
+    }
+
     private OcrResult sampleOcrResultWithTotalSmallerThanNet() {
         return new OcrResult(
                 "INVOICE\nNet 1500.00\nVAT 255.00\nTotal 1000.00 EUR\n",

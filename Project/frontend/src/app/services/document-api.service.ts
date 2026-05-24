@@ -12,7 +12,11 @@ import {
   DocumentUploadRequest,
   ManualClassificationDocumentType,
 } from '../documents/models/document.models';
-import { Extraction, ExtractionField } from '../documents/models/extraction.models';
+import {
+  CreateExtractionFieldRequest,
+  Extraction,
+  ExtractionField,
+} from '../documents/models/extraction.models';
 import {
   CreateCommentRequest,
   DocumentComment,
@@ -115,6 +119,16 @@ export class DocumentApiService {
     return this.http.patch<ApiResponse<ExtractionField>>(
       `${this.extractionsBaseUrl}/${extractionId}/fields/${fieldId}`,
       { value }
+    );
+  }
+
+  addExtractionField(
+    extractionId: number,
+    payload: CreateExtractionFieldRequest
+  ): Observable<ApiResponse<ExtractionField>> {
+    return this.http.post<ApiResponse<ExtractionField>>(
+      `${this.extractionsBaseUrl}/${extractionId}/fields`,
+      payload
     );
   }
 

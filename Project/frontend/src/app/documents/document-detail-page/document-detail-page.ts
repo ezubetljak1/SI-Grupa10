@@ -20,6 +20,13 @@ import {
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { ToastrService } from 'ngx-toastr';
 import { Extraction, ExtractionField } from '../models/extraction.models';
+import {
+  buildCustomFieldName,
+  CUSTOM_FIELD_OPTION_VALUE,
+  formatFieldLabel,
+  getManualFieldOptions,
+  ManualFieldOption,
+} from '../models/extraction-field-options';
 import { DocumentComment, StatusHistoryEntry } from '../models/workflow.models';
 import { AuthService } from '../../auth/services/auth.service';
 
@@ -97,8 +104,43 @@ export class DocumentDetailPageComponent implements OnInit {
   auditLoading = false;
   auditError: string | null = null;
 
+  showAddFieldModal = false;
+  addFieldSaving = false;
+  selectedFieldOption = '';
+  addFieldValue = '';
+  customFieldLabel = '';
+  addFieldError: string | null = null;
+
+  readonly customFieldOptionValue = CUSTOM_FIELD_OPTION_VALUE;
+
   get canManageExtraction(): boolean {
     return this.authService.hasRole(['ADMIN', 'OPERATOR']);
+  }
+
+  get canEditExtractionWorkflow(): boolean {
+    const status = this.document?.documentStatus;
+    return status === 'EXTRACTED' || status === 'NEEDS_CORRECTION';
+  }
+
+  get correctionFeedback(): DocumentComment | null {
+    const relevant = this.documentComments
+      .filter((comment) => comment.type === 'CORRECTION_REQUEST' || comment.type === 'REJECTION')
+      .sort(
+        (left, right) =>
+          new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime()
+      );
+
+    return relevant[0] ?? null;
+  }
+
+  get manualFieldOptions(): ManualFieldOption[] {
+    const existing = new Set(
+      this.extractionFields.map((field) => field.fieldName.trim().toLowerCase())
+    );
+
+    return getManualFieldOptions(this.document?.documentType).filter(
+      (option) => !existing.has(option.fieldName.toLowerCase())
+    );
   }
 
   get canViewAudit(): boolean {
@@ -259,6 +301,16 @@ export class DocumentDetailPageComponent implements OnInit {
 
   retryExtraction(): void {
     if (!this.document) return;
+
+    if (
+      this.document.documentStatus === 'NEEDS_CORRECTION' &&
+      !window.confirm(
+        'Retrying extraction may replace existing extracted fields. Continue only if you want to run OCR again.'
+      )
+    ) {
+      return;
+    }
+
     const documentId = this.document.id;
     this.extractionRunning = true;
     this.extractionError = null;
@@ -359,6 +411,85 @@ export class DocumentDetailPageComponent implements OnInit {
 
   isClassificationReviewRequired(): boolean {
     return this.document?.documentStatus === 'NEEDS_CLASSIFICATION_REVIEW';
+  }
+
+  formatFieldLabel(field: ExtractionField): string {
+    return formatFieldLabel(field.fieldName, field.displayName);
+  }
+
+  isManualField(field: ExtractionField): boolean {
+    return field.manual === true;
+  }
+
+  openAddFieldModal(): void {
+    this.addFieldError = null;
+    this.addFieldValue = '';
+    this.customFieldLabel = '';
+    this.selectedFieldOption =
+      this.manualFieldOptions[0]?.fieldName ?? CUSTOM_FIELD_OPTION_VALUE;
+    this.showAddFieldModal = true;
+  }
+
+  closeAddFieldModal(): void {
+    if (this.addFieldSaving) {
+      return;
+    }
+
+    this.showAddFieldModal = false;
+    this.addFieldError = null;
+  }
+
+  submitAddField(): void {
+    if (!this.document || this.extractionId === null) {
+      return;
+    }
+
+    const trimmedValue = this.addFieldValue.trim();
+    if (!trimmedValue) {
+      this.addFieldError = 'Field value cannot be empty.';
+      return;
+    }
+
+    const isCustom = this.selectedFieldOption === CUSTOM_FIELD_OPTION_VALUE;
+    const customLabel = this.customFieldLabel.trim();
+
+    if (isCustom && !customLabel) {
+      this.addFieldError = 'Display label is required for custom fields.';
+      return;
+    }
+
+    const fieldName = isCustom
+      ? buildCustomFieldName(customLabel)
+      : this.selectedFieldOption;
+
+    if (!fieldName) {
+      this.addFieldError = 'Select a field to add.';
+      return;
+    }
+
+    this.addFieldSaving = true;
+    this.addFieldError = null;
+
+    this.documentApiService
+      .addExtractionField(this.extractionId, {
+        fieldName,
+        displayName: isCustom ? customLabel : undefined,
+        value: trimmedValue,
+      })
+      .subscribe({
+        next: () => {
+          this.addFieldSaving = false;
+          this.showAddFieldModal = false;
+          this.toastr.success('Field added successfully.', 'Success');
+          this.loadExtractionFields();
+        },
+        error: (err: HttpErrorResponse) => {
+          this.addFieldSaving = false;
+          this.addFieldError =
+            this.extractErrorMessage(err.error) ?? 'Failed to add extraction field.';
+          this.toastr.error(this.addFieldError, 'Error');
+        },
+      });
   }
 
   formatDocumentTypeLabel(documentType: string | null | undefined): string {
@@ -1067,10 +1198,17 @@ export class DocumentDetailPageComponent implements OnInit {
     this.commentsError = null;
     this.newCommentContent = '';
     this.submittingComment = false;
+    this.showAddFieldModal = false;
+    this.addFieldSaving = false;
+    this.addFieldError = null;
   }
 
   private shouldLoadExtractionForStatus(status: string | null | undefined): boolean {
-    return status === 'EXTRACTED' || status === 'READY_FOR_APPROVAL';
+    return (
+      status === 'EXTRACTED' ||
+      status === 'NEEDS_CORRECTION' ||
+      status === 'READY_FOR_APPROVAL'
+    );
   }
 
   private hasValidationErrors(errorBody: unknown): boolean {

@@ -15,4 +15,6 @@ public class ExtractionFieldResponse {
     private BigDecimal confidence;
     private Boolean corrected;
     private Boolean placeholder;
+    private String displayName;
+    private Boolean manual;
 }
