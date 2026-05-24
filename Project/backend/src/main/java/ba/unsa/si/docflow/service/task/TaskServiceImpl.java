@@ -64,7 +64,8 @@ public class TaskServiceImpl implements TaskService {
         workflowPermissionService.requireCanAssignTask(document);
 
         UserEntity assignee =
-                userValidation.validateExistsInCompany(request.getAssignedUserId(), currentUser.companyId());
+                userValidation.validateExistsInCompany(
+                        request.getAssignedUserId(), currentUser.companyId());
         validateAssignee(request, assignee);
         validateDocumentReadyForTaskAssignment(document, request.getTaskType());
         validateDueDate(request.getDueDate());
@@ -95,7 +96,8 @@ public class TaskServiceImpl implements TaskService {
     @Transactional(readOnly = true)
     public List<TaskResponse> findMyTasks() {
         Long userId = currentUserService.getCurrentUserId();
-        return taskMapper.entitiesToDtos(taskDAO.findByAssignedUserId(userId), this::resolveUserName);
+        return taskMapper.entitiesToDtos(
+                taskDAO.findByAssignedUserId(userId), this::resolveUserName);
     }
 
     @Override
@@ -118,7 +120,8 @@ public class TaskServiceImpl implements TaskService {
                 documentValidation.validateExistsInCompany(documentId, currentUser.companyId());
         workflowPermissionService.requireSameCompany(document.getCompanyId());
 
-        return taskMapper.entitiesToDtos(taskDAO.findByDocumentId(documentId), this::resolveUserName);
+        return taskMapper.entitiesToDtos(
+                taskDAO.findByDocumentId(documentId), this::resolveUserName);
     }
 
     @Override
@@ -137,7 +140,8 @@ public class TaskServiceImpl implements TaskService {
                 task.getDocument(),
                 currentUser.userId(),
                 AuditAction.TASK_STARTED,
-                String.format("{\"taskId\":%d,\"taskType\":\"%s\"}", task.getId(), task.getTaskType()));
+                String.format(
+                        "{\"taskId\":%d,\"taskType\":\"%s\"}", task.getId(), task.getTaskType()));
 
         return toResponse(updated);
     }
@@ -162,7 +166,8 @@ public class TaskServiceImpl implements TaskService {
                 task.getDocument(),
                 currentUser.userId(),
                 AuditAction.TASK_COMPLETED,
-                String.format("{\"taskId\":%d,\"taskType\":\"%s\"}", task.getId(), task.getTaskType()));
+                String.format(
+                        "{\"taskId\":%d,\"taskType\":\"%s\"}", task.getId(), task.getTaskType()));
 
         return toResponse(updated);
     }
@@ -185,7 +190,8 @@ public class TaskServiceImpl implements TaskService {
                 task.getDocument(),
                 currentUser.userId(),
                 AuditAction.TASK_CANCELLED,
-                String.format("{\"taskId\":%d,\"taskType\":\"%s\"}", task.getId(), task.getTaskType()));
+                String.format(
+                        "{\"taskId\":%d,\"taskType\":\"%s\"}", task.getId(), task.getTaskType()));
 
         return toResponse(updated);
     }
@@ -254,12 +260,42 @@ public class TaskServiceImpl implements TaskService {
         }
     }
 
-    private void validateDocumentReadyForTaskAssignment(DocumentEntity document, TaskType taskType) {
-        if (taskType == TaskType.APPROVAL
-                && document.getDocumentStatus() != DocumentStatus.READY_FOR_APPROVAL) {
+    private void validateDocumentReadyForTaskAssignment(
+            DocumentEntity document, TaskType taskType) {
+        if (taskType == null) {
+            throwValidation("TASK_TYPE_REQUIRED", "Task type is required.");
+            return;
+        }
+
+        DocumentStatus status = document.getDocumentStatus();
+
+        boolean allowed =
+                switch (taskType) {
+                    case EXTRACTION ->
+                            status == DocumentStatus.UPLOADED
+                                    || status == DocumentStatus.PROCESSING_FAILED
+                                    || status == DocumentStatus.NEEDS_CLASSIFICATION_REVIEW;
+
+                    case CORRECTION ->
+                            status == DocumentStatus.UPLOADED
+                                    || status == DocumentStatus.PROCESSING_FAILED
+                                    || status == DocumentStatus.NEEDS_CLASSIFICATION_REVIEW
+                                    || status == DocumentStatus.EXTRACTED
+                                    || status == DocumentStatus.NEEDS_CORRECTION;
+
+                    case APPROVAL ->
+                            status == DocumentStatus.UPLOADED
+                                    || status == DocumentStatus.PROCESSING_FAILED
+                                    || status == DocumentStatus.NEEDS_CLASSIFICATION_REVIEW
+                                    || status == DocumentStatus.EXTRACTED
+                                    || status == DocumentStatus.NEEDS_CORRECTION
+                                    || status == DocumentStatus.READY_FOR_APPROVAL;
+                };
+
+        if (!allowed) {
             throwValidation(
-                    "TASK_DOCUMENT_NOT_READY_FOR_APPROVAL",
-                    "Approval task can only be assigned when document status is READY_FOR_APPROVAL.");
+                    "TASK_DOCUMENT_STATUS_INVALID",
+                    "Selected task type cannot be assigned for document status " + status + ".");
         }
     }
 
@@ -267,13 +303,15 @@ public class TaskServiceImpl implements TaskService {
         DocumentStatus status = task.getDocument().getDocumentStatus();
         boolean completedByBusinessAction =
                 switch (task.getTaskType()) {
-                    case EXTRACTION -> status == DocumentStatus.EXTRACTED
-                            || status == DocumentStatus.READY_FOR_APPROVAL;
+                    case EXTRACTION ->
+                            status == DocumentStatus.EXTRACTED
+                                    || status == DocumentStatus.READY_FOR_APPROVAL;
                     case CORRECTION -> status == DocumentStatus.READY_FOR_APPROVAL;
-                    case APPROVAL -> status == DocumentStatus.APPROVED
-                            || status == DocumentStatus.REJECTED
-                            || status == DocumentStatus.NEEDS_CORRECTION
-                            || status == DocumentStatus.COMPLETED;
+                    case APPROVAL ->
+                            status == DocumentStatus.APPROVED
+                                    || status == DocumentStatus.REJECTED
+                                    || status == DocumentStatus.NEEDS_CORRECTION
+                                    || status == DocumentStatus.COMPLETED;
                 };
 
         if (!completedByBusinessAction) {

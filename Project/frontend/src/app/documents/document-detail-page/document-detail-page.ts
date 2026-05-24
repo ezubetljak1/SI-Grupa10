@@ -155,13 +155,14 @@ export class DocumentDetailPageComponent implements OnInit {
     return this.authService.profile?.id ?? null;
   }
 
-  get workflowRelevantTaskType(): TaskType | null {
+ get workflowRelevantTaskType(): TaskType | null {
     switch (this.document?.documentStatus) {
       case 'UPLOADED':
       case 'PROCESSING_FAILED':
-      case 'EXTRACTED':
+      case 'NEEDS_CLASSIFICATION_REVIEW':
         return 'EXTRACTION';
 
+      case 'EXTRACTED':
       case 'NEEDS_CORRECTION':
         return 'CORRECTION';
 
@@ -231,16 +232,35 @@ export class DocumentDetailPageComponent implements OnInit {
     );
   }
 
-  get taskTypeOptions(): { value: TaskType; label: string }[] {
-    return this.allTaskTypeOptions.filter(
-      (type) => type.value !== 'APPROVAL'
-        || this.document?.documentStatus === 'READY_FOR_APPROVAL'
-    );
+ get taskTypeOptions(): { value: TaskType; label: string }[] {
+    switch (this.document?.documentStatus) {
+      case 'UPLOADED':
+      case 'PROCESSING_FAILED':
+      case 'NEEDS_CLASSIFICATION_REVIEW':
+        return this.allTaskTypeOptions.filter((type) =>
+          ['EXTRACTION', 'CORRECTION', 'APPROVAL'].includes(type.value)
+        );
+
+      case 'EXTRACTED':
+      case 'NEEDS_CORRECTION':
+        return this.allTaskTypeOptions.filter((type) =>
+          ['CORRECTION', 'APPROVAL'].includes(type.value)
+        );
+
+      case 'READY_FOR_APPROVAL':
+        return this.allTaskTypeOptions.filter((type) => type.value === 'APPROVAL');
+
+      default:
+        return [];
+    }
   }
 
   get canAssignSelectedTaskType(): boolean {
-    return this.assignTaskType !== 'APPROVAL'
-      || this.document?.documentStatus === 'READY_FOR_APPROVAL';
+    return this.taskTypeOptions.some((type) => type.value === this.assignTaskType);
+  }
+
+  get canAssignTaskForCurrentStatus(): boolean {
+    return this.canAssignTasks && this.taskTypeOptions.length > 0;
   }
 
   ngOnInit(): void {
@@ -261,10 +281,7 @@ export class DocumentDetailPageComponent implements OnInit {
       next: (response) => {
         this.loading = false;
         this.document = response.payload;
-        if (!this.canAssignSelectedTaskType) {
-          this.assignTaskType = 'CORRECTION';
-          this.syncDefaultAssignee();
-        }
+        this.syncAssignmentDefaultsForCurrentStatus();
         this.selectedManualDocumentType = this.resolveDefaultManualDocumentType(this.document);
         // Fetch preview as a blob so Authorization header is included by interceptor
         // then create an object URL for the iframe/img src. This avoids 401 on iframe
@@ -1406,7 +1423,48 @@ export class DocumentDetailPageComponent implements OnInit {
   }
 
   private shouldLoadExtractionForStatus(status: string | null | undefined): boolean {
-    return status === 'EXTRACTED' || status === 'READY_FOR_APPROVAL';
+    return [
+      'EXTRACTED',
+      'READY_FOR_APPROVAL',
+      'NEEDS_CORRECTION',
+      'APPROVED',
+      'REJECTED',
+    ].includes(status ?? '');
+  }
+
+
+  shouldShowExtractionFields(): boolean {
+    return [
+      'EXTRACTED',
+      'READY_FOR_APPROVAL',
+      'NEEDS_CORRECTION',
+      'APPROVED',
+      'REJECTED',
+    ].includes(this.document?.documentStatus ?? '');
+  }
+
+  canEditExtractionField(): boolean {
+    return (
+      this.canUseExtractionActions &&
+      (this.document?.documentStatus === 'EXTRACTED' ||
+        this.document?.documentStatus === 'NEEDS_CORRECTION')
+    );
+  }
+
+  canConfirmCurrentExtraction(): boolean {
+    return (
+      this.canUseExtractionActions &&
+      (this.document?.documentStatus === 'EXTRACTED' ||
+        this.document?.documentStatus === 'NEEDS_CORRECTION')
+    );
+  }
+
+  canRetryCurrentExtraction(): boolean {
+    return (
+      this.canUseExtractionActions &&
+      (this.document?.documentStatus === 'EXTRACTED' ||
+        this.document?.documentStatus === 'NEEDS_CORRECTION')
+    );
   }
 
   private hasValidationErrors(errorBody: unknown): boolean {
@@ -1523,4 +1581,20 @@ export class DocumentDetailPageComponent implements OnInit {
 
     return Array.from(new Set(names));
   }
+
+  private syncAssignmentDefaultsForCurrentStatus(): void {
+    const availableTypes = this.taskTypeOptions;
+
+    if (availableTypes.length === 0) {
+      this.assignTaskUserId = null;
+      return;
+    }
+
+    if (!availableTypes.some((type) => type.value === this.assignTaskType)) {
+      this.assignTaskType = availableTypes[0].value;
+    }
+
+    this.syncDefaultAssignee();
+  }
+
 }

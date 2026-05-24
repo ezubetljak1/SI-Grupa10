@@ -147,87 +147,88 @@
       </app-ui-card>
 
       @if (document && canAssignTasks) {
-        <app-ui-card
-          title="Task assignment"
-          subtitle="Assign document work to the right workflow role.">
-          <div class="task-assignment">
-            <div class="field">
-              <label for="taskType">Task type</label>
-              <select
-                id="taskType"
-                class="select"
-                name="taskType"
-                [(ngModel)]="assignTaskType"
-                (ngModelChange)="onTaskTypeChange()">
-                @for (type of taskTypeOptions; track type.value) {
-                  <option [value]="type.value">{{ type.label }}</option>
-                }
-              </select>
-            </div>
+          <app-ui-card
+            title="Task assignment"
+            subtitle="Assign document work to the right workflow role.">
 
-            <div class="field">
-              <label for="taskAssignee">Assignee</label>
-              <select
-                id="taskAssignee"
-                class="select"
-                name="taskAssignee"
-                [(ngModel)]="assignTaskUserId">
-                @for (user of eligibleAssignees; track user.id) {
-                  <option [ngValue]="user.id">
-                    {{ user.firstName }} {{ user.lastName }} · {{ user.role }}
-                  </option>
-                }
-              </select>
-            </div>
-
-            <div class="field">
-              <label for="taskDueDate">Due date</label>
-              <input
-                id="taskDueDate"
-                class="input"
-                type="datetime-local"
-                name="taskDueDate"
-                [min]="minDueDate"
-                [(ngModel)]="assignTaskDueDate" />
-            </div>
-
-            <button
-              type="button"
-              class="btn btn-primary"
-              [disabled]="assigningTask || !assignTaskUserId || !canAssignSelectedTaskType"
-              (click)="assignTask()">
-              {{ assigningTask ? 'Assigning...' : 'Assign task' }}
-            </button>
-          </div>
-
-          @if (document.documentStatus !== 'READY_FOR_APPROVAL') {
-            <div class="task-assignment-hint">
-              Approval can be assigned after extraction is confirmed and the document is ready for approval.
-            </div>
-          }
-
-          @if (activeTasks.length > 0) {
-            <div class="active-task-list">
-              @for (task of activeTasks; track task.id) {
-                <div class="active-task-row">
-                  <div>
-                    <strong>{{ formatTaskType(task.taskType) }}</strong>
-                    <span>
-                      {{ task.assignedUserName || ('user #' + task.assignedUserId) }} · {{ task.status }}
-                      @if (isTaskOverdue(task)) {
-                        · Overdue
-                      }
-                    </span>
-                  </div>
-                  <button type="button" class="btn btn-muted btn-compact" (click)="cancelTask(task)">
-                    Cancel
-                  </button>
+            @if (canAssignTaskForCurrentStatus) {
+              <div class="task-assignment">
+                <div class="field">
+                  <label for="taskType">Task type</label>
+                  <select
+                    id="taskType"
+                    class="select"
+                    name="taskType"
+                    [(ngModel)]="assignTaskType"
+                    (ngModelChange)="onTaskTypeChange()">
+                    @for (type of taskTypeOptions; track type.value) {
+                      <option [value]="type.value">{{ type.label }}</option>
+                    }
+                  </select>
                 </div>
-              }
-            </div>
-          }
-        </app-ui-card>
-      }
+
+                <div class="field">
+                  <label for="taskAssignee">Assignee</label>
+                  <select
+                    id="taskAssignee"
+                    class="select"
+                    name="taskAssignee"
+                    [(ngModel)]="assignTaskUserId">
+                    @for (user of eligibleAssignees; track user.id) {
+                      <option [ngValue]="user.id">
+                        {{ user.firstName }} {{ user.lastName }} · {{ user.role }}
+                      </option>
+                    }
+                  </select>
+                </div>
+
+                <div class="field">
+                  <label for="taskDueDate">Due date</label>
+                  <input
+                    id="taskDueDate"
+                    class="input"
+                    type="datetime-local"
+                    name="taskDueDate"
+                    [min]="minDueDate"
+                    [(ngModel)]="assignTaskDueDate" />
+                </div>
+
+                <button
+                  type="button"
+                  class="btn btn-primary"
+                  [disabled]="assigningTask || !assignTaskUserId || !canAssignSelectedTaskType"
+                  (click)="assignTask()">
+                  {{ assigningTask ? 'Assigning...' : 'Assign task' }}
+                </button>
+              </div>
+            } @else {
+              <div class="task-assignment-hint">
+                No new task can be assigned for the current document status.
+              </div>
+            }
+
+            @if (activeTasks.length > 0) {
+              <div class="active-task-list">
+                @for (task of activeTasks; track task.id) {
+                  <div class="active-task-row">
+                    <div>
+                      <strong>{{ formatTaskType(task.taskType) }}</strong>
+                      <span>
+                        {{ task.assignedUserName || ('user #' + task.assignedUserId) }} · {{ task.status }}
+                        @if (isTaskOverdue(task)) {
+                          · Overdue
+                        }
+                      </span>
+                    </div>
+                    <button type="button" class="btn btn-muted btn-compact" (click)="cancelTask(task)">
+                      Cancel
+                    </button>
+                  </div>
+                }
+              </div>
+            }
+          </app-ui-card>
+        }
 
       @if (document && document.documentStatus === 'READY_FOR_APPROVAL' && canUseApprovalActions) {
         <app-ui-card
@@ -358,7 +359,7 @@
             } @else {
               Your role can view extracted fields, but extraction actions are restricted.
             }
-          } @else if (document.documentStatus === 'EXTRACTED') {
+          } @else if (canConfirmCurrentExtraction()) {
             <div class="extraction-actions__left">
               <button
                 type="button"
@@ -383,19 +384,30 @@
                 class="btn btn-primary"
                 (click)="confirmExtraction()"
                 [disabled]="extractionRunning || extractionLoading || confirmingExtraction || !!editState">
-                {{ confirmingExtraction ? 'Confirming...' : 'Confirm extraction' }}
+                {{ confirmingExtraction
+                  ? 'Confirming...'
+                  : document.documentStatus === 'NEEDS_CORRECTION'
+                    ? 'Reconfirm extraction'
+                    : 'Confirm extraction' }}
               </button>
             </div>
 
-              @if (hasUnreviewedDateFields()) {
-                <div class="date-format-notice">
-                  <strong>Check extracted date fields:</strong>
-                  <span>
-                    Dates should be in European format: DD.MM.YYYY or DD/MM/YYYY.
-                    If OCR returns an ambiguous date, verify that the day and month are correct before confirming extraction.
-                  </span>
-                </div>
-              }
+            @if (document.documentStatus === 'NEEDS_CORRECTION') {
+              <div class="message-card message-card--warning">
+                <strong>Correction required.</strong>
+                Review the returned document, update extracted fields if needed, then reconfirm extraction.
+              </div>
+            }
+
+            @if (hasUnreviewedDateFields()) {
+              <div class="date-format-notice">
+                <strong>Check extracted date fields:</strong>
+                <span>
+                  Dates should be in European format: DD.MM.YYYY or DD/MM/YYYY.
+                  If OCR returns an ambiguous date, verify that the day and month are correct before confirming extraction.
+                </span>
+              </div>
+            }
           } @else if (document.documentStatus === 'READY_FOR_APPROVAL') {
             <button
               type="button"
@@ -405,18 +417,22 @@
               {{ extractionLoading ? 'Refreshing...' : 'Refresh fields' }}
             </button>
           } @else if (document.documentStatus === 'NEEDS_CLASSIFICATION_REVIEW') {
-              <span class="classification-review-hint">
-                Confirm the document type before running extraction again.
-              </span>
+            <span class="classification-review-hint">
+              Confirm the document type before running extraction again.
+            </span>
+          } @else if (document.documentStatus === 'APPROVED' || document.documentStatus === 'REJECTED') {
+            <span class="classification-review-hint">
+              This document is finalized and extraction fields are view-only.
+            </span>
           } @else {
-              <button
-                type="button"
-                class="btn btn-primary"
-                [disabled]="extractionRunning"
-                (click)="runExtraction()">
-                {{ extractionRunning ? 'Running extraction...' : 'Run extraction' }}
-              </button>
-            }
+            <button
+              type="button"
+              class="btn btn-primary"
+              [disabled]="extractionRunning"
+              (click)="runExtraction()">
+              {{ extractionRunning ? 'Running extraction...' : 'Run extraction' }}
+            </button>
+          }
         </div>
 
         @if (document.documentStatus === 'READY_FOR_APPROVAL') {
@@ -533,13 +549,13 @@
                     </td>
 
                     <td class="actions-cell">
-                      @if (!canUseExtractionActions) {
+                      @if (!canEditExtractionField()) {
                         <span class="meta-chip meta-chip--muted">View only</span>
                       } @else if (!isEditing(field)) {
                         <button
                           type="button"
                           class="icon-btn"
-                          title="Koriguj vrijednost"
+                          title="Edit value"
                           [disabled]="editState !== null || extractionRunning || extractionLoading || confirmingExtraction"
                           (click)="startEdit(field)">
                           ✎
@@ -549,7 +565,7 @@
                           <button
                             type="button"
                             class="icon-btn icon-btn--confirm"
-                            title="Potvrdi izmjenu"
+                            title="Save change"
                             [disabled]="editState!.saving"
                             (click)="confirmEdit(field)">
                             {{ editState!.saving ? '…' : '✓' }}
@@ -558,7 +574,7 @@
                           <button
                             type="button"
                             class="icon-btn icon-btn--cancel"
-                            title="Odustani"
+                            title="Cancel edit"
                             [disabled]="editState!.saving"
                             (click)="cancelEdit()">
                             ✕

@@ -10,10 +10,6 @@ import ba.unsa.si.docflow.entity.DocumentEntity;
 import ba.unsa.si.docflow.entity.ExtractionEntity;
 import ba.unsa.si.docflow.entity.ExtractionFieldEntity;
 import ba.unsa.si.docflow.entity.enums.*;
-import ba.unsa.si.docflow.service.audit.AuditLogService;
-import ba.unsa.si.docflow.service.security.WorkflowPermissionService;
-import ba.unsa.si.docflow.service.task.TaskService;
-import ba.unsa.si.docflow.service.workflow.DocumentStatusTransitionService;
 import ba.unsa.si.docflow.exception.ApiNotFoundException;
 import ba.unsa.si.docflow.exception.ApiValidationException;
 import ba.unsa.si.docflow.exception.DocumentClassificationReviewRequiredException;
@@ -22,6 +18,7 @@ import ba.unsa.si.docflow.mapper.ExtractionMapper;
 import ba.unsa.si.docflow.response.ApiResponse;
 import ba.unsa.si.docflow.response.ValidationErrors;
 import ba.unsa.si.docflow.security.CurrentUserService;
+import ba.unsa.si.docflow.service.audit.AuditLogService;
 import ba.unsa.si.docflow.service.document.DocumentValidation;
 import ba.unsa.si.docflow.service.ocr.DocumentAiProcessorRouter;
 import ba.unsa.si.docflow.service.ocr.DocumentClassificationService;
@@ -29,7 +26,10 @@ import ba.unsa.si.docflow.service.ocr.OcrProvider;
 import ba.unsa.si.docflow.service.ocr.model.DocumentClassificationResult;
 import ba.unsa.si.docflow.service.ocr.model.OcrExtractedField;
 import ba.unsa.si.docflow.service.ocr.model.OcrResult;
+import ba.unsa.si.docflow.service.security.WorkflowPermissionService;
 import ba.unsa.si.docflow.service.storage.StorageService;
+import ba.unsa.si.docflow.service.task.TaskService;
+import ba.unsa.si.docflow.service.workflow.DocumentStatusTransitionService;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -243,13 +243,16 @@ public class ExtractionServiceImpl implements ExtractionService {
 
         extractionValidation.validateRequiredFields(extraction);
 
+        DocumentStatus currentStatus = document.getDocumentStatus();
+
         TaskType taskTypeToComplete =
-                document.getDocumentStatus() == DocumentStatus.NEEDS_CORRECTION
+                currentStatus == DocumentStatus.EXTRACTED
+                        || currentStatus == DocumentStatus.NEEDS_CORRECTION
                         ? TaskType.CORRECTION
                         : TaskType.EXTRACTION;
 
         StatusHistoryAction confirmAction =
-                document.getDocumentStatus() == DocumentStatus.NEEDS_CORRECTION
+                currentStatus == DocumentStatus.NEEDS_CORRECTION
                         ? StatusHistoryAction.EXTRACTION_RECONFIRMED
                         : StatusHistoryAction.EXTRACTION_CONFIRMED;
 
