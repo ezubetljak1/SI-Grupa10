@@ -3,19 +3,19 @@ package ba.unsa.si.docflow.service.security;
 import ba.unsa.si.docflow.dao.TaskDAO;
 import ba.unsa.si.docflow.entity.DocumentEntity;
 import ba.unsa.si.docflow.entity.TaskEntity;
+import ba.unsa.si.docflow.entity.enums.DocumentStatus;
 import ba.unsa.si.docflow.entity.enums.RoleName;
 import ba.unsa.si.docflow.entity.enums.TaskType;
-import org.springframework.security.access.AccessDeniedException;
 import ba.unsa.si.docflow.security.CurrentUserService;
 
 import lombok.RequiredArgsConstructor;
 
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
 @Service
 @RequiredArgsConstructor
-public class WorkflowPermissionServiceImpl
-        implements WorkflowPermissionService {
+public class WorkflowPermissionServiceImpl implements WorkflowPermissionService {
 
     private final CurrentUserService currentUserService;
     private final TaskDAO taskDAO;
@@ -27,9 +27,7 @@ public class WorkflowPermissionServiceImpl
 
         if (!canViewAudit()) {
 
-            throwForbidden(
-                    "You do not have permission to view audit logs."
-            );
+            throwForbidden("You do not have permission to view audit logs.");
         }
     }
 
@@ -38,20 +36,17 @@ public class WorkflowPermissionServiceImpl
 
         requireSameCompany(document.getCompanyId());
 
-        RoleName role = RoleName.valueOf(
-                currentUserService.getCurrentUser().role()
-        );
+        RoleName role = RoleName.valueOf(currentUserService.getCurrentUser().role());
 
         if (role != RoleName.ADMIN && role != RoleName.MANAGER) {
-            throwForbidden(
-                    "You do not have permission to assign tasks."
-            );
+            throwForbidden("You do not have permission to assign tasks.");
         }
     }
 
     @Override
     public void requireCanViewNotifications() {
-        // ne mogu se vidjeti tudje notifikacije, implementira se kasnije kroz notification endpointe
+        // ne mogu se vidjeti tudje notifikacije, implementira se kasnije kroz notification
+        // endpointe
     }
 
     @Override
@@ -59,17 +54,11 @@ public class WorkflowPermissionServiceImpl
 
         requireSameCompany(document.getCompanyId());
 
-        RoleName role = RoleName.valueOf(currentUserService
-                .getCurrentUser()
-                .role());
+        RoleName role = RoleName.valueOf(currentUserService.getCurrentUser().role());
 
-        if (role != RoleName.ADMIN
-                && role != RoleName.MANAGER
-                && role != RoleName.APPROVER) {
+        if (role != RoleName.ADMIN && role != RoleName.MANAGER && role != RoleName.APPROVER) {
 
-            throwForbidden(
-                    "You do not have permission to approve documents."
-            );
+            throwForbidden("You do not have permission to approve documents.");
         }
     }
 
@@ -78,15 +67,11 @@ public class WorkflowPermissionServiceImpl
 
         requireSameCompany(document.getCompanyId());
 
-        RoleName role = RoleName.valueOf(currentUserService
-                .getCurrentUser()
-                .role());
+        RoleName role = RoleName.valueOf(currentUserService.getCurrentUser().role());
 
         if (role == RoleName.APPROVER) {
 
-            throwForbidden(
-                    "Approvers cannot edit extraction fields."
-            );
+            throwForbidden("Approvers cannot edit extraction fields.");
         }
 
         requireAssignedTaskIfPresent(document, role, TaskType.CORRECTION);
@@ -96,9 +81,7 @@ public class WorkflowPermissionServiceImpl
     public void requireCanRunExtraction(DocumentEntity document) {
 
         requireSameCompany(document.getCompanyId());
-        RoleName role = RoleName.valueOf(currentUserService
-                .getCurrentUser()
-                .role());
+        RoleName role = RoleName.valueOf(currentUserService.getCurrentUser().role());
 
         requireAssignedTaskIfPresent(document, role, TaskType.EXTRACTION);
     }
@@ -108,65 +91,52 @@ public class WorkflowPermissionServiceImpl
 
         requireSameCompany(document.getCompanyId());
 
-        RoleName role = RoleName.valueOf(currentUserService
-                .getCurrentUser()
-                .role());
+        RoleName role = RoleName.valueOf(currentUserService.getCurrentUser().role());
 
         if (role == RoleName.APPROVER) {
 
-            throwForbidden(
-                    "Approvers cannot confirm extraction."
-            );
+            throwForbidden("Approvers cannot confirm extraction.");
         }
 
-        requireAssignedTaskIfPresent(document, role, TaskType.CORRECTION);
+        TaskType taskType =
+                document.getDocumentStatus() == DocumentStatus.NEEDS_CORRECTION
+                        ? TaskType.CORRECTION
+                        : TaskType.EXTRACTION;
+
+        requireAssignedTaskIfPresent(document, role, taskType);
     }
 
     @Override
     public void requireSameCompany(Long companyId) {
 
-        Long currentCompanyId =
-                currentUserService
-                        .getCurrentUser()
-                        .companyId();
+        Long currentCompanyId = currentUserService.getCurrentUser().companyId();
 
         if (!currentCompanyId.equals(companyId)) {
 
-            throwForbidden(
-                    "Cross-company access is forbidden."
-            );
+            throwForbidden("Cross-company access is forbidden.");
         }
     }
 
     @Override
     public boolean canViewAudit() {
 
-        RoleName role = RoleName.valueOf(currentUserService
-                .getCurrentUser()
-                .role());
+        RoleName role = RoleName.valueOf(currentUserService.getCurrentUser().role());
 
-        return role == RoleName.ADMIN
-                || role == RoleName.MANAGER;
+        return role == RoleName.ADMIN || role == RoleName.MANAGER;
     }
 
     @Override
     public boolean canApprove() {
 
-        RoleName role = RoleName.valueOf(currentUserService
-                .getCurrentUser()
-                .role());
+        RoleName role = RoleName.valueOf(currentUserService.getCurrentUser().role());
 
-        return role == RoleName.ADMIN
-                || role == RoleName.MANAGER
-                || role == RoleName.APPROVER;
+        return role == RoleName.ADMIN || role == RoleName.MANAGER || role == RoleName.APPROVER;
     }
 
     @Override
     public boolean canManageExtraction() {
 
-        RoleName role = RoleName.valueOf(currentUserService
-                .getCurrentUser()
-                .role());
+        RoleName role = RoleName.valueOf(currentUserService.getCurrentUser().role());
 
         return role != RoleName.APPROVER;
     }
@@ -174,20 +144,15 @@ public class WorkflowPermissionServiceImpl
     @Override
     public boolean canViewAllTasks() {
 
-        RoleName role = RoleName.valueOf(
-                currentUserService.getCurrentUser().role()
-        );
+        RoleName role = RoleName.valueOf(currentUserService.getCurrentUser().role());
 
-        return role == RoleName.ADMIN
-                || role == RoleName.MANAGER;
+        return role == RoleName.ADMIN || role == RoleName.MANAGER;
     }
 
     @Override
     public boolean canAddManualField() {
 
-        RoleName role = RoleName.valueOf(
-                currentUserService.getCurrentUser().role()
-        );
+        RoleName role = RoleName.valueOf(currentUserService.getCurrentUser().role());
 
         return role != RoleName.APPROVER;
     }

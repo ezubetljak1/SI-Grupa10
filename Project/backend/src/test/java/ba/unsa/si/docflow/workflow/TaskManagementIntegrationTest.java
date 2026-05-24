@@ -2,18 +2,15 @@ package ba.unsa.si.docflow.workflow;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import ba.unsa.si.docflow.dao.CompanyDAO;
-import ba.unsa.si.docflow.dao.DocumentDAO;
-import ba.unsa.si.docflow.dao.UserDAO;
-import ba.unsa.si.docflow.entity.CompanyEntity;
-import ba.unsa.si.docflow.entity.DocumentEntity;
-import ba.unsa.si.docflow.entity.UserEntity;
+import ba.unsa.si.docflow.dao.*;
+import ba.unsa.si.docflow.entity.*;
 import ba.unsa.si.docflow.entity.enums.AccountStatus;
 import ba.unsa.si.docflow.entity.enums.CompanyStatus;
 import ba.unsa.si.docflow.entity.enums.DocumentStatus;
@@ -37,6 +34,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -51,6 +49,7 @@ class TaskManagementIntegrationTest {
     private static final String OPERATOR_KC = "task-operator";
     private static final String APPROVER_KC = "task-approver";
     private static final String OTHER_OPERATOR_KC = "task-other-operator";
+    private static final String SECOND_OPERATOR_KC = "task-second-operator";
 
     @Autowired private MockMvc mockMvc;
     @Autowired private JdbcTemplate jdbcTemplate;
@@ -59,11 +58,14 @@ class TaskManagementIntegrationTest {
     @Autowired private DocumentDAO documentDAO;
     @Autowired private RoleService roleService;
     @Autowired private PlatformTransactionManager transactionManager;
+    @Autowired private ExtractionDAO extractionDAO;
+    @Autowired private ExtractionFieldDAO extractionFieldDAO;
 
     private Long documentId;
     private Long operatorId;
     private Long approverId;
     private Long otherCompanyOperatorId;
+    private Long secondOperatorId;
 
     @BeforeEach
     void setUp() {
@@ -200,11 +202,135 @@ class TaskManagementIntegrationTest {
                 .andExpect(jsonPath("$.payload.status", equalTo("CANCELLED")));
     }
 
+    @Test
+    void operatorCannotViewAllTasks() throws Exception {
+        authenticateAs(ADMIN_KC);
+        assignCorrectionTask(operatorId);
+
+        authenticateAs(OPERATOR_KC);
+
+        mockMvc.perform(get("/api/tasks"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code", equalTo("FORBIDDEN")));
+    }
+
+    @Test
+    void nonAssigneeCannotStartTask() throws Exception {
+        authenticateAs(ADMIN_KC);
+        Long taskId = assignCorrectionTask(operatorId);
+
+        authenticateAs(SECOND_OPERATOR_KC);
+
+        mockMvc.perform(patch("/api/tasks/{id}/start", taskId))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code", equalTo("FORBIDDEN")));
+    }
+
+    @Test
+    void nonAssigneeCannotCompleteTask() throws Exception {
+        authenticateAs(ADMIN_KC);
+        Long taskId = assignCorrectionTask(operatorId);
+
+        authenticateAs(SECOND_OPERATOR_KC);
+
+        mockMvc.perform(patch("/api/tasks/{id}/complete", taskId))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code", equalTo("FORBIDDEN")));
+    }
+
+    @Test
+    void operatorCannotCancelTask() throws Exception {
+        authenticateAs(ADMIN_KC);
+        Long taskId = assignCorrectionTask(operatorId);
+
+        authenticateAs(OPERATOR_KC);
+
+        mockMvc.perform(patch("/api/tasks/{id}/cancel", taskId))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code", equalTo("FORBIDDEN")));
+    }
+
+    @Test
+    void nonAssigneeCannotConfirmExtractionWhenExtractionTaskIsAssignedToAnotherOperator()
+            throws Exception {
+        createValidInvoiceExtraction(DocumentStatus.EXTRACTED);
+
+        authenticateAs(ADMIN_KC);
+        assignTask(operatorId, "EXTRACTION");
+
+        authenticateAs(SECOND_OPERATOR_KC);
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction/confirm", documentId))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code", equalTo("FORBIDDEN")));
+    }
+
+    @Test
+    void assignedOperatorCanConfirmExtractionWhenExtractionTaskIsAssignedToThem() throws Exception {
+        createValidInvoiceExtraction(DocumentStatus.EXTRACTED);
+
+        authenticateAs(ADMIN_KC);
+        assignTask(operatorId, "EXTRACTION");
+
+        authenticateAs(OPERATOR_KC);
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction/confirm", documentId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code", equalTo("OK")));
+
+        String documentStatus =
+                jdbcTemplate.queryForObject(
+                        "SELECT document_status FROM document WHERE id = ?",
+                        String.class,
+                        documentId);
+
+        assertEquals("READY_FOR_APPROVAL", documentStatus);
+    }
+
+    @Test
+    void nonAssigneeCannotReconfirmExtractionWhenCorrectionTaskIsAssignedToAnotherOperator()
+            throws Exception {
+        createValidInvoiceExtraction(DocumentStatus.NEEDS_CORRECTION);
+
+        authenticateAs(ADMIN_KC);
+        assignCorrectionTask(operatorId);
+
+        authenticateAs(SECOND_OPERATOR_KC);
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction/confirm", documentId))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code", equalTo("FORBIDDEN")));
+    }
+
+    @Test
+    void assignedOperatorCanReconfirmExtractionWhenCorrectionTaskIsAssignedToThem()
+            throws Exception {
+        createValidInvoiceExtraction(DocumentStatus.NEEDS_CORRECTION);
+
+        authenticateAs(ADMIN_KC);
+        assignCorrectionTask(operatorId);
+
+        authenticateAs(OPERATOR_KC);
+
+        mockMvc.perform(post("/api/documents/{documentId}/extraction/confirm", documentId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code", equalTo("OK")));
+
+        String documentStatus =
+                jdbcTemplate.queryForObject(
+                        "SELECT document_status FROM document WHERE id = ?",
+                        String.class,
+                        documentId);
+
+        assertEquals("READY_FOR_APPROVAL", documentStatus);
+    }
+
     private void setupData() {
         new TransactionTemplate(transactionManager)
                 .executeWithoutResult(
                         status -> {
-                            CompanyEntity company = createCompany("Task Test Company", "task@test.ba");
+                            CompanyEntity company =
+                                    createCompany("Task Test Company", "task@test.ba");
                             CompanyEntity otherCompany =
                                     createCompany("Other Task Company", "other-task@test.ba");
 
@@ -220,6 +346,15 @@ class TaskManagementIntegrationTest {
                                             RoleName.OPERATOR,
                                             "Task",
                                             "Operator");
+
+                            secondOperatorId =
+                                    createUser(
+                                            companyId,
+                                            SECOND_OPERATOR_KC,
+                                            RoleName.OPERATOR,
+                                            "Second",
+                                            "Operator");
+
                             approverId =
                                     createUser(
                                             companyId,
@@ -263,7 +398,11 @@ class TaskManagementIntegrationTest {
     }
 
     private Long createUser(
-            Long companyId, String keycloakUserId, RoleName role, String firstName, String lastName) {
+            Long companyId,
+            String keycloakUserId,
+            RoleName role,
+            String firstName,
+            String lastName) {
         UserEntity user = new UserEntity();
         user.setCompanyId(companyId);
         user.setRoleId(roleService.getByName(role).getId());
@@ -325,6 +464,44 @@ class TaskManagementIntegrationTest {
     private void assertCount(String tableName, int expected) {
         Integer count =
                 jdbcTemplate.queryForObject("SELECT COUNT(*) FROM " + tableName, Integer.class);
-        org.junit.jupiter.api.Assertions.assertEquals(expected, count);
+        assertEquals(expected, count);
+    }
+
+    private void createValidInvoiceExtraction(DocumentStatus documentStatus) {
+        new TransactionTemplate(transactionManager)
+                .executeWithoutResult(
+                        status -> {
+                            DocumentEntity doc = documentDAO.findByPK(documentId);
+                            doc.setDocumentStatus(documentStatus);
+                            documentDAO.merge(doc);
+
+                            ExtractionEntity extraction = new ExtractionEntity();
+                            extraction.setDocument(doc);
+                            extraction.setRawJson("{\"test\":true}");
+                            extraction.setExtractionTime(LocalDateTime.now());
+
+                            ExtractionEntity savedExtraction = extractionDAO.persist(extraction);
+
+                            persistExtractionField(
+                                    savedExtraction, "supplier_name", "Test Supplier d.o.o.");
+                            persistExtractionField(savedExtraction, "invoice_id", "INV-001");
+                            persistExtractionField(savedExtraction, "invoice_date", "06.05.2026");
+                            persistExtractionField(savedExtraction, "total_amount", "117.00");
+                            persistExtractionField(savedExtraction, "currency", "EUR");
+                        });
+    }
+
+    private void persistExtractionField(
+            ExtractionEntity extraction, String fieldName, String value) {
+        ExtractionFieldEntity field = new ExtractionFieldEntity();
+        field.setExtraction(extraction);
+        field.setFieldName(fieldName);
+        field.setValue(value);
+        field.setConfidence(new BigDecimal("0.95"));
+        field.setCorrected(false);
+        field.setPlaceholder(false);
+        field.setManual(false);
+
+        extractionFieldDAO.persist(field);
     }
 }
