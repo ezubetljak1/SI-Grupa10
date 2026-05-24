@@ -1,0 +1,107 @@
+<section class="tasks-page">
+  <app-page-header
+    eyebrow="Workflow"
+    title="My tasks"
+    description="Track assigned document work and keep workflow tasks moving.">
+    <div page-actions class="page-actions">
+      <button type="button" class="btn btn-muted" (click)="loadTasks()" [disabled]="loading">
+        {{ loading ? 'Loading...' : 'Refresh' }}
+      </button>
+    </div>
+  </app-page-header>
+
+  <div class="task-tabs" role="tablist" aria-label="Task status">
+    @for (tab of tabs; track tab.value) {
+      <button
+        type="button"
+        class="task-tab"
+        [class.task-tab--active]="selectedTab === tab.value"
+        (click)="selectedTab = tab.value">
+        {{ tab.label }}
+      </button>
+    }
+  </div>
+
+  @if (error) {
+    <div class="message-card message-card--error">{{ error }}</div>
+  }
+
+  <app-ui-card
+    title="Assigned tasks"
+    subtitle="Tasks are sorted by newest assignment first."
+    [badgeText]="visibleTasks.length.toString()"
+    badgeVariant="info"
+    [noPadding]="true">
+    @if (!loading && visibleTasks.length === 0) {
+      <div class="empty-wrapper">
+        <app-empty-state
+          icon="✓"
+          title="No tasks in this view"
+          description="Assigned tasks will appear here when workflow work is created.">
+        </app-empty-state>
+      </div>
+    } @else {
+      <div class="table-wrapper">
+        <table class="tasks-table">
+          <thead>
+            <tr>
+              <th>Document</th>
+              <th>Task</th>
+              <th>Status</th>
+              <th>Due</th>
+              <th class="actions-column">Actions</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            @for (task of visibleTasks; track task.id) {
+              <tr>
+                <td>
+                  <div class="task-document">
+                    <strong>{{ task.documentName }}</strong>
+                    <span>{{ task.documentStatus }}</span>
+                  </div>
+                </td>
+                <td>{{ formatTaskType(task.taskType) }}</td>
+                <td><span [class]="statusClass(task.status)">{{ task.status }}</span></td>
+                <td>{{ formatDate(task.dueDate) }}</td>
+                <td class="actions-cell">
+                  <div class="table-actions">
+                    <button
+                      type="button"
+                      class="table-action"
+                      [routerLink]="['/documents', task.documentId]"
+                      title="Open document"
+                      aria-label="Open document">
+                      <i class="fa-solid fa-file-lines"></i>
+                    </button>
+
+                    @if (task.status === 'OPEN') {
+                      <button
+                        type="button"
+                        class="btn btn-muted btn-small"
+                        [disabled]="actionTaskId === task.id"
+                        (click)="startTask(task)">
+                        Start
+                      </button>
+                    }
+
+                    @if (task.status === 'OPEN' || task.status === 'IN_PROGRESS') {
+                      <button
+                        type="button"
+                        class="btn btn-primary btn-small"
+                        [disabled]="actionTaskId === task.id"
+                        (click)="completeTask(task)">
+                        Complete
+                      </button>
+                    }
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </app-ui-card>
+</section>

@@ -4,6 +4,7 @@ import ba.unsa.si.docflow.dto.user.*;
 import ba.unsa.si.docflow.entity.CompanyEntity;
 import ba.unsa.si.docflow.entity.UserEntity;
 import ba.unsa.si.docflow.entity.enums.AccountStatus;
+import ba.unsa.si.docflow.entity.enums.RoleName;
 import ba.unsa.si.docflow.response.ApiResponse;
 import ba.unsa.si.docflow.response.PagedResponse;
 import ba.unsa.si.docflow.security.CurrentUserService;
@@ -30,7 +31,7 @@ public class UserCompanyManagementService {
 
     @Transactional
     public PagedResponse<UserResponse> findAll(UserFilterRequest filter) {
-        currentUserService.requireAdmin();
+        currentUserService.requireAnyRole(RoleName.ADMIN, RoleName.MANAGER);
 
         Long companyId = currentUserService.getCurrentCompanyId();
         PagedResponse<UserResponse> response = userService.findAll(filter, companyId);

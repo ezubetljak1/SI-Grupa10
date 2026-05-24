@@ -1,12 +1,15 @@
 package ba.unsa.si.docflow.controller;
 
 import ba.unsa.si.docflow.dto.document.*;
+import ba.unsa.si.docflow.dto.task.AssignTaskRequest;
+import ba.unsa.si.docflow.dto.task.TaskResponse;
 import ba.unsa.si.docflow.dto.workflow.CreateCommentRequest;
 import ba.unsa.si.docflow.dto.workflow.CommentResponse;
 import ba.unsa.si.docflow.dto.workflow.StatusHistoryResponse;
 import ba.unsa.si.docflow.response.ApiResponse;
 import ba.unsa.si.docflow.response.PagedResponse;
 import ba.unsa.si.docflow.service.document.DocumentService;
+import ba.unsa.si.docflow.service.task.TaskService;
 
 import io.swagger.v3.oas.annotations.tags.Tag;
 
@@ -31,6 +34,7 @@ import java.util.List;
 public class DocumentController {
 
     private final DocumentService documentService;
+    private final TaskService taskService;
 
     @GetMapping
     public PagedResponse<Document> find(@ParameterObject DocumentFilterRequest request) {
@@ -111,5 +115,11 @@ public class DocumentController {
     public ApiResponse<CommentResponse> createComment(
             @PathVariable Long id, @Valid @RequestBody CreateCommentRequest request) {
         return documentService.createComment(id, request);
+    }
+
+    @PostMapping("/{id}/tasks/assign")
+    public ApiResponse<TaskResponse> assignTask(
+            @PathVariable Long id, @Valid @RequestBody AssignTaskRequest request) {
+        return new ApiResponse<>("SUCCESS", taskService.assign(id, request));
     }
 }

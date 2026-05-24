@@ -1,7 +1,10 @@
 package ba.unsa.si.docflow.service.security;
 
+import ba.unsa.si.docflow.dao.TaskDAO;
 import ba.unsa.si.docflow.entity.DocumentEntity;
+import ba.unsa.si.docflow.entity.TaskEntity;
 import ba.unsa.si.docflow.entity.enums.RoleName;
+import ba.unsa.si.docflow.entity.enums.TaskType;
 import org.springframework.security.access.AccessDeniedException;
 import ba.unsa.si.docflow.security.CurrentUserService;
 
@@ -15,6 +18,7 @@ public class WorkflowPermissionServiceImpl
         implements WorkflowPermissionService {
 
     private final CurrentUserService currentUserService;
+    private final TaskDAO taskDAO;
 
     @Override
     public void requireCanViewAudit(DocumentEntity document) {
@@ -84,12 +88,19 @@ public class WorkflowPermissionServiceImpl
                     "Approvers cannot edit extraction fields."
             );
         }
+
+        requireAssignedTaskIfPresent(document, role, TaskType.CORRECTION);
     }
 
     @Override
     public void requireCanRunExtraction(DocumentEntity document) {
 
         requireSameCompany(document.getCompanyId());
+        RoleName role = RoleName.valueOf(currentUserService
+                .getCurrentUser()
+                .role());
+
+        requireAssignedTaskIfPresent(document, role, TaskType.EXTRACTION);
     }
 
     @Override
@@ -107,6 +118,8 @@ public class WorkflowPermissionServiceImpl
                     "Approvers cannot confirm extraction."
             );
         }
+
+        requireAssignedTaskIfPresent(document, role, TaskType.CORRECTION);
     }
 
     @Override
@@ -181,5 +194,24 @@ public class WorkflowPermissionServiceImpl
 
     private void throwForbidden(String message) {
         throw new AccessDeniedException(message);
+    }
+
+    private void requireAssignedTaskIfPresent(
+            DocumentEntity document, RoleName role, TaskType taskType) {
+        if (role == RoleName.ADMIN || role == RoleName.MANAGER) {
+            return;
+        }
+
+        TaskEntity activeTask =
+                taskDAO.findActiveByDocumentIdAndTaskType(document.getId(), taskType);
+
+        if (activeTask == null) {
+            return;
+        }
+
+        Long currentUserId = currentUserService.getCurrentUser().userId();
+        if (!activeTask.getAssignedUserId().equals(currentUserId)) {
+            throwForbidden("This document is assigned to another user.");
+        }
     }
 }

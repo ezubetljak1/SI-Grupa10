@@ -22,6 +22,10 @@ import { ToastrService } from 'ngx-toastr';
 import { Extraction, ExtractionField } from '../models/extraction.models';
 import { DocumentComment, StatusHistoryEntry } from '../models/workflow.models';
 import { AuthService } from '../../auth/services/auth.service';
+import { UserApiService } from '../../users/services/user-api.service';
+import { UserResponse } from '../../users/models/user.models';
+import { TaskApiService } from '../../tasks/services/task-api.service';
+import { AssignTaskRequest, TaskResponse, TaskType } from '../../tasks/models/task.models';
 
 interface EditState {
   fieldId: number;
@@ -56,6 +60,8 @@ export class DocumentDetailPageComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly toastr = inject(ToastrService);
   private readonly authService = inject(AuthService);
+  private readonly userApiService = inject(UserApiService);
+  private readonly taskApiService = inject(TaskApiService);
 
   document: DocflowDocument | null = null;
   loading = false;
@@ -96,6 +102,20 @@ export class DocumentDetailPageComponent implements OnInit {
   auditLogs: AuditLog[] = [];
   auditLoading = false;
   auditError: string | null = null;
+  tasks: TaskResponse[] = [];
+  tasksLoading = false;
+  taskError: string | null = null;
+  assignableUsers: UserResponse[] = [];
+  assignTaskUserId: number | null = null;
+  assignTaskType: TaskType = 'CORRECTION';
+  assignTaskDueDate = '';
+  assigningTask = false;
+
+  readonly taskTypeOptions: { value: TaskType; label: string }[] = [
+    { value: 'EXTRACTION', label: 'Extraction' },
+    { value: 'CORRECTION', label: 'Correction' },
+    { value: 'APPROVAL', label: 'Approval' },
+  ];
 
   get canManageExtraction(): boolean {
     return this.authService.hasRole(['ADMIN', 'OPERATOR']);
@@ -103,6 +123,22 @@ export class DocumentDetailPageComponent implements OnInit {
 
   get canViewAudit(): boolean {
     return this.authService.hasRole(['ADMIN', 'MANAGER']);
+  }
+
+  get canAssignTasks(): boolean {
+    return this.authService.hasRole(['ADMIN', 'MANAGER']);
+  }
+
+  get activeTasks(): TaskResponse[] {
+    return this.tasks.filter((task) => task.status === 'OPEN' || task.status === 'IN_PROGRESS');
+  }
+
+  get eligibleAssignees(): UserResponse[] {
+    const requiredRole = this.assignTaskType === 'APPROVAL' ? 'APPROVER' : 'OPERATOR';
+
+    return this.assignableUsers.filter(
+      (user) => user.role === requiredRole && user.accountStatus !== 'INACTIVE'
+    );
   }
 
   ngOnInit(): void {
@@ -614,6 +650,8 @@ export class DocumentDetailPageComponent implements OnInit {
     this.loadStatusHistory(documentId);
     this.loadComments(documentId);
     this.loadAuditLogs(documentId);
+    this.loadTasks(documentId);
+    this.loadAssignableUsers();
   }
 
   loadStatusHistory(documentId: number): void {
@@ -670,6 +708,94 @@ export class DocumentDetailPageComponent implements OnInit {
           this.extractErrorMessage(err.error) ?? 'Failed to load audit log.';
       }
     });
+  }
+
+  loadTasks(documentId: number): void {
+    this.tasksLoading = true;
+    this.taskError = null;
+
+    const request = this.canAssignTasks ? this.taskApiService.getAll() : this.taskApiService.getMyTasks();
+
+    request.subscribe({
+      next: (response) => {
+        this.tasksLoading = false;
+        this.tasks = (response.payload ?? []).filter((task) => task.documentId === documentId);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.tasksLoading = false;
+        this.tasks = [];
+        this.taskError = this.extractErrorMessage(err.error) ?? 'Failed to load document tasks.';
+      },
+    });
+  }
+
+  loadAssignableUsers(): void {
+    if (!this.canAssignTasks || this.assignableUsers.length > 0) {
+      return;
+    }
+
+    this.userApiService.list({ page: 0, size: 100 }).subscribe({
+      next: (response) => {
+        this.assignableUsers = response.payload ?? [];
+        this.syncDefaultAssignee();
+      },
+      error: () => {
+        this.assignableUsers = [];
+      },
+    });
+  }
+
+  assignTask(): void {
+    if (!this.document || !this.assignTaskUserId) {
+      this.toastr.warning('Choose a user before assigning the task.', 'Assignee required');
+      return;
+    }
+
+    const payload: AssignTaskRequest = {
+      assignedUserId: this.assignTaskUserId,
+      taskType: this.assignTaskType,
+      dueDate: this.assignTaskDueDate || null,
+    };
+
+    this.assigningTask = true;
+
+    this.taskApiService.assign(this.document.id, payload).subscribe({
+      next: () => {
+        this.assigningTask = false;
+        this.toastr.success('Task assigned.', 'Success');
+        this.loadTasks(this.document!.id);
+        this.loadAuditLogs(this.document!.id);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.assigningTask = false;
+        this.toastr.error(this.extractErrorMessage(err.error) ?? 'Failed to assign task.', 'Error');
+      },
+    });
+  }
+
+  cancelTask(task: TaskResponse): void {
+    if (!this.document) {
+      return;
+    }
+
+    this.taskApiService.cancel(task.id).subscribe({
+      next: () => {
+        this.toastr.success('Task cancelled.', 'Success');
+        this.loadTasks(this.document!.id);
+        this.loadAuditLogs(this.document!.id);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.toastr.error(this.extractErrorMessage(err.error) ?? 'Failed to cancel task.', 'Error');
+      },
+    });
+  }
+
+  onTaskTypeChange(): void {
+    this.syncDefaultAssignee();
+  }
+
+  formatTaskType(taskType: string): string {
+    return taskType.replaceAll('_', ' ').toLowerCase();
   }
 
   submitComment(): void {
@@ -1067,6 +1193,21 @@ export class DocumentDetailPageComponent implements OnInit {
     this.commentsError = null;
     this.newCommentContent = '';
     this.submittingComment = false;
+    this.tasks = [];
+    this.tasksLoading = false;
+    this.taskError = null;
+    this.assignTaskUserId = null;
+    this.assignTaskType = 'CORRECTION';
+    this.assignTaskDueDate = '';
+    this.assigningTask = false;
+  }
+
+  private syncDefaultAssignee(): void {
+    if (this.eligibleAssignees.some((user) => user.id === this.assignTaskUserId)) {
+      return;
+    }
+
+    this.assignTaskUserId = this.eligibleAssignees[0]?.id ?? null;
   }
 
   private shouldLoadExtractionForStatus(status: string | null | undefined): boolean {

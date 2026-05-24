@@ -48,6 +48,22 @@ public class TaskDAO extends AbstractDAO<TaskEntity, Long> {
                 .getResultList();
     }
 
+    public List<TaskEntity> findByCompanyId(Long companyId) {
+        String jpql =
+                """
+                SELECT t
+                FROM TaskEntity t
+                JOIN FETCH t.document d
+                WHERE d.companyId = :companyId
+                ORDER BY t.createdAt DESC, t.id DESC
+                """;
+
+        return entityManager
+                .createQuery(jpql, TaskEntity.class)
+                .setParameter("companyId", companyId)
+                .getResultList();
+    }
+
     public TaskEntity findActiveByDocumentIdAndTaskType(Long documentId, TaskType taskType) {
         String jpql =
                 """
