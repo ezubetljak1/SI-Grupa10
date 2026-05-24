@@ -104,6 +104,7 @@ export class DocumentDetailPageComponent implements OnInit {
   auditLogs: AuditLog[] = [];
   auditLoading = false;
   auditError: string | null = null;
+  auditExpanded = false;
   tasks: TaskResponse[] = [];
   tasksLoading = false;
   taskError: string | null = null;
@@ -1261,29 +1262,113 @@ export class DocumentDetailPageComponent implements OnInit {
     return labels[action] ?? this.toReadableText(action);
   }
 
-  formatAuditDetails(details?: string | null): string {
-    if (!details) {
-      return 'No additional details.';
-    }
+  get latestAuditLog(): AuditLog | null {
+  return this.auditLogs.length > 0 ? this.auditLogs[0] : null;
+}
 
-    try {
-      const parsed = JSON.parse(details);
+get visibleAuditLogs(): AuditLog[] {
+  return this.auditExpanded ? this.auditLogs : this.auditLogs.slice(0, 3);
+}
 
-      if (parsed.fieldName) {
-        return `Updated field: ${this.formatFieldName(parsed.fieldName)}`;
-      }
+toggleAuditExpanded(): void {
+  this.auditExpanded = !this.auditExpanded;
+}
 
-      if (parsed.assignedUserId) {
-        return `Assigned to user ID ${parsed.assignedUserId}.`;
-      }
-
-      return Object.entries(parsed)
-        .map(([key, value]) => `${this.formatFieldName(key)}: ${value}`)
-        .join(' · ');
-    } catch {
-      return details;
-    }
+formatStatusTransition(entry: StatusHistoryEntry): string {
+  if (!entry.oldStatus) {
+    return entry.newStatus;
   }
+
+  return `${entry.oldStatus} → ${entry.newStatus}`;
+}
+
+getStatusHistoryIcon(action: string): string {
+  if (action.includes('UPLOADED')) return '↑';
+  if (action.includes('EXTRACTION')) return '✎';
+  if (action.includes('APPROVED')) return '✓';
+  if (action.includes('REJECTED')) return '!';
+  if (action.includes('RETURNED')) return '↩';
+  if (action.includes('CONFIRMED')) return '✓';
+
+  return '•';
+}
+
+getStatusHistoryClass(action: string): string {
+  if (action.includes('APPROVED')) return 'workflow-event--success';
+  if (action.includes('REJECTED')) return 'workflow-event--danger';
+  if (action.includes('RETURNED')) return 'workflow-event--warning';
+  if (action.includes('EXTRACTION')) return 'workflow-event--info';
+
+  return 'workflow-event--neutral';
+}
+
+formatAuditDetails(entry: AuditLog): string {
+  const details = entry.details;
+
+  if (!details) {
+    return 'No additional details.';
+  }
+
+  try {
+    const parsed = JSON.parse(details);
+    const taskType = parsed.taskType ? this.toTitleCase(this.formatTaskType(parsed.taskType)) : 'workflow';
+
+    switch (entry.action) {
+      case 'DOCUMENT_ASSIGNED': {
+  const assignedUserName =
+          parsed.assignedUserName || this.resolveAuditAssignedUserName(parsed.assignedUserId);
+
+        return `Assigned ${taskType} task to ${assignedUserName}.`;
+      }
+
+      case 'TASK_STARTED':
+        return `${taskType} task was started.`;
+
+      case 'TASK_COMPLETED':
+        return parsed.completedAutomatically
+          ? `${taskType} task was completed automatically after the workflow action.`
+          : `${taskType} task was completed.`;
+
+      case 'TASK_CANCELLED':
+        return `${taskType} task was cancelled.`;
+
+      case 'FIELD_UPDATED':
+        return parsed.fieldName
+          ? `Updated extracted field: ${this.formatFieldName(parsed.fieldName)}.`
+          : 'An extracted field was updated.';
+
+      case 'DOCUMENT_APPROVED':
+        return 'Document was moved to Approved.';
+
+      case 'DOCUMENT_REJECTED':
+        return 'Document was moved to Rejected.';
+
+      case 'DOCUMENT_RETURNED_FOR_CORRECTION':
+        return 'Document was returned to the operator for correction.';
+
+      default:
+        return Object.entries(parsed)
+          .map(([key, value]) => `${this.formatFieldName(key)}: ${value}`)
+          .join(' · ');
+    }
+  } catch {
+    return details
+      .replaceAll('taskId', 'Task ID')
+      .replaceAll('taskType', 'Task type')
+      .replaceAll('completedAutomatically', 'Completed automatically')
+      .replaceAll('{', '')
+      .replaceAll('}', '')
+      .replaceAll('"', '');
+  }
+}
+
+private toTitleCase(value: string): string {
+  return value
+    .split(' ')
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
 
   formatFieldName(value: string): string {
     return value
@@ -1595,6 +1680,24 @@ export class DocumentDetailPageComponent implements OnInit {
     }
 
     this.syncDefaultAssignee();
+  }
+
+  private resolveAuditAssignedUserName(userId: unknown): string {
+    const numericUserId = Number(userId);
+
+    if (!Number.isFinite(numericUserId)) {
+      return 'selected user';
+    }
+
+    const user = this.assignableUsers.find((candidate) => candidate.id === numericUserId);
+
+    if (!user) {
+      return `user #${numericUserId}`;
+    }
+
+    const fullName = `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim();
+
+    return fullName || `user #${numericUserId}`;
   }
 
 }

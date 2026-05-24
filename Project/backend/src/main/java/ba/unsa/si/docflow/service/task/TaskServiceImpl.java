@@ -81,13 +81,18 @@ public class TaskServiceImpl implements TaskService {
 
         TaskEntity saved = taskDAO.persist(task);
         createAssignmentNotification(saved, assignee);
+        String assignedUserName = resolveUserName(assignee.getId());
+
         auditLogService.log(
                 document,
                 currentUser.userId(),
                 AuditAction.DOCUMENT_ASSIGNED,
                 String.format(
-                        "{\"taskId\":%d,\"assignedUserId\":%d,\"taskType\":\"%s\"}",
-                        saved.getId(), assignee.getId(), saved.getTaskType()));
+                        "{\"taskId\":%d,\"assignedUserId\":%d,\"assignedUserName\":\"%s\",\"taskType\":\"%s\"}",
+                        saved.getId(),
+                        assignee.getId(),
+                        jsonEscape(assignedUserName),
+                        saved.getTaskType()));
 
         return toResponse(saved);
     }
@@ -376,5 +381,16 @@ public class TaskServiceImpl implements TaskService {
         ValidationErrors errors = new ValidationErrors();
         errors.add(code, message);
         throw new ApiValidationException(errors);
+    }
+
+    private String jsonEscape(String value) {
+        if (value == null) {
+            return "";
+        }
+
+        return value.replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\n", " ")
+                .replace("\r", " ");
     }
 }
