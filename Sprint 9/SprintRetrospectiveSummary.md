@@ -3,7 +3,7 @@
 ## Šta je išlo dobro
 
 - Timski rad: Svi članovi tima su pokazali dobru saradnju i komunikaciju te je svako uradio svoj dio posla. Ovo je
-  direktno uticalno na realizaciju planiranih zadataka.
+  direktno uticalo na realizaciju planiranih zadataka.
 - Realizacija planiranih zadataka: Svi planirani zadaci su realizovani uspješno i na vrijeme.
 - Isporuka dokumentacije: Tim je uspješno isporučio sve potrebne dokumente puput DecisionLog-a, AI Usage Log-a, Sprint
   Backlog-a i ostale potrebne dokumentacije.
