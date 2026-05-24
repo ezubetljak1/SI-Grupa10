@@ -241,8 +241,28 @@ class TaskManagementIntegrationTest {
     }
 
     @Test
+    void approvalTaskCannotBeAssignedBeforeDocumentIsReadyForApproval() throws Exception {
+        authenticateAs(ADMIN_KC);
+
+        mockMvc.perform(
+                        post("/api/documents/{id}/tasks/assign", documentId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                                        {
+                                          "assignedUserId": %d,
+                                          "taskType": "APPROVAL"
+                                        }
+                                        """
+                                                .formatted(approverId)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$[0].code", equalTo("TASK_DOCUMENT_NOT_READY_FOR_APPROVAL")));
+    }
+
+    @Test
     void managerCanViewAllTasksAndCancelActiveTask() throws Exception {
         authenticateAs(ADMIN_KC);
+        setDocumentStatus(DocumentStatus.READY_FOR_APPROVAL);
         Long taskId = assignApprovalTask(approverId);
 
         authenticateAs(MANAGER_KC);
