@@ -54,14 +54,7 @@ public class CompanyRegistrationService {
             keycloakUserId = adminUser.userId();
 
             userProvisioningService.provisionFirstAdmin(company.getId(), keycloakUserId, request);
-
-            try {
-                keycloakAdminService.sendPasswordSetupEmail(keycloakUserId);
-            } catch (Exception emailEx) {
-                log.warn("Password setup email could not be sent for user {}. " +
-                                "Registration will proceed. Set password manually in Keycloak. Error: {}",
-                        keycloakUserId, emailEx.getMessage());
-            }
+            keycloakAdminService.sendPasswordSetupEmail(keycloakUserId);
 
             return new CompanyRegisterResponse(
                     company.getId(),

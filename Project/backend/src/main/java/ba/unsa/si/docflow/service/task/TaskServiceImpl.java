@@ -30,6 +30,7 @@ import ba.unsa.si.docflow.service.security.WorkflowPermissionService;
 import ba.unsa.si.docflow.service.user.UserValidation;
 
 import lombok.AllArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -39,6 +40,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
+@Slf4j
 @Service
 @Transactional
 @AllArgsConstructor
@@ -430,5 +432,40 @@ public class TaskServiceImpl implements TaskService {
                 .replace("\"", "\\\"")
                 .replace("\n", " ")
                 .replace("\r", " ");
+    }
+
+    @Override
+    @Transactional
+    public void createCorrectionTask(
+            DocumentEntity document, Long assignedToUserId, Long assignedByUserId) {
+        if (assignedToUserId == null) {
+            log.warn("Cannot create correction task for document {} - no responsible operator found.",
+                    document.getId());
+            return;
+        }
+
+        // Cancel any existing active CORRECTION task for this document
+        TaskEntity existing = taskDAO.findActiveByDocumentIdAndTaskType(
+                document.getId(), TaskType.CORRECTION);
+        if (existing != null) {
+            existing.setStatus(TaskStatus.CANCELLED);
+            taskDAO.persist(existing);
+        }
+
+        TaskEntity task = new TaskEntity();
+        task.setDocument(document);
+        task.setAssignedUserId(assignedToUserId);
+        task.setAssignedByUserId(assignedByUserId);
+        task.setTaskType(TaskType.CORRECTION);
+        task.setStatus(TaskStatus.OPEN);
+
+        taskDAO.persist(task);
+
+        auditLogService.log(
+                document,
+                assignedByUserId,
+                AuditAction.DOCUMENT_ASSIGNED,
+                String.format("{\"documentId\":%d,\"taskType\":\"CORRECTION\",\"assignedTo\":%d}",
+                        document.getId(), assignedToUserId));
     }
 }

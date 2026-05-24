@@ -1142,8 +1142,8 @@ export class DocumentDetailPageComponent implements OnInit {
     }
 
     const content = this.approvalComment.trim();
-    if (!content) {
-      this.toastr.warning('Enter an approval comment before submitting.', 'Comment required');
+    if (!content && decision !== 'approve') {
+      this.toastr.warning('Enter a comment before submitting.', 'Comment required');
       return;
     }
 

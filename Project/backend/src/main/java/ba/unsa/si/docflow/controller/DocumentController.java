@@ -103,7 +103,7 @@ public class DocumentController {
 
     @PostMapping("/{id}/approval/approve")
     public ApiResponse<Document> approveDocument(
-            @PathVariable Long id, @Valid @RequestBody CreateCommentRequest request) {
+            @PathVariable Long id, @RequestBody CreateCommentRequest request) {
         return documentService.approveDocument(id, request);
     }
 

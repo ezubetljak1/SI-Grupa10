@@ -13,6 +13,7 @@ import ba.unsa.si.docflow.dto.workflow.CommentResponse;
 import ba.unsa.si.docflow.dto.workflow.CreateCommentRequest;
 import ba.unsa.si.docflow.dto.workflow.StatusHistoryResponse;
 import ba.unsa.si.docflow.entity.CommentEntity;
+import ba.unsa.si.docflow.entity.StatusHistoryEntity;
 import ba.unsa.si.docflow.entity.enums.AuditAction;
 import ba.unsa.si.docflow.entity.enums.CommentType;
 import ba.unsa.si.docflow.entity.enums.DocumentStatus;
@@ -371,9 +372,18 @@ public class DocumentServiceImpl implements DocumentService {
         }
 
         Long currentUserId = currentUserService.getCurrentUserId();
-        CommentEntity comment =
-                commentService.createTypedComment(
-                        document, currentUserId, commentType, request.getContent());
+        // Approve allows optional comment; reject and return require comment (validated in CommentService)
+        CommentEntity comment = null;
+        String commentContent = request != null ? request.getContent() : null;
+        if (targetStatus == DocumentStatus.APPROVED) {
+            if (org.springframework.util.StringUtils.hasText(commentContent)) {
+                comment = commentService.createTypedComment(
+                        document, currentUserId, commentType, commentContent);
+            }
+        } else {
+            comment = commentService.createTypedComment(
+                    document, currentUserId, commentType, commentContent);
+        }
 
         documentStatusTransitionService.changeStatus(
                 document,
@@ -392,7 +402,31 @@ public class DocumentServiceImpl implements DocumentService {
                         document.getId(), targetStatus));
         taskService.completeActiveTaskForDocument(document, TaskType.APPROVAL, currentUserId);
 
+        // If returning for correction, find responsible operator and create correction task
+        if (targetStatus == DocumentStatus.NEEDS_CORRECTION) {
+            Long responsibleOperatorId = findResponsibleOperator(document);
+            taskService.createCorrectionTask(document, responsibleOperatorId, currentUserId);
+        }
+
+        // Notification hook — actual notification logic implemented by Član 7 (NotificationService)
+        // TODO: call notificationService.notifyApprovalDecision(document, targetStatus, currentUserId)
+
         return new ApiResponse<>("OK", documentMapper.entityToDto(document));
+    }
+
+    private Long findResponsibleOperator(DocumentEntity document) {
+        // Try to find who last confirmed extraction
+        StatusHistoryEntity confirmed = statusHistoryDAO.findLatestByDocumentIdAndAction(
+                document.getId(), StatusHistoryAction.EXTRACTION_CONFIRMED);
+        if (confirmed == null) {
+            confirmed = statusHistoryDAO.findLatestByDocumentIdAndAction(
+                    document.getId(), StatusHistoryAction.EXTRACTION_RECONFIRMED);
+        }
+        if (confirmed != null) {
+            return confirmed.getChangedByUserId();
+        }
+        // Fallback: document creator
+        return document.getCreatedBy();
     }
 
     private String resolveDownloadFileName(DocumentEntity entity) {
