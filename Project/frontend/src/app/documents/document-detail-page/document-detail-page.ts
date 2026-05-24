@@ -137,8 +137,14 @@ export class DocumentDetailPageComponent implements OnInit {
     return this.authService.hasRole(['ADMIN', 'MANAGER']);
   }
 
-  get activeTasks(): TaskResponse[] {
+  Tasks(): TaskResponse[] {
     return this.tasks.filter((task) => task.status === 'OPEN' || task.status === 'IN_PROGRESS');
+  }
+
+  get activeTasks(): TaskResponse[] {
+    return this.tasks.filter(
+      (task) => task.status === 'OPEN' || task.status === 'IN_PROGRESS'
+    );
   }
 
   get activeTask(): TaskResponse | null {
@@ -149,15 +155,69 @@ export class DocumentDetailPageComponent implements OnInit {
     return this.authService.profile?.id ?? null;
   }
 
+  get workflowRelevantTaskType(): TaskType | null {
+    switch (this.document?.documentStatus) {
+      case 'UPLOADED':
+      case 'PROCESSING_FAILED':
+      case 'EXTRACTED':
+        return 'EXTRACTION';
+
+      case 'NEEDS_CORRECTION':
+        return 'CORRECTION';
+
+      case 'READY_FOR_APPROVAL':
+        return 'APPROVAL';
+
+      default:
+        return null;
+    }
+  }
+
+  get activeTaskOfSelectedType(): TaskResponse | null {
+    return (
+      this.activeTasks.find((task) => task.taskType === this.assignTaskType) ??
+      null
+    );
+  }
+
+  get blockingTaskForCurrentStatus(): TaskResponse | null {
+    const taskType = this.workflowRelevantTaskType;
+
+    if (!taskType) {
+      return null;
+    }
+
+    return (
+      this.activeTasks.find((task) => task.taskType === taskType) ??
+      null
+    );
+  }
+
+  get workflowBannerTask(): TaskResponse | null {
+    return this.blockingTaskForCurrentStatus ?? this.activeTask;
+  }
+
   get activeTaskAssignedToAnotherUser(): boolean {
-    return !!this.activeTask
-      && !!this.currentUserId
-      && !this.canAssignTasks
-      && this.activeTask.assignedUserId !== this.currentUserId;
+    const blockingTask = this.blockingTaskForCurrentStatus;
+
+    return (
+      !!blockingTask &&
+      !!this.currentUserId &&
+      !this.canAssignTasks &&
+      blockingTask.assignedUserId !== this.currentUserId
+    );
   }
 
   get showAssignedToAnotherUserWarning(): boolean {
-    return this.activeTaskAssignedToAnotherUser || this.duplicateTaskAssignmentAttempted;
+    return this.activeTaskAssignedToAnotherUser;
+  }
+
+  get canUseExtractionActions(): boolean {
+    return this.canManageExtraction && !this.activeTaskAssignedToAnotherUser;
+  }
+
+  get canUseApprovalActions(): boolean {
+    return this.canApproveDocuments && !this.activeTaskAssignedToAnotherUser;
   }
 
   get eligibleAssignees(): UserResponse[] {
@@ -796,14 +856,13 @@ export class DocumentDetailPageComponent implements OnInit {
       return;
     }
 
-    const assignedToAnotherUser =
-      this.activeTask !== null && this.activeTask.assignedUserId !== this.assignTaskUserId;
+    const existingActiveTaskOfSameType = this.activeTaskOfSelectedType;
 
-    if (assignedToAnotherUser) {
+    if (existingActiveTaskOfSameType) {
       this.duplicateTaskAssignmentAttempted = true;
       this.toastr.warning(
-        'This document is already assigned to another user.',
-        'Document already assigned'
+        `An active ${this.formatTaskType(this.assignTaskType)} task already exists for this document. Cancel it before assigning another one.`,
+        'Duplicate task type'
       );
       return;
     }
@@ -851,6 +910,7 @@ export class DocumentDetailPageComponent implements OnInit {
   }
 
   onTaskTypeChange(): void {
+    this.duplicateTaskAssignmentAttempted = false;
     this.syncDefaultAssignee();
   }
 
