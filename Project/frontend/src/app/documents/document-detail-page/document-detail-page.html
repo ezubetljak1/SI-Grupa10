@@ -360,6 +360,18 @@
       <app-ui-card
         title="Extracted fields"
         subtitle="Automatically extracted fields from OCR/AI processing. Review flagged values before confirming.">
+        @if (document.documentStatus === 'NEEDS_CORRECTION' && correctionFeedback) {
+          <div class="message-card message-card--warning correction-banner">
+            <strong>Document returned for correction</strong>
+            <p>
+              {{ correctionFeedback.userName || ('User #' + correctionFeedback.userId) }}
+              · {{ formatCommentType(correctionFeedback.type) }}
+              · {{ formatDate(correctionFeedback.createdAt) }}
+            </p>
+            <p class="correction-banner__comment">{{ correctionFeedback.content }}</p>
+          </div>
+        }
+
         <div class="extraction-actions">
           @if (!canUseExtractionActions) {
             @if (activeTaskAssignedToAnotherUser) {
@@ -387,6 +399,20 @@
             </div>
 
             <div class="extraction-actions__right">
+              <button
+                type="button"
+                class="btn btn-muted"
+                (click)="openAddFieldModal()"
+                [disabled]="
+                  extractionRunning ||
+                  extractionLoading ||
+                  confirmingExtraction ||
+                  !!editState ||
+                  extractionId === null
+                ">
+                Add field
+              </button>
+
               <button
                 type="button"
                 class="btn btn-primary"
@@ -452,6 +478,13 @@
           </div>
         }
 
+        @if (document.documentStatus === 'NEEDS_CORRECTION' && canManageExtraction) {
+          <div class="message-card message-card--warning">
+            <strong>Correction required.</strong>
+            Update the extracted fields or add missing values, then reconfirm extraction when ready.
+          </div>
+        }
+
         @if (extractionError) {
           <div class="message-card message-card--error">
             <strong>Extraction error:</strong> {{ extractionError }}
@@ -497,7 +530,12 @@
                     ">
                     <td class="field-cell">
                       <div class="field-cell__content">
-                        <span class="mono">{{ field.fieldName }}</span>
+                        <span>{{ formatFieldLabel(field) }}</span>
+                        <span class="mono field-cell__key">{{ field.fieldName }}</span>
+
+                        @if (isManualField(field)) {
+                          <span class="field-pill field-pill--manual">Manual</span>
+                        }
 
                         @if (isPlaceholderField(field)) {
                           <span class="field-pill field-pill--required">Required</span>
@@ -790,6 +828,77 @@
           </div>
         </form>
       </app-ui-card>
+    </div>
+  }
+
+  @if (showAddFieldModal) {
+    <div class="modal-backdrop" role="presentation" (click)="closeAddFieldModal()">
+      <section
+        class="confirm-modal add-field-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="add-field-title"
+        (click)="$event.stopPropagation()">
+        <div>
+          <p class="modal-eyebrow modal-eyebrow--neutral">Manual field</p>
+          <h2 id="add-field-title">Add extraction field</h2>
+          <p>Add a missing value that OCR did not capture. Custom fields require a display label.</p>
+        </div>
+
+        <form class="add-field-form" (ngSubmit)="submitAddField()">
+          <label class="add-field-form__label" for="addFieldOption">Field</label>
+          <select
+            id="addFieldOption"
+            class="add-field-form__input"
+            [(ngModel)]="selectedFieldOption"
+            name="addFieldOption"
+            [disabled]="addFieldSaving">
+            @for (option of manualFieldOptions; track option.fieldName) {
+              <option [value]="option.fieldName">{{ option.label }}</option>
+            }
+            <option [value]="customFieldOptionValue">Custom field...</option>
+          </select>
+
+          @if (selectedFieldOption === customFieldOptionValue) {
+            <label class="add-field-form__label" for="customFieldLabel">Display label</label>
+            <input
+              id="customFieldLabel"
+              class="add-field-form__input"
+              type="text"
+              [(ngModel)]="customFieldLabel"
+              name="customFieldLabel"
+              placeholder="e.g. Project code"
+              [disabled]="addFieldSaving" />
+          }
+
+          <label class="add-field-form__label" for="addFieldValue">Value</label>
+          <input
+            id="addFieldValue"
+            class="add-field-form__input"
+            type="text"
+            [(ngModel)]="addFieldValue"
+            name="addFieldValue"
+            placeholder="Enter field value"
+            [disabled]="addFieldSaving" />
+
+          @if (addFieldError) {
+            <p class="validation-error">{{ addFieldError }}</p>
+          }
+
+          <div class="modal-actions">
+            <button
+              type="button"
+              class="btn btn-muted"
+              (click)="closeAddFieldModal()"
+              [disabled]="addFieldSaving">
+              Cancel
+            </button>
+            <button type="submit" class="btn btn-primary" [disabled]="addFieldSaving">
+              {{ addFieldSaving ? 'Saving...' : 'Add field' }}
+            </button>
+          </div>
+        </form>
+      </section>
     </div>
   }
 </section>
