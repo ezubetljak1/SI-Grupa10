@@ -70,6 +70,43 @@
           </div>
         </div>
 
+        @if (tasksLoading) {
+            <div class="task-banner task-banner--muted">
+              Loading workflow tasks...
+            </div>
+          } @else if (workflowBannerTask; as bannerTask) {
+            <div
+              class="task-banner"
+              [class.task-banner--warning]="showAssignedToAnotherUserWarning"
+              [class.task-banner--overdue]="isTaskOverdue(bannerTask)">
+              <div class="task-banner__content">
+                <strong>
+                  {{ showAssignedToAnotherUserWarning ? 'Assigned to another user' : 'Active task' }}
+                </strong>
+
+                <span>
+                  @if (showAssignedToAnotherUserWarning) {
+                    This document has an active {{ formatTaskType(bannerTask.taskType) }} task assigned to
+                    {{ bannerTask.assignedUserName || ('user #' + bannerTask.assignedUserId) }}.
+                  } @else {
+                    {{ formatTaskType(bannerTask.taskType) }} assigned to
+                    {{ bannerTask.assignedUserName || ('user #' + bannerTask.assignedUserId) }}.
+                  }
+                </span>
+              </div>
+
+              <div class="task-banner__meta">
+                @if (isTaskOverdue(bannerTask)) {
+                  <span class="task-banner__overdue">Overdue</span>
+                }
+
+                <span class="task-banner__status">{{ bannerTask.status }}</span>
+              </div>
+            </div>
+          } @else if (taskError) {
+            <div class="task-banner task-banner--error">{{ taskError }}</div>
+          }
+
       @if (hasAiClassificationMetadata()) {
   <div class="ai-classification-metadata">
     <div class="ai-classification-metadata__header">
@@ -108,6 +145,131 @@
         </div>
       }
       </app-ui-card>
+
+      @if (document && canAssignTasks) {
+        <app-ui-card
+          title="Task assignment"
+          subtitle="Assign document work to the right workflow role.">
+          <div class="task-assignment">
+            <div class="field">
+              <label for="taskType">Task type</label>
+              <select
+                id="taskType"
+                class="select"
+                name="taskType"
+                [(ngModel)]="assignTaskType"
+                (ngModelChange)="onTaskTypeChange()">
+                @for (type of taskTypeOptions; track type.value) {
+                  <option [value]="type.value">{{ type.label }}</option>
+                }
+              </select>
+            </div>
+
+            <div class="field">
+              <label for="taskAssignee">Assignee</label>
+              <select
+                id="taskAssignee"
+                class="select"
+                name="taskAssignee"
+                [(ngModel)]="assignTaskUserId">
+                @for (user of eligibleAssignees; track user.id) {
+                  <option [ngValue]="user.id">
+                    {{ user.firstName }} {{ user.lastName }} · {{ user.role }}
+                  </option>
+                }
+              </select>
+            </div>
+
+            <div class="field">
+              <label for="taskDueDate">Due date</label>
+              <input
+                id="taskDueDate"
+                class="input"
+                type="datetime-local"
+                name="taskDueDate"
+                [min]="minDueDate"
+                [(ngModel)]="assignTaskDueDate" />
+            </div>
+
+            <button
+              type="button"
+              class="btn btn-primary"
+              [disabled]="assigningTask || !assignTaskUserId || !canAssignSelectedTaskType"
+              (click)="assignTask()">
+              {{ assigningTask ? 'Assigning...' : 'Assign task' }}
+            </button>
+          </div>
+
+          @if (document.documentStatus !== 'READY_FOR_APPROVAL') {
+            <div class="task-assignment-hint">
+              Approval can be assigned after extraction is confirmed and the document is ready for approval.
+            </div>
+          }
+
+          @if (activeTasks.length > 0) {
+            <div class="active-task-list">
+              @for (task of activeTasks; track task.id) {
+                <div class="active-task-row">
+                  <div>
+                    <strong>{{ formatTaskType(task.taskType) }}</strong>
+                    <span>
+                      {{ task.assignedUserName || ('user #' + task.assignedUserId) }} · {{ task.status }}
+                      @if (isTaskOverdue(task)) {
+                        · Overdue
+                      }
+                    </span>
+                  </div>
+                  <button type="button" class="btn btn-muted btn-compact" (click)="cancelTask(task)">
+                    Cancel
+                  </button>
+                </div>
+              }
+            </div>
+          }
+        </app-ui-card>
+      }
+
+      @if (document && document.documentStatus === 'READY_FOR_APPROVAL' && canUseApprovalActions) {
+        <app-ui-card
+          title="Approval decision"
+          subtitle="Review the confirmed extraction and submit the final document decision.">
+          <div class="approval-panel">
+            <label for="approvalComment">Decision comment</label>
+            <textarea
+              id="approvalComment"
+              class="textarea"
+              name="approvalComment"
+              rows="3"
+              [disabled]="approvalSubmitting || activeTaskAssignedToAnotherUser"
+              [(ngModel)]="approvalComment"
+              placeholder="Add decision note"></textarea>
+
+            <div class="approval-actions">
+              <button
+                type="button"
+                class="btn btn-primary"
+                [disabled]="approvalSubmitting || activeTaskAssignedToAnotherUser"
+                (click)="approveDocument()">
+                Approve
+              </button>
+              <button
+                type="button"
+                class="btn btn-muted"
+                [disabled]="approvalSubmitting || activeTaskAssignedToAnotherUser"
+                (click)="returnDocumentForCorrection()">
+                Return for correction
+              </button>
+              <button
+                type="button"
+                class="btn btn-danger"
+                [disabled]="approvalSubmitting || activeTaskAssignedToAnotherUser"
+                (click)="rejectDocument()">
+                Reject
+              </button>
+            </div>
+          </div>
+        </app-ui-card>
+      }
 
       <app-ui-card
         title="Document preview"
@@ -190,10 +352,12 @@
         title="Extracted fields"
         subtitle="Automatically extracted fields from OCR/AI processing. Review flagged values before confirming.">
         <div class="extraction-actions">
-          @if (!canManageExtraction) {
-            <span class="classification-review-hint">
+          @if (!canUseExtractionActions) {
+            @if (activeTaskAssignedToAnotherUser) {
+              This workflow step is assigned to another user. You can view the document, but you cannot perform this action.
+            } @else {
               Your role can view extracted fields, but extraction actions are restricted.
-            </span>
+            }
           } @else if (document.documentStatus === 'EXTRACTED') {
             <div class="extraction-actions__left">
               <button
@@ -369,7 +533,7 @@
                     </td>
 
                     <td class="actions-cell">
-                      @if (!canManageExtraction) {
+                      @if (!canUseExtractionActions) {
                         <span class="meta-chip meta-chip--muted">View only</span>
                       } @else if (!isEditing(field)) {
                         <button

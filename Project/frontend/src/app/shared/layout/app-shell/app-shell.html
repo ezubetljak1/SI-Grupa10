@@ -53,6 +53,15 @@
             <span>Profile</span>
           </a>
 
+          <a
+            routerLink="/tasks/my"
+            routerLinkActive="active"
+            class="nav-item"
+          >
+            <span class="nav-icon">□</span>
+            <span>My tasks</span>
+          </a>
+
           @if (hasRole(['ADMIN'])) {
             <a
               routerLink="/company/users"

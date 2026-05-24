@@ -26,6 +26,12 @@ public interface DocumentService {
 
     ApiResponse<Document> confirmDocumentType(Long id, ConfirmDocumentTypeRequest request);
 
+    ApiResponse<Document> approveDocument(Long id, CreateCommentRequest request);
+
+    ApiResponse<Document> rejectDocument(Long id, CreateCommentRequest request);
+
+    ApiResponse<Document> returnDocumentForCorrection(Long id, CreateCommentRequest request);
+
     DocumentFileResponse downloadFile(Long id);
 
     ApiResponse<List<StatusHistoryResponse>> getStatusHistory(Long id);

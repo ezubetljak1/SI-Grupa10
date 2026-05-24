@@ -15,6 +15,7 @@ describe('UsersPageComponent', () => {
     changeRole: ReturnType<typeof vi.fn>;
     changeStatus: ReturnType<typeof vi.fn>;
     resetPassword: ReturnType<typeof vi.fn>;
+    getCurrentUser: ReturnType<typeof vi.fn>;
   };
 
   const listResponse: PagedResponse<UserResponse> = {
@@ -34,7 +35,6 @@ describe('UsersPageComponent', () => {
     lastName: 'User',
     email: 'demo@example.com',
     accountStatus: 'PENDING_PASSWORD_CHANGE',
-    temporaryPassword: 'TempPass123!',
   };
 
   beforeEach(async () => {
@@ -43,7 +43,8 @@ describe('UsersPageComponent', () => {
       create: vi.fn().mockReturnValue(of({ code: 'OK', payload: createdUser })),
       changeRole: vi.fn(),
       changeStatus: vi.fn(),
-      resetPassword: vi.fn().mockReturnValue(of({ code: 'OK', payload: 'ResetPass123!' })),
+      resetPassword: vi.fn(),
+      getCurrentUser: vi.fn().mockReturnValue(of({ code: 'OK', payload: createdUser })),
     };
 
     await TestBed.configureTestingModule({
@@ -65,7 +66,7 @@ describe('UsersPageComponent', () => {
     fixture.detectChanges();
   });
 
-  it('shows temporary password after creating a user', () => {
+  it('creates a user and reloads the list', () => {
     const component = fixture.componentInstance;
 
     component.newUser.firstName = 'Demo';
@@ -75,18 +76,12 @@ describe('UsersPageComponent', () => {
     component.createUser();
     fixture.detectChanges();
 
-    const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.textContent).toContain('Temporary password');
-    expect(compiled.textContent).toContain('demo@example.com');
-    expect(compiled.textContent).toContain('TempPass123!');
-  });
-
-  it('shows temporary password after password reset', () => {
-    fixture.componentInstance.resetPassword(createdUser);
-    fixture.detectChanges();
-
-    const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.textContent).toContain('demo@example.com');
-    expect(compiled.textContent).toContain('ResetPass123!');
+    expect(userApiMock.create).toHaveBeenCalledWith({
+      firstName: 'Demo',
+      lastName: 'User',
+      email: 'demo@example.com',
+      role: 'OPERATOR',
+    });
+    expect(userApiMock.list).toHaveBeenCalledTimes(2);
   });
 });

@@ -10,6 +10,7 @@ import { UsersPageComponent } from './users/pages/users-page/users-page';
 import { authGuard } from './auth/services/auth.guard';
 import { roleGuard } from './auth/services/role.guard';
 import { ProfilePageComponent } from './users/pages/profile-page/profile-page';
+import { MyTasksPageComponent } from './tasks/pages/my-tasks-page/my-tasks-page';
 
 export const routes: Routes = [
     {
@@ -50,6 +51,11 @@ export const routes: Routes = [
         path: 'documents/:id',
         component: DocumentDetailPageComponent,
         canActivate: [authGuard]
+    },
+    {
+        path: 'tasks/my',
+        component: MyTasksPageComponent,
+        canActivate: [authGuard],
     },
     {
         path: 'company/users',
