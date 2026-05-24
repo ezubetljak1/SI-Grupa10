@@ -101,6 +101,24 @@ public class DocumentController {
         return documentService.confirmDocumentType(id, request);
     }
 
+    @PostMapping("/{id}/approval/approve")
+    public ApiResponse<Document> approveDocument(
+            @PathVariable Long id, @Valid @RequestBody CreateCommentRequest request) {
+        return documentService.approveDocument(id, request);
+    }
+
+    @PostMapping("/{id}/approval/reject")
+    public ApiResponse<Document> rejectDocument(
+            @PathVariable Long id, @Valid @RequestBody CreateCommentRequest request) {
+        return documentService.rejectDocument(id, request);
+    }
+
+    @PostMapping("/{id}/approval/correction")
+    public ApiResponse<Document> returnDocumentForCorrection(
+            @PathVariable Long id, @Valid @RequestBody CreateCommentRequest request) {
+        return documentService.returnDocumentForCorrection(id, request);
+    }
+
     @GetMapping("/{id}/status-history")
     public ApiResponse<List<StatusHistoryResponse>> getStatusHistory(@PathVariable Long id) {
         return documentService.getStatusHistory(id);
@@ -121,5 +139,10 @@ public class DocumentController {
     public ApiResponse<TaskResponse> assignTask(
             @PathVariable Long id, @Valid @RequestBody AssignTaskRequest request) {
         return new ApiResponse<>("SUCCESS", taskService.assign(id, request));
+    }
+
+    @GetMapping("/{id}/tasks")
+    public ApiResponse<List<TaskResponse>> getDocumentTasks(@PathVariable Long id) {
+        return new ApiResponse<>("SUCCESS", taskService.findByDocument(id));
     }
 }

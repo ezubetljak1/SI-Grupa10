@@ -12,10 +12,14 @@ import ba.unsa.si.docflow.entity.DocumentEntity;
 import ba.unsa.si.docflow.dto.workflow.CommentResponse;
 import ba.unsa.si.docflow.dto.workflow.CreateCommentRequest;
 import ba.unsa.si.docflow.dto.workflow.StatusHistoryResponse;
+import ba.unsa.si.docflow.entity.CommentEntity;
+import ba.unsa.si.docflow.entity.enums.AuditAction;
+import ba.unsa.si.docflow.entity.enums.CommentType;
 import ba.unsa.si.docflow.entity.enums.DocumentStatus;
 import ba.unsa.si.docflow.entity.enums.DocumentType;
 import ba.unsa.si.docflow.entity.enums.RoleName;
 import ba.unsa.si.docflow.entity.enums.StatusHistoryAction;
+import ba.unsa.si.docflow.entity.enums.TaskType;
 import ba.unsa.si.docflow.service.workflow.CommentService;
 import ba.unsa.si.docflow.service.workflow.DocumentStatusTransitionService;
 import ba.unsa.si.docflow.service.workflow.StatusHistoryService;
@@ -25,8 +29,11 @@ import ba.unsa.si.docflow.response.ApiResponse;
 import ba.unsa.si.docflow.response.PagedResponse;
 import ba.unsa.si.docflow.response.ValidationErrors;
 import ba.unsa.si.docflow.security.CurrentUserService;
+import ba.unsa.si.docflow.service.audit.AuditLogService;
+import ba.unsa.si.docflow.service.security.WorkflowPermissionService;
 import ba.unsa.si.docflow.service.storage.StorageService;
 import ba.unsa.si.docflow.service.storage.StoredFileInfo;
+import ba.unsa.si.docflow.service.task.TaskService;
 
 import lombok.AllArgsConstructor;
 
@@ -71,6 +78,12 @@ public class DocumentServiceImpl implements DocumentService {
     private final StatusHistoryService statusHistoryService;
 
     private final CommentService commentService;
+
+    private final WorkflowPermissionService workflowPermissionService;
+
+    private final AuditLogService auditLogService;
+
+    private final TaskService taskService;
 
     @Override
     @Transactional(readOnly = true)
@@ -254,6 +267,43 @@ public class DocumentServiceImpl implements DocumentService {
     }
 
     @Override
+    public ApiResponse<Document> approveDocument(Long id, CreateCommentRequest request) {
+        return decideApproval(
+                id,
+                request,
+                DocumentStatus.APPROVED,
+                CommentType.APPROVAL,
+                StatusHistoryAction.DOCUMENT_APPROVED,
+                AuditAction.DOCUMENT_APPROVED,
+                "Document approved.");
+    }
+
+    @Override
+    public ApiResponse<Document> rejectDocument(Long id, CreateCommentRequest request) {
+        return decideApproval(
+                id,
+                request,
+                DocumentStatus.REJECTED,
+                CommentType.REJECTION,
+                StatusHistoryAction.DOCUMENT_REJECTED,
+                AuditAction.DOCUMENT_REJECTED,
+                "Document rejected.");
+    }
+
+    @Override
+    public ApiResponse<Document> returnDocumentForCorrection(
+            Long id, CreateCommentRequest request) {
+        return decideApproval(
+                id,
+                request,
+                DocumentStatus.NEEDS_CORRECTION,
+                CommentType.CORRECTION_REQUEST,
+                StatusHistoryAction.DOCUMENT_RETURNED_FOR_CORRECTION,
+                AuditAction.DOCUMENT_RETURNED_FOR_CORRECTION,
+                "Document returned for correction.");
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public ApiResponse<List<StatusHistoryResponse>> getStatusHistory(Long id) {
         return statusHistoryService.getStatusHistory(id);
@@ -296,6 +346,53 @@ public class DocumentServiceImpl implements DocumentService {
         }
 
         return documentType;
+    }
+
+    private ApiResponse<Document> decideApproval(
+            Long id,
+            CreateCommentRequest request,
+            DocumentStatus targetStatus,
+            CommentType commentType,
+            StatusHistoryAction statusHistoryAction,
+            AuditAction auditAction,
+            String details) {
+        currentUserService.requireAnyRole(RoleName.ADMIN, RoleName.MANAGER, RoleName.APPROVER);
+        DocumentEntity document =
+                documentValidation.validateExistsInCompany(
+                        id, currentUserService.getCurrentCompanyId());
+        workflowPermissionService.requireCanApprove(document);
+
+        if (document.getDocumentStatus() != DocumentStatus.READY_FOR_APPROVAL) {
+            ValidationErrors errors = new ValidationErrors();
+            errors.add(
+                    "DOCUMENT_STATUS_INVALID",
+                    "Document can only be approved or rejected when status is READY_FOR_APPROVAL.");
+            throw new ApiValidationException(errors);
+        }
+
+        Long currentUserId = currentUserService.getCurrentUserId();
+        CommentEntity comment =
+                commentService.createTypedComment(
+                        document, currentUserId, commentType, request.getContent());
+
+        documentStatusTransitionService.changeStatus(
+                document,
+                targetStatus,
+                statusHistoryAction,
+                currentUserId,
+                comment,
+                details);
+
+        auditLogService.log(
+                document,
+                currentUserId,
+                auditAction,
+                String.format(
+                        "{\"documentId\":%d,\"status\":\"%s\"}",
+                        document.getId(), targetStatus));
+        taskService.completeActiveTaskForDocument(document, TaskType.APPROVAL, currentUserId);
+
+        return new ApiResponse<>("OK", documentMapper.entityToDto(document));
     }
 
     private String resolveDownloadFileName(DocumentEntity entity) {

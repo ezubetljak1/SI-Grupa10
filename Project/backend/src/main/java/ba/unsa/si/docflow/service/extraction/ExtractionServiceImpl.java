@@ -12,6 +12,7 @@ import ba.unsa.si.docflow.entity.ExtractionFieldEntity;
 import ba.unsa.si.docflow.entity.enums.*;
 import ba.unsa.si.docflow.service.audit.AuditLogService;
 import ba.unsa.si.docflow.service.security.WorkflowPermissionService;
+import ba.unsa.si.docflow.service.task.TaskService;
 import ba.unsa.si.docflow.service.workflow.DocumentStatusTransitionService;
 import ba.unsa.si.docflow.exception.ApiNotFoundException;
 import ba.unsa.si.docflow.exception.ApiValidationException;
@@ -108,6 +109,7 @@ public class ExtractionServiceImpl implements ExtractionService {
 
     private final WorkflowPermissionService workflowPermissionService;
     private final AuditLogService auditLogService;
+    private final TaskService taskService;
 
     @Override
     public ApiResponse<ExtractionResponse> process(Long documentId) {
@@ -137,6 +139,8 @@ public class ExtractionServiceImpl implements ExtractionService {
                     currentUserId,
                     null,
                     "Document extraction completed.");
+
+            taskService.completeActiveTaskForDocument(document, TaskType.EXTRACTION, currentUserId);
 
             ExtractionResponse response = extractionMapper.entityToDto(extraction);
             return new ApiResponse<>("OK", response);
@@ -239,6 +243,11 @@ public class ExtractionServiceImpl implements ExtractionService {
 
         extractionValidation.validateRequiredFields(extraction);
 
+        TaskType taskTypeToComplete =
+                document.getDocumentStatus() == DocumentStatus.NEEDS_CORRECTION
+                        ? TaskType.CORRECTION
+                        : TaskType.EXTRACTION;
+
         StatusHistoryAction confirmAction =
                 document.getDocumentStatus() == DocumentStatus.NEEDS_CORRECTION
                         ? StatusHistoryAction.EXTRACTION_RECONFIRMED
@@ -251,6 +260,9 @@ public class ExtractionServiceImpl implements ExtractionService {
                 currentUserService.getCurrentUserId(),
                 null,
                 "Extraction confirmed and sent for approval.");
+
+        taskService.completeActiveTaskForDocument(
+                document, taskTypeToComplete, currentUserService.getCurrentUserId());
 
         return new ApiResponse<>("OK", extractionMapper.entityToDto(extraction));
     }

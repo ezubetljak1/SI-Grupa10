@@ -60,6 +60,8 @@ public class WorkflowPermissionServiceImpl implements WorkflowPermissionService 
 
             throwForbidden("You do not have permission to approve documents.");
         }
+
+        requireAssignedTaskIfPresent(document, role, TaskType.APPROVAL);
     }
 
     @Override

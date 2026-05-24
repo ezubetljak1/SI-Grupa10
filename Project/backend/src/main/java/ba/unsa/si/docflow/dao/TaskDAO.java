@@ -64,6 +64,22 @@ public class TaskDAO extends AbstractDAO<TaskEntity, Long> {
                 .getResultList();
     }
 
+    public List<TaskEntity> findByDocumentId(Long documentId) {
+        String jpql =
+                """
+                SELECT t
+                FROM TaskEntity t
+                JOIN FETCH t.document
+                WHERE t.document.id = :documentId
+                ORDER BY t.createdAt DESC, t.id DESC
+                """;
+
+        return entityManager
+                .createQuery(jpql, TaskEntity.class)
+                .setParameter("documentId", documentId)
+                .getResultList();
+    }
+
     public TaskEntity findActiveByDocumentIdAndTaskType(Long documentId, TaskType taskType) {
         String jpql =
                 """

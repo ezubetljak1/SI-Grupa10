@@ -152,6 +152,35 @@
   color: var(--error);
 }
 
+.due-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.overdue-pill {
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+  border-radius: 999px;
+  background: var(--error-soft);
+  color: var(--error);
+  padding: 0 8px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.task-action-hint {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.25;
+  max-width: 120px;
+  text-align: right;
+  white-space: normal;
+}
+
 .actions-column,
 .actions-cell {
   text-align: right;
@@ -163,6 +192,7 @@
   justify-content: flex-end;
   gap: 8px;
   flex-wrap: wrap;
+  max-width: 100%;
 }
 
 .btn-small {

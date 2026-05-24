@@ -125,6 +125,36 @@ export class DocumentApiService {
     );
   }
 
+  approveDocument(
+    documentId: number,
+    payload: CreateCommentRequest
+  ): Observable<ApiResponse<DocflowDocument>> {
+    return this.http.post<ApiResponse<DocflowDocument>>(
+      `${this.baseUrl}/${documentId}/approval/approve`,
+      payload
+    );
+  }
+
+  rejectDocument(
+    documentId: number,
+    payload: CreateCommentRequest
+  ): Observable<ApiResponse<DocflowDocument>> {
+    return this.http.post<ApiResponse<DocflowDocument>>(
+      `${this.baseUrl}/${documentId}/approval/reject`,
+      payload
+    );
+  }
+
+  returnDocumentForCorrection(
+    documentId: number,
+    payload: CreateCommentRequest
+  ): Observable<ApiResponse<DocflowDocument>> {
+    return this.http.post<ApiResponse<DocflowDocument>>(
+      `${this.baseUrl}/${documentId}/approval/correction`,
+      payload
+    );
+  }
+
   getStatusHistory(documentId: number): Observable<ApiResponse<StatusHistoryEntry[]>> {
     return this.http.get<ApiResponse<StatusHistoryEntry[]>>(
       `${this.baseUrl}/${documentId}/status-history`

@@ -65,10 +65,6 @@ export class MyTasksPageComponent implements OnInit {
     this.runTaskAction(task.id, () => this.taskApi.start(task.id), 'Task started.');
   }
 
-  completeTask(task: TaskResponse): void {
-    this.runTaskAction(task.id, () => this.taskApi.complete(task.id), 'Task completed.');
-  }
-
   formatDate(value?: string | null): string {
     if (!value) {
       return '-';
@@ -89,6 +85,14 @@ export class MyTasksPageComponent implements OnInit {
 
   statusClass(status: TaskStatus): string {
     return `task-status task-status--${status.toLowerCase()}`;
+  }
+
+  isOverdue(task: TaskResponse): boolean {
+    return (
+      !!task.dueDate &&
+      (task.status === 'OPEN' || task.status === 'IN_PROGRESS') &&
+      new Date(task.dueDate).getTime() < Date.now()
+    );
   }
 
   private runTaskAction(

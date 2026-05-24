@@ -12,7 +12,6 @@ describe('MyTasksPageComponent', () => {
   let taskApiMock: {
     getMyTasks: ReturnType<typeof vi.fn>;
     start: ReturnType<typeof vi.fn>;
-    complete: ReturnType<typeof vi.fn>;
   };
 
   const openTask: TaskResponse = {
@@ -33,7 +32,6 @@ describe('MyTasksPageComponent', () => {
     taskApiMock = {
       getMyTasks: vi.fn().mockReturnValue(of({ code: 'SUCCESS', payload: [openTask] })),
       start: vi.fn().mockReturnValue(of({ code: 'SUCCESS', payload: { ...openTask, status: 'IN_PROGRESS' } })),
-      complete: vi.fn().mockReturnValue(of({ code: 'SUCCESS', payload: { ...openTask, status: 'COMPLETED' } })),
     };
 
     await TestBed.configureTestingModule({
@@ -61,7 +59,7 @@ describe('MyTasksPageComponent', () => {
     expect(compiled.textContent).toContain('Invoice 7');
     expect(compiled.textContent).toContain('correction');
     expect(compiled.textContent).toContain('Start');
-    expect(compiled.textContent).toContain('Complete');
+    expect(compiled.textContent).toContain('Complete in document');
   });
 
   it('starts an open task', () => {

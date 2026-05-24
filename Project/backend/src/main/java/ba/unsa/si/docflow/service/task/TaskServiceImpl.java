@@ -12,6 +12,7 @@ import ba.unsa.si.docflow.entity.TaskEntity;
 import ba.unsa.si.docflow.entity.UserEntity;
 import ba.unsa.si.docflow.entity.enums.AccountStatus;
 import ba.unsa.si.docflow.entity.enums.AuditAction;
+import ba.unsa.si.docflow.entity.enums.DocumentStatus;
 import ba.unsa.si.docflow.entity.enums.NotificationType;
 import ba.unsa.si.docflow.entity.enums.RoleName;
 import ba.unsa.si.docflow.entity.enums.TaskStatus;
@@ -34,6 +35,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -64,6 +66,8 @@ public class TaskServiceImpl implements TaskService {
         UserEntity assignee =
                 userValidation.validateExistsInCompany(request.getAssignedUserId(), currentUser.companyId());
         validateAssignee(request, assignee);
+        validateDocumentReadyForTaskAssignment(document, request.getTaskType());
+        validateDueDate(request.getDueDate());
         validateNoDuplicateActiveTask(documentId, request.getTaskType());
 
         TaskEntity task = new TaskEntity();
@@ -107,6 +111,17 @@ public class TaskServiceImpl implements TaskService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public List<TaskResponse> findByDocument(Long documentId) {
+        CurrentUser currentUser = currentUserService.getCurrentUser();
+        DocumentEntity document =
+                documentValidation.validateExistsInCompany(documentId, currentUser.companyId());
+        workflowPermissionService.requireSameCompany(document.getCompanyId());
+
+        return taskMapper.entitiesToDtos(taskDAO.findByDocumentId(documentId), this::resolveUserName);
+    }
+
+    @Override
     public TaskResponse start(Long id) {
         CurrentUser currentUser = currentUserService.getCurrentUser();
         TaskEntity task = validateTaskVisible(id, currentUser);
@@ -136,6 +151,8 @@ public class TaskServiceImpl implements TaskService {
         if (task.getStatus() != TaskStatus.OPEN && task.getStatus() != TaskStatus.IN_PROGRESS) {
             throwValidation("TASK_COMPLETE_INVALID_STATUS", "Only active tasks can be completed.");
         }
+
+        validateDocumentReadyForTaskCompletion(task);
 
         task.setStatus(TaskStatus.COMPLETED);
         task.setCompletedAt(LocalDateTime.now());
@@ -173,24 +190,49 @@ public class TaskServiceImpl implements TaskService {
         return toResponse(updated);
     }
 
+    @Override
+    public void completeActiveTaskForDocument(
+            DocumentEntity document, TaskType taskType, Long completedByUserId) {
+        TaskEntity task = taskDAO.findActiveByDocumentIdAndTaskType(document.getId(), taskType);
+        if (task == null) {
+            return;
+        }
+
+        if (!task.getAssignedUserId().equals(completedByUserId)
+                && !workflowPermissionService.canViewAllTasks()) {
+            return;
+        }
+
+        task.setStatus(TaskStatus.COMPLETED);
+        task.setCompletedAt(LocalDateTime.now());
+        task.setCompletedByUserId(completedByUserId);
+        taskDAO.merge(task);
+        auditLogService.log(
+                document,
+                completedByUserId,
+                AuditAction.TASK_COMPLETED,
+                String.format(
+                        "{\"taskId\":%d,\"taskType\":\"%s\",\"completedAutomatically\":true}",
+                        task.getId(), task.getTaskType()));
+    }
+
     private void validateAssignee(AssignTaskRequest request, UserEntity assignee) {
         if (assignee.getAccountStatus() == AccountStatus.INACTIVE) {
             throwValidation("TASK_ASSIGNEE_INACTIVE", "Task assignee must be an active user.");
         }
 
         RoleEntity role = roleService.getById(assignee.getRoleId());
-        RoleName expectedRole = expectedRole(request.getTaskType());
-        if (role.getName() != expectedRole) {
+        if (!isAllowedAssigneeRole(request.getTaskType(), role.getName())) {
             throwValidation(
                     "TASK_ASSIGNEE_ROLE_INVALID",
                     "Selected user does not have the required role for this task type.");
         }
     }
 
-    private RoleName expectedRole(TaskType taskType) {
+    private boolean isAllowedAssigneeRole(TaskType taskType, RoleName role) {
         return switch (taskType) {
-            case EXTRACTION, CORRECTION -> RoleName.OPERATOR;
-            case APPROVAL -> RoleName.APPROVER;
+            case EXTRACTION, CORRECTION -> role == RoleName.OPERATOR;
+            case APPROVAL -> role == RoleName.APPROVER || role == RoleName.MANAGER;
         };
     }
 
@@ -199,6 +241,45 @@ public class TaskServiceImpl implements TaskService {
             throwValidation(
                     "TASK_DUPLICATE_ACTIVE",
                     "An active task of this type already exists for this document.");
+        }
+    }
+
+    private void validateDueDate(LocalDateTime dueDate) {
+        if (dueDate == null) {
+            return;
+        }
+
+        if (dueDate.toLocalDate().isBefore(LocalDate.now())) {
+            throwValidation("TASK_DUE_DATE_INVALID", "Task due date cannot be in the past.");
+        }
+    }
+
+    private void validateDocumentReadyForTaskAssignment(DocumentEntity document, TaskType taskType) {
+        if (taskType == TaskType.APPROVAL
+                && document.getDocumentStatus() != DocumentStatus.READY_FOR_APPROVAL) {
+            throwValidation(
+                    "TASK_DOCUMENT_NOT_READY_FOR_APPROVAL",
+                    "Approval task can only be assigned when document status is READY_FOR_APPROVAL.");
+        }
+    }
+
+    private void validateDocumentReadyForTaskCompletion(TaskEntity task) {
+        DocumentStatus status = task.getDocument().getDocumentStatus();
+        boolean completedByBusinessAction =
+                switch (task.getTaskType()) {
+                    case EXTRACTION -> status == DocumentStatus.EXTRACTED
+                            || status == DocumentStatus.READY_FOR_APPROVAL;
+                    case CORRECTION -> status == DocumentStatus.READY_FOR_APPROVAL;
+                    case APPROVAL -> status == DocumentStatus.APPROVED
+                            || status == DocumentStatus.REJECTED
+                            || status == DocumentStatus.NEEDS_CORRECTION
+                            || status == DocumentStatus.COMPLETED;
+                };
+
+        if (!completedByBusinessAction) {
+            throwValidation(
+                    "TASK_DOCUMENT_STATUS_NOT_COMPLETED",
+                    "Task cannot be completed before the document reaches the expected workflow status.");
         }
     }
 

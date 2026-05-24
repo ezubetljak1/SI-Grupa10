@@ -27,6 +27,10 @@ export class TaskApiService {
     return this.http.get<ApiResponse<TaskResponse[]>>(this.baseUrl);
   }
 
+  getByDocument(documentId: number): Observable<ApiResponse<TaskResponse[]>> {
+    return this.http.get<ApiResponse<TaskResponse[]>>(`/api/documents/${documentId}/tasks`);
+  }
+
   start(id: number): Observable<ApiResponse<TaskResponse>> {
     return this.http.patch<ApiResponse<TaskResponse>>(`${this.baseUrl}/${id}/start`, {});
   }

@@ -74,16 +74,28 @@
           <div class="task-banner task-banner--muted">
             Loading workflow tasks...
           </div>
-        } @else if (activeTasks.length > 0) {
-          <div class="task-banner">
+        } @else if (activeTask) {
+          <div class="task-banner" [class.task-banner--warning]="showAssignedToAnotherUserWarning">
             <div>
-              <span class="task-banner__label">Active task</span>
+              <span class="task-banner__label">
+                {{ showAssignedToAnotherUserWarning ? 'Assigned to another user' : 'Active task' }}
+              </span>
               <strong>
-                {{ formatTaskType(activeTasks[0].taskType) }} assigned to
-                {{ activeTasks[0].assignedUserName || ('user #' + activeTasks[0].assignedUserId) }}
+                @if (showAssignedToAnotherUserWarning) {
+                  This document is already assigned to
+                  {{ activeTask.assignedUserName || ('user #' + activeTask.assignedUserId) }}.
+                } @else {
+                  {{ formatTaskType(activeTask.taskType) }} assigned to
+                  {{ activeTask.assignedUserName || ('user #' + activeTask.assignedUserId) }}
+                }
               </strong>
             </div>
-            <span class="task-banner__status">{{ activeTasks[0].status }}</span>
+            <div class="task-banner__badges">
+              @if (isTaskOverdue(activeTask)) {
+                <span class="task-banner__status task-banner__status--overdue">Overdue</span>
+              }
+              <span class="task-banner__status">{{ activeTask.status }}</span>
+            </div>
           </div>
         } @else if (taskError) {
           <div class="task-banner task-banner--error">{{ taskError }}</div>
@@ -169,17 +181,24 @@
                 class="input"
                 type="datetime-local"
                 name="taskDueDate"
+                [min]="minDueDate"
                 [(ngModel)]="assignTaskDueDate" />
             </div>
 
             <button
               type="button"
               class="btn btn-primary"
-              [disabled]="assigningTask || !assignTaskUserId"
+              [disabled]="assigningTask || !assignTaskUserId || !canAssignSelectedTaskType"
               (click)="assignTask()">
               {{ assigningTask ? 'Assigning...' : 'Assign task' }}
             </button>
           </div>
+
+          @if (document.documentStatus !== 'READY_FOR_APPROVAL') {
+            <div class="task-assignment-hint">
+              Approval can be assigned after extraction is confirmed and the document is ready for approval.
+            </div>
+          }
 
           @if (activeTasks.length > 0) {
             <div class="active-task-list">
@@ -187,7 +206,12 @@
                 <div class="active-task-row">
                   <div>
                     <strong>{{ formatTaskType(task.taskType) }}</strong>
-                    <span>{{ task.assignedUserName || ('user #' + task.assignedUserId) }} · {{ task.status }}</span>
+                    <span>
+                      {{ task.assignedUserName || ('user #' + task.assignedUserId) }} · {{ task.status }}
+                      @if (isTaskOverdue(task)) {
+                        · Overdue
+                      }
+                    </span>
                   </div>
                   <button type="button" class="btn btn-muted btn-compact" (click)="cancelTask(task)">
                     Cancel
@@ -196,6 +220,48 @@
               }
             </div>
           }
+        </app-ui-card>
+      }
+
+      @if (document && document.documentStatus === 'READY_FOR_APPROVAL' && canApproveDocuments) {
+        <app-ui-card
+          title="Approval decision"
+          subtitle="Review the confirmed extraction and submit the final document decision.">
+          <div class="approval-panel">
+            <label for="approvalComment">Decision comment</label>
+            <textarea
+              id="approvalComment"
+              class="textarea"
+              name="approvalComment"
+              rows="3"
+              [disabled]="approvalSubmitting || activeTaskAssignedToAnotherUser"
+              [(ngModel)]="approvalComment"
+              placeholder="Add decision note"></textarea>
+
+            <div class="approval-actions">
+              <button
+                type="button"
+                class="btn btn-primary"
+                [disabled]="approvalSubmitting || activeTaskAssignedToAnotherUser"
+                (click)="approveDocument()">
+                Approve
+              </button>
+              <button
+                type="button"
+                class="btn btn-muted"
+                [disabled]="approvalSubmitting || activeTaskAssignedToAnotherUser"
+                (click)="returnDocumentForCorrection()">
+                Return for correction
+              </button>
+              <button
+                type="button"
+                class="btn btn-danger"
+                [disabled]="approvalSubmitting || activeTaskAssignedToAnotherUser"
+                (click)="rejectDocument()">
+                Reject
+              </button>
+            </div>
+          </div>
         </app-ui-card>
       }
 

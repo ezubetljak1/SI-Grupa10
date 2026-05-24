@@ -165,7 +165,7 @@ class TaskManagementIntegrationTest {
     }
 
     @Test
-    void assignedUserCanViewStartAndCompleteOwnTask() throws Exception {
+    void assignedUserCanViewStartTaskButCannotCompleteBeforeWorkflowAction() throws Exception {
         authenticateAs(ADMIN_KC);
         Long taskId = assignCorrectionTask(operatorId);
 
@@ -181,9 +181,63 @@ class TaskManagementIntegrationTest {
                 .andExpect(jsonPath("$.payload.status", equalTo("IN_PROGRESS")));
 
         mockMvc.perform(patch("/api/tasks/{id}/complete", taskId))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$[0].code", equalTo("TASK_DOCUMENT_STATUS_NOT_COMPLETED")));
+    }
+
+    @Test
+    void assignedUserCanCompleteTaskAfterDocumentReachesExpectedStatus() throws Exception {
+        authenticateAs(ADMIN_KC);
+        Long taskId = assignCorrectionTask(operatorId);
+        setDocumentStatus(DocumentStatus.READY_FOR_APPROVAL);
+
+        authenticateAs(OPERATOR_KC);
+
+        mockMvc.perform(patch("/api/tasks/{id}/complete", taskId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.payload.status", equalTo("COMPLETED")))
                 .andExpect(jsonPath("$.payload.completedByUserId", equalTo(operatorId.intValue())));
+    }
+
+    @Test
+    void dueDateCannotBeBeforeCurrentDay() throws Exception {
+        authenticateAs(ADMIN_KC);
+
+        mockMvc.perform(
+                        post("/api/documents/{id}/tasks/assign", documentId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                                        {
+                                          "assignedUserId": %d,
+                                          "taskType": "CORRECTION",
+                                          "dueDate": "%s"
+                                        }
+                                        """
+                                                .formatted(
+                                                        operatorId,
+                                                        LocalDateTime.now()
+                                                                .minusDays(1)
+                                                                .withHour(12)
+                                                                .withMinute(0)
+                                                                .withSecond(0)
+                                                                .withNano(0))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$[0].code", equalTo("TASK_DUE_DATE_INVALID")));
+    }
+
+    @Test
+    void sameCompanyUserCanViewDocumentTasksForAssignmentBanner() throws Exception {
+        authenticateAs(ADMIN_KC);
+        Long taskId = assignCorrectionTask(operatorId);
+
+        authenticateAs(SECOND_OPERATOR_KC);
+
+        mockMvc.perform(get("/api/documents/{id}/tasks", documentId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.payload", hasSize(1)))
+                .andExpect(jsonPath("$.payload[0].id", equalTo(taskId.intValue())))
+                .andExpect(jsonPath("$.payload[0].assignedUserId", equalTo(operatorId.intValue())));
     }
 
     @Test
@@ -285,6 +339,7 @@ class TaskManagementIntegrationTest {
                         documentId);
 
         assertEquals("READY_FOR_APPROVAL", documentStatus);
+        assertTaskStatus("EXTRACTION", "COMPLETED");
     }
 
     @Test
@@ -323,6 +378,7 @@ class TaskManagementIntegrationTest {
                         documentId);
 
         assertEquals("READY_FOR_APPROVAL", documentStatus);
+        assertTaskStatus("CORRECTION", "COMPLETED");
     }
 
     private void setupData() {
@@ -471,9 +527,7 @@ class TaskManagementIntegrationTest {
         new TransactionTemplate(transactionManager)
                 .executeWithoutResult(
                         status -> {
-                            DocumentEntity doc = documentDAO.findByPK(documentId);
-                            doc.setDocumentStatus(documentStatus);
-                            documentDAO.merge(doc);
+                            DocumentEntity doc = setDocumentStatusInCurrentTransaction(documentStatus);
 
                             ExtractionEntity extraction = new ExtractionEntity();
                             extraction.setDocument(doc);
@@ -503,5 +557,27 @@ class TaskManagementIntegrationTest {
         field.setManual(false);
 
         extractionFieldDAO.persist(field);
+    }
+
+    private void setDocumentStatus(DocumentStatus documentStatus) {
+        new TransactionTemplate(transactionManager)
+                .executeWithoutResult(status -> setDocumentStatusInCurrentTransaction(documentStatus));
+    }
+
+    private DocumentEntity setDocumentStatusInCurrentTransaction(DocumentStatus documentStatus) {
+        DocumentEntity doc = documentDAO.findByPK(documentId);
+        doc.setDocumentStatus(documentStatus);
+        return documentDAO.merge(doc);
+    }
+
+    private void assertTaskStatus(String taskType, String expectedStatus) {
+        String taskStatus =
+                jdbcTemplate.queryForObject(
+                        "SELECT status FROM workflow_task WHERE document_id = ? AND task_type = ?",
+                        String.class,
+                        documentId,
+                        taskType);
+
+        assertEquals(expectedStatus, taskStatus);
     }
 }
