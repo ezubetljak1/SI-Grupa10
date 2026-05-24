@@ -77,6 +77,22 @@ public class DocumentDAO extends AbstractDAO<DocumentEntity, Long> {
         return executeCountQuery(cq);
     }
 
+    public List<DocumentEntity> findByStatusAndCompanyId(DocumentStatus status, Long companyId) {
+        String jpql = """
+                SELECT d
+                FROM DocumentEntity d
+                WHERE d.documentStatus = :status
+                AND d.companyId = :companyId
+                ORDER BY d.uploadDate ASC, d.id ASC
+                """;
+
+        return entityManager
+                .createQuery(jpql, DocumentEntity.class)
+                .setParameter("status", status)
+                .setParameter("companyId", companyId)
+                .getResultList();
+    }
+
     public Long countByCompanyId(Long companyId) {
 
         String jpql = """

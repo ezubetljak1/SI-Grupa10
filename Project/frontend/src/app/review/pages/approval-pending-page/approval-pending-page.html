@@ -1,0 +1,82 @@
+<section class="approval-page">
+  <app-page-header
+    eyebrow="Workflow"
+    title="Pending approvals"
+    description="Documents awaiting your approval decision. Review each document carefully before approving, rejecting, or returning for correction.">
+    <div page-actions class="page-actions">
+      <button type="button" class="btn btn-muted" (click)="loadPending()" [disabled]="loading">
+        {{ loading ? 'Loading...' : 'Refresh' }}
+      </button>
+    </div>
+  </app-page-header>
+
+  @if (error) {
+    <div class="message-card message-card--error">{{ error }}</div>
+  }
+
+  <app-ui-card
+    title="Ready for approval"
+    subtitle="Sorted by upload date, oldest first."
+    [badgeText]="documents.length.toString()"
+    badgeVariant="info"
+    [noPadding]="true">
+
+    @if (loading) {
+      <div class="loading-wrapper">
+        <p class="loading-text">Loading pending approvals…</p>
+      </div>
+    } @else if (documents.length === 0) {
+      <div class="empty-wrapper">
+        <app-empty-state
+          icon="✓"
+          title="No pending approvals"
+          description="All documents have been reviewed. New documents sent for approval will appear here.">
+        </app-empty-state>
+      </div>
+    } @else {
+      <div class="table-wrapper">
+        <table class="approval-table">
+          <thead>
+            <tr>
+              <th>Document</th>
+              <th>Type</th>
+              <th>Uploaded</th>
+              <th>Size</th>
+              <th class="actions-column">Actions</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            @for (doc of documents; track doc.id) {
+              <tr>
+                <td>
+                  <div class="doc-name-cell">
+                    <strong>{{ doc.name }}</strong>
+                    <app-status-badge [status]="doc.documentStatus" />
+                  </div>
+                </td>
+                <td>
+                  <span class="doc-type">{{ formatDocumentType(doc.documentType) }}</span>
+                </td>
+                <td>
+                  <span class="doc-date">{{ formatDate(doc.uploadDate) }}</span>
+                </td>
+                <td>
+                  <span class="doc-size">{{ formatFileSize(doc.fileSize) }}</span>
+                </td>
+                <td class="actions-cell">
+                  <a
+                    class="btn btn-primary btn-small"
+                    [routerLink]="['/documents', doc.id]"
+                    title="Review document">
+                    Review
+                  </a>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </app-ui-card>
+</section>
