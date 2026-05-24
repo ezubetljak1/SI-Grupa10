@@ -241,7 +241,7 @@ class TaskManagementIntegrationTest {
     }
 
     @Test
-    void approvalTaskCannotBeAssignedBeforeDocumentIsReadyForApproval() throws Exception {
+    void approvalTaskCanBeAssignedBeforeDocumentIsReadyForApproval() throws Exception {
         authenticateAs(ADMIN_KC);
 
         mockMvc.perform(
@@ -255,8 +255,31 @@ class TaskManagementIntegrationTest {
                                         }
                                         """
                                                 .formatted(approverId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code", equalTo("SUCCESS")))
+                .andExpect(jsonPath("$.payload.assignedUserId", equalTo(approverId.intValue())))
+                .andExpect(jsonPath("$.payload.taskType", equalTo("APPROVAL")))
+                .andExpect(jsonPath("$.payload.status", equalTo("OPEN")));
+    }
+
+    @Test
+    void taskCannotBeAssignedAfterDocumentIsFinalized() throws Exception {
+        authenticateAs(ADMIN_KC);
+        setDocumentStatus(DocumentStatus.APPROVED);
+
+        mockMvc.perform(
+                        post("/api/documents/{id}/tasks/assign", documentId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                                        {
+                                          "assignedUserId": %d,
+                                          "taskType": "APPROVAL"
+                                        }
+                                        """
+                                                .formatted(approverId)))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$[0].code", equalTo("TASK_DOCUMENT_NOT_READY_FOR_APPROVAL")));
+                .andExpect(jsonPath("$[0].code", equalTo("TASK_DOCUMENT_STATUS_INVALID")));
     }
 
     @Test
@@ -325,12 +348,12 @@ class TaskManagementIntegrationTest {
     }
 
     @Test
-    void nonAssigneeCannotConfirmExtractionWhenExtractionTaskIsAssignedToAnotherOperator()
+    void nonAssigneeCannotConfirmExtractionWhenCorrectionTaskIsAssignedToAnotherOperator()
             throws Exception {
         createValidInvoiceExtraction(DocumentStatus.EXTRACTED);
 
         authenticateAs(ADMIN_KC);
-        assignTask(operatorId, "EXTRACTION");
+        assignCorrectionTask(operatorId);
 
         authenticateAs(SECOND_OPERATOR_KC);
 
@@ -340,11 +363,11 @@ class TaskManagementIntegrationTest {
     }
 
     @Test
-    void assignedOperatorCanConfirmExtractionWhenExtractionTaskIsAssignedToThem() throws Exception {
+    void assignedOperatorCanConfirmExtractionWhenCorrectionTaskIsAssignedToThem() throws Exception {
         createValidInvoiceExtraction(DocumentStatus.EXTRACTED);
 
         authenticateAs(ADMIN_KC);
-        assignTask(operatorId, "EXTRACTION");
+        assignCorrectionTask(operatorId);
 
         authenticateAs(OPERATOR_KC);
 
@@ -359,7 +382,7 @@ class TaskManagementIntegrationTest {
                         documentId);
 
         assertEquals("READY_FOR_APPROVAL", documentStatus);
-        assertTaskStatus("EXTRACTION", "COMPLETED");
+        assertTaskStatus("CORRECTION", "COMPLETED");
     }
 
     @Test
@@ -547,7 +570,8 @@ class TaskManagementIntegrationTest {
         new TransactionTemplate(transactionManager)
                 .executeWithoutResult(
                         status -> {
-                            DocumentEntity doc = setDocumentStatusInCurrentTransaction(documentStatus);
+                            DocumentEntity doc =
+                                    setDocumentStatusInCurrentTransaction(documentStatus);
 
                             ExtractionEntity extraction = new ExtractionEntity();
                             extraction.setDocument(doc);
@@ -581,7 +605,8 @@ class TaskManagementIntegrationTest {
 
     private void setDocumentStatus(DocumentStatus documentStatus) {
         new TransactionTemplate(transactionManager)
-                .executeWithoutResult(status -> setDocumentStatusInCurrentTransaction(documentStatus));
+                .executeWithoutResult(
+                        status -> setDocumentStatusInCurrentTransaction(documentStatus));
     }
 
     private DocumentEntity setDocumentStatusInCurrentTransaction(DocumentStatus documentStatus) {

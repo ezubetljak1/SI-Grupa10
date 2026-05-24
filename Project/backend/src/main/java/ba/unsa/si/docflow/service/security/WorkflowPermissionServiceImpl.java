@@ -96,12 +96,12 @@ public class WorkflowPermissionServiceImpl implements WorkflowPermissionService 
         RoleName role = RoleName.valueOf(currentUserService.getCurrentUser().role());
 
         if (role == RoleName.APPROVER) {
-
             throwForbidden("Approvers cannot confirm extraction.");
         }
 
         TaskType taskType =
-                document.getDocumentStatus() == DocumentStatus.NEEDS_CORRECTION
+                document.getDocumentStatus() == DocumentStatus.EXTRACTED
+                                || document.getDocumentStatus() == DocumentStatus.NEEDS_CORRECTION
                         ? TaskType.CORRECTION
                         : TaskType.EXTRACTION;
 
