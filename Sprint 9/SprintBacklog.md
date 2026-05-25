@@ -60,7 +60,7 @@ dokumentovane za sve učesnike u procesu.
 
 ---
 
-### US-9.4 - Odbijanje dokumenta uz obavezan komentar
+### US-9.4 - Odbijanje dokumenta
 
 **Opis** - Kao osoba za odobravanje, želim odbiti dokument uz komentar, kako bi razlog odbijanja bio jasno evidentiran.
 
