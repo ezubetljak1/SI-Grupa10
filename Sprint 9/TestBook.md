@@ -640,4 +640,203 @@ Zaključak:
 - Izvršeno je end-to-end testiranje kompletnog toka od registracije firme do obrade dokumenata.
 - Izvršeno je regresiono testiranje funkcionalnosti iz Sprintova 5, 6 i 7.
 - Izvršeno je deployment smoke testiranje backend/frontend containera, baze, auth konfiguracije, novih processor ID konfiguracija i kompletnih korisničkih tokova u deployanom okruženju.
-- Svi evidentirani testovi za Sprint 8 imaju status `Pass`.
+- Svi evidentirani testovi za Sprint 8 imaju status `Pass`. 
+
+---
+
+# Sprint 9 – Testiranje workflow foundation, status history, audit i task assignment funkcionalnosti
+
+## 9.1 Funkcionalnosti koje se testiraju
+
+U Sprintu 9 fokus testiranja je na postavljanju workflow osnove i prvim poslovnim workflow funkcionalnostima nad dokumentima.
+
+Testirane funkcionalnosti uključuju:
+
+- proširenje statusa dokumenta novim statusom `NEEDS_CORRECTION`,
+- dodavanje workflow foundation modela: status history, komentari, taskovi i audit log,
+- centralizovano mijenjanje statusa kroz `DocumentStatusTransitionService`,
+- čuvanje historije statusa dokumenta,
+- dodavanje i prikaz komentara na dokumentu,
+- brisanje dokumenta sa povezanim workflow zapisima,
+- role-based permission provjere kroz `WorkflowPermissionService`,
+- audit log za bitne korisničke/sistemske akcije,
+- prikaz audit loga samo Admin/Manager korisnicima,
+- task assignment za dokumente,
+- My Tasks prikaz za korisnika kojem je zadatak dodijeljen,
+- start, complete i cancel task akcije,
+- ograničenje poslovnih akcija kada postoji aktivan task dodijeljen drugom korisniku,
+- frontend prikaz status history, komentara, audit loga, task assignment forme, My Tasks stranice i active task informacija,
+- regresionu provjeru postojećeg upload/extraction/edit/confirm flow-a nakon dodavanja workflow sloja,
+- osnovnu CI/build provjeru backend i frontend aplikacije.
+
+---
+
+## 9.2 Backend/API i integracijsko testiranje
+
+| ID testa | Vrsta testiranja | Funkcionalnost | Ulaz / koraci | Očekivani ishod | Stvarni ishod | Status |
+|---|---|---|---|---|---|---|
+| S9-BE-001 | Integration testiranje | Persistovanje workflow foundation entiteta | Kreirati i persistovati `StatusHistoryEntity`, `CommentEntity`, `TaskEntity`, `NotificationEntity` i `AuditLogEntity` | Novi workflow entiteti se uspješno spremaju u bazu | Svi workflow foundation entiteti su uspješno spremljeni u bazu | Pass |
+| S9-BE-002 | Integration testiranje | Inicijalni status history zapis | Uploadati dokument i provjeriti `status_history` tabelu | Kreira se inicijalni history zapis sa `oldStatus = null`, `newStatus = UPLOADED` i akcijom `DOCUMENT_UPLOADED` | Inicijalni status history zapis je kreiran nakon upload-a dokumenta | Pass |
+| S9-BE-003 | Integration testiranje | Promjena statusa kroz `DocumentStatusTransitionService` | Promijeniti status dokumenta iz `UPLOADED` u `NEEDS_CORRECTION` | Status dokumenta se mijenja i kreira se odgovarajući history zapis | Status je promijenjen, a history zapis sadrži stari status, novi status, akciju i korisnika | Pass |
+| S9-BE-004 | Validaciono testiranje | Podrška za status `NEEDS_CORRECTION` | Kreirati ili ažurirati dokument sa statusom `NEEDS_CORRECTION` | Backend prihvata novi status i ne dolazi do enum/check constraint greške | Status `NEEDS_CORRECTION` je uspješno prihvaćen u backendu i bazi | Pass |
+| S9-BE-005 | Integration testiranje | Proširenje extraction field modela | Kreirati extraction field sa `displayName` i `manual = true` | Backend i baza čuvaju nova polja bez greške | `displayName` i `manual` su uspješno spremljeni za extraction field | Pass |
+| S9-BE-006 | Backend/API testiranje | Dohvat status history zapisa | Pozvati `GET /api/documents/{id}/status-history` za postojeći dokument | Backend vraća status history zapise dokumenta | Endpoint vraća listu history zapisa za dokument | Pass |
+| S9-BE-007 | Backend/API testiranje | Status history redoslijed | Uploadati dokument, pokrenuti extraction, confirmati extraction i dohvatiti status history | History zapisi dolaze hronološki: `DOCUMENT_UPLOADED`, `EXTRACTION_COMPLETED`, `EXTRACTION_CONFIRMED` | Status history zapisi su vraćeni u hronološkom redoslijedu | Pass |
+| S9-BE-008 | Backend/API testiranje | Zabrana brisanja status history kroz API | Pozvati `DELETE /api/documents/{id}/status-history` | Backend vraća `405 Method Not Allowed`, a history zapisi ostaju sačuvani | API ne dozvoljava brisanje status history zapisa | Pass |
+| S9-BE-009 | Backend/API testiranje | Dohvat komentara dokumenta | Pozvati `GET /api/documents/{id}/comments` | Backend vraća komentare vezane za dokument | Endpoint vraća listu komentara dokumenta | Pass |
+| S9-BE-010 | Backend/API testiranje | Dodavanje komentara na dokument | Pozvati `POST /api/documents/{id}/comments` sa validnim sadržajem | Komentar se sprema i vraća kroz API response | Komentar je uspješno spremljen i vraćen u response-u | Pass |
+| S9-BE-011 | Validaciono testiranje | Odbijanje praznog komentara | Poslati komentar sa praznim stringom ili whitespace sadržajem | Backend vraća `400 Bad Request` i komentar se ne sprema | Prazan komentar je odbijen i nije spremljen u bazu | Pass |
+| S9-BE-012 | Validaciono testiranje | Limit dužine komentara | Poslati komentar duži od dozvoljenog limita | Backend vraća validacionu grešku i komentar se ne sprema | Predug komentar je odbijen validacijom | Pass |
+| S9-BE-013 | Backend/API testiranje | Komentari za nepostojeći dokument | Pozvati `GET` ili `POST` comments endpoint za nepostojeći dokument | Backend vraća `404 NOT_FOUND` | Backend je vratio kontrolisanu grešku za nepostojeći dokument | Pass |
+| S9-BE-014 | Backend/API testiranje | Status history za nepostojeći dokument | Pozvati `GET /api/documents/{id}/status-history` sa nepostojećim ID-em | Backend vraća `404 NOT_FOUND` | Backend je vratio kontrolisanu grešku za nepostojeći dokument | Pass |
+| S9-BE-015 | Integration testiranje | Brisanje dokumenta sa status history i komentarima | Dokument ima status history, komentar i extraction podatke; pozvati delete dokumenta | Dokument i svi povezani workflow/extraction zapisi se brišu bez FK greške | Dokument, status history, komentari i extraction podaci su obrisani bez greške | Pass |
+| S9-BE-016 | Integration testiranje | Extraction failure kreira status history | Simulirati grešku OCR providera pri extraction procesu | Dokument prelazi u `PROCESSING_FAILED`, a history ima akciju `EXTRACTION_FAILED` | Greška ekstrakcije je evidentirana u status history zapisu | Pass |
+| S9-BE-017 | Integration testiranje | Manual classification review kreira status history | Uploadati `OTHER` dokument, classifier vrati nesiguran rezultat | Dokument prelazi u `NEEDS_CLASSIFICATION_REVIEW`, history ima odgovarajući zapis i ne završava kao `PROCESSING_FAILED` | Classification review tok je ispravno evidentiran u status history | Pass |
+| S9-BE-018 | Backend/API testiranje | Admin može dohvatiti audit log | Admin pozove `GET /api/documents/{id}/audit-log` | Backend vraća `200 OK` i audit zapise dokumenta | Admin je uspješno dohvatio audit log | Pass |
+| S9-BE-019 | Backend/API testiranje | Manager može dohvatiti audit log | Manager pozove `GET /api/documents/{id}/audit-log` | Backend vraća `200 OK` i audit zapise dokumenta | Manager je uspješno dohvatio audit log | Pass |
+| S9-BE-020 | Backend/API testiranje | Operator nema pristup audit logu | Operator pozove `GET /api/documents/{id}/audit-log` | Backend vraća `403 Forbidden` | Operatoru je zabranjen pristup audit logu | Pass |
+| S9-BE-021 | Backend/API testiranje | Approver nema pristup audit logu | Approver pozove `GET /api/documents/{id}/audit-log` | Backend vraća `403 Forbidden` | Approveru je zabranjen pristup audit logu | Pass |
+| S9-BE-022 | Integration testiranje | Multi-tenant zaštita audit loga | Admin iz druge firme pokuša dohvatiti audit log dokumenta prve firme | Backend vraća `403 Forbidden` ili `404 NOT_FOUND` prema postojećem patternu | Korisnik iz druge firme nije mogao pristupiti audit logu | Pass |
+| S9-BE-023 | Integration testiranje | `AuditLogService.log(...)` kreira zapis | Pozvati `AuditLogService.log(...)`, zatim dohvatiti audit log endpointom | Kreirani audit zapis se vraća kroz API | Audit zapis je kreiran i vidljiv kroz audit endpoint | Pass |
+| S9-BE-024 | Integration testiranje | Audit log za update extraction fielda | Izmijeniti extraction field vrijednost kroz postojeći endpoint | Backend sprema audit zapis sa akcijom `FIELD_UPDATED` | Update extraction fielda je evidentiran u audit logu | Pass |
+| S9-BE-025 | Backend/API testiranje | Permission greške vraćaju 403 | Korisnik bez dozvole pokuša pristupiti zaštićenoj workflow akciji | Backend vraća `403 Forbidden`, ne `400 Bad Request` | Permission greške se vraćaju kao `403 Forbidden` | Pass |
+| S9-BE-026 | Backend/API testiranje | Admin može dodijeliti task | Admin pozove `POST /api/documents/{id}/tasks/assign` sa validnim operatorom i task tipom | Task se kreira sa statusom `OPEN` | Task je uspješno kreiran i dodijeljen korisniku | Pass |
+| S9-BE-027 | Integration testiranje | Assignment kreira notification i audit log | Dodijeliti task dokumentu | Sistem kreira task, notification zapis i audit log zapis | Nakon assignmenta kreirani su task, notifikacija i audit log | Pass |
+| S9-BE-028 | Validaciono testiranje | Blokiranje duplog aktivnog taska | Pokušati kreirati drugi aktivni task istog tipa za isti dokument | Backend vraća validacionu grešku `TASK_DUPLICATE_ACTIVE` | Dupli aktivni task istog tipa je odbijen | Pass |
+| S9-BE-029 | Validaciono testiranje | Assignee mora imati odgovarajuću rolu | Pokušati dodijeliti `APPROVAL` task operatoru ili `CORRECTION` task approveru | Backend vraća validacionu grešku za neispravnu rolu assignee korisnika | Task nije dodijeljen korisniku pogrešne role | Pass |
+| S9-BE-030 | Validaciono testiranje | Assignee mora pripadati istoj firmi | Pokušati dodijeliti task korisniku iz druge firme | Backend vraća `404 NOT_FOUND` ili odgovarajuću company isolation grešku | Task nije dodijeljen korisniku iz druge firme | Pass |
+| S9-BE-031 | Backend/API testiranje | Assigned korisnik vidi svoje taskove | Assigned operator pozove `GET /api/tasks/my` | Backend vraća samo taskove dodijeljene tom korisniku | Korisnik vidi svoj dodijeljeni task | Pass |
+| S9-BE-032 | Backend/API testiranje | Assigned korisnik može startati task | Assigned operator pozove `PATCH /api/tasks/{id}/start` | Task prelazi iz `OPEN` u `IN_PROGRESS` | Task je uspješno prešao u `IN_PROGRESS` | Pass |
+| S9-BE-033 | Backend/API testiranje | Assigned korisnik može kompletirati svoj task | Assigned operator pozove `PATCH /api/tasks/{id}/complete` | Task prelazi u `COMPLETED` i bilježi `completedByUserId` | Task je uspješno kompletiran od strane assigned korisnika | Pass |
+| S9-BE-034 | Backend/API testiranje | Manager može vidjeti sve taskove firme | Manager pozove `GET /api/tasks` | Backend vraća taskove firme | Manager je uspješno dobio listu taskova firme | Pass |
+| S9-BE-035 | Backend/API testiranje | Operator ne može vidjeti sve taskove firme | Operator pozove `GET /api/tasks` | Backend vraća `403 Forbidden` | Operatoru je zabranjen pristup listi svih taskova | Pass |
+| S9-BE-036 | Backend/API testiranje | Manager može cancelovati aktivni task | Manager pozove `PATCH /api/tasks/{id}/cancel` | Task prelazi u `CANCELLED` | Manager je uspješno cancelovao aktivni task | Pass |
+| S9-BE-037 | Backend/API testiranje | Operator ne može cancelovati task | Operator pokuša `PATCH /api/tasks/{id}/cancel` | Backend vraća `403 Forbidden` | Operatoru nije dozvoljeno cancelovanje taska | Pass |
+| S9-BE-038 | Backend/API testiranje | Non-assignee ne može startati tuđi task | Drugi operator iz iste firme pokuša startati task koji mu nije dodijeljen | Backend vraća `403 Forbidden` | Non-assignee operator nije mogao startati tuđi task | Pass |
+| S9-BE-039 | Backend/API testiranje | Non-assignee ne može kompletirati tuđi task | Drugi operator iz iste firme pokuša kompletirati task koji mu nije dodijeljen | Backend vraća `403 Forbidden` | Non-assignee operator nije mogao kompletirati tuđi task | Pass |
+| S9-BE-040 | Integration testiranje | Aktivni `EXTRACTION` task blokira drugog operatora pri pokretanju ekstrakcije | Admin dodijeli `EXTRACTION` task operatoru A, operator B pokuša pokrenuti extraction | Backend vraća `403 Forbidden` | Operator koji nije assignee nije mogao pokrenuti extraction | Pass |
+| S9-BE-041 | Integration testiranje | Assigned operator može pokrenuti extraction za svoj task | Admin dodijeli `EXTRACTION` task operatoru A, operator A pokrene extraction | Backend dozvoljava akciju | Assigned operator je uspješno pokrenuo extraction | Pass |
+| S9-BE-042 | Integration testiranje | Aktivni `EXTRACTION` task blokira drugog operatora pri confirm akciji | Dokument je `EXTRACTED`, `EXTRACTION` task je assigned operatoru A, operator B pokuša confirm | Backend vraća `403 Forbidden` | Non-assignee operator nije mogao confirmati extraction | Pass |
+| S9-BE-043 | Integration testiranje | Assigned operator može confirmati extraction za svoj task | Dokument je `EXTRACTED`, `EXTRACTION` task je assigned operatoru A, operator A potvrdi extraction | Backend vraća `200 OK`, dokument prelazi u `READY_FOR_APPROVAL` | Assigned operator je uspješno confirmovao extraction | Pass |
+| S9-BE-044 | Integration testiranje | `CORRECTION` task se koristi u correction flow-u | Dokument je `NEEDS_CORRECTION`, `CORRECTION` task je assigned operatoru A | Reconfirm akcija dozvoljena je operatoru A, a zabranjena operatoru B | Correction task permission logika radi očekivano | Pass |
+| S9-BE-045 | Regresiono testiranje | Free-for-all flow bez active taska | Dokument nema aktivan task, operator odgovarajuće role pokreće extraction/confirm | Akcija je dozvoljena prema role/status pravilima | Sistem i dalje podržava rad bez striktne dodjele zadatka | Pass |
+
+---
+
+## 9.3 Frontend/UI testiranje
+
+| ID testa | Vrsta testiranja | Funkcionalnost | Koraci testiranja | Očekivani ishod | Stvarni ishod | Status |
+|---|---|---|---|---|---|---|
+| S9-UI-001 | Frontend/UI testiranje | Prikaz novog statusa `NEEDS_CORRECTION` | Otvoriti listu ili detalje dokumenta sa statusom `NEEDS_CORRECTION` | Status badge prikazuje čitljiv label `Needs Correction` | Status se prikazuje korisniku kroz odgovarajući badge | Pass |
+| S9-UI-002 | Frontend/UI testiranje | Prikaz status history panela | Otvoriti document detail stranicu za dokument sa history zapisima | Korisnik vidi history panel/timeline sa akcijama i statusima | Status history panel je prikazan na detaljima dokumenta | Pass |
+| S9-UI-003 | Frontend/UI testiranje | Redoslijed status history zapisa | Uploadati dokument, pokrenuti extraction i confirmati extraction | History zapisi su prikazani hronološki | Timeline prikazuje događaje u pravilnom redoslijedu | Pass |
+| S9-UI-004 | Frontend/UI testiranje | Empty state za status history | Otvoriti stari dokument bez history zapisa | UI prikazuje odgovarajući empty state ili fallback | Stranica ne puca i prikazuje fallback/empty state | Pass |
+| S9-UI-005 | Frontend/UI testiranje | Prikaz komentara na dokumentu | Otvoriti document detail stranicu i sekciju komentara | Korisnik vidi postojeće komentare dokumenta | Komentari su prikazani na document detail stranici | Pass |
+| S9-UI-006 | Frontend/UI testiranje | Dodavanje validnog komentara | Unijeti komentar i kliknuti save/post | Komentar se prikazuje u listi, textarea se čisti, prikazuje se success poruka | Komentar je uspješno dodan i prikazan u UI-u | Pass |
+| S9-UI-007 | Frontend/UI testiranje | Validacija praznog komentara | Pokušati dodati prazan ili whitespace komentar | UI/backend odbija unos i prikazuje korisniku grešku | Prazan komentar nije dodan i prikazana je greška | Pass |
+| S9-UI-008 | Frontend/UI testiranje | Komentari ostaju nakon refresh-a | Dodati komentar i refreshovati document detail stranicu | Komentar ostaje vidljiv nakon ponovnog učitavanja | Komentar je trajno spremljen i prikazan nakon refresh-a | Pass |
+| S9-UI-009 | Frontend/UI testiranje | Admin vidi audit log sekciju | Ulogovati se kao Admin i otvoriti document detail | Audit log sekcija/tab je vidljiva | Admin vidi audit log sekciju | Pass |
+| S9-UI-010 | Frontend/UI testiranje | Manager vidi audit log sekciju | Ulogovati se kao Manager i otvoriti document detail | Audit log sekcija/tab je vidljiva | Manager vidi audit log sekciju | Pass |
+| S9-UI-011 | Frontend/UI testiranje | Operator ne vidi audit log sekciju | Ulogovati se kao Operator i otvoriti document detail | Audit log sekcija nije prikazana | Operator ne vidi audit log na frontend strani | Pass |
+| S9-UI-012 | Frontend/UI testiranje | Approver ne vidi audit log sekciju | Ulogovati se kao Approver i otvoriti document detail | Audit log sekcija nije prikazana | Approver ne vidi audit log na frontend strani | Pass |
+| S9-UI-013 | Frontend/UI testiranje | User-friendly prikaz audit akcija | Izvršiti update extraction fielda i otvoriti audit log | Akcija se prikazuje kao čitljiv tekst, npr. `Field updated`, bez raw JSON prikaza korisniku | Audit log prikazuje čitljiv naziv akcije i detalje | Pass |
+| S9-UI-014 | Frontend/UI testiranje | Prikaz korisnika u audit logu | Otvoriti audit log koji sadrži `FIELD_UPDATED` zapis | UI prikazuje `userFullName` korisnika koji je izvršio akciju | Audit log prikazuje ime korisnika koji je izvršio akciju | Pass |
+| S9-UI-015 | Frontend/UI testiranje | Admin/Manager task assignment forma | Otvoriti document detail kao Admin/Manager | Vidljiva je forma/sekcija za dodjelu taska | Task assignment UI je prikazan Admin/Manager korisniku | Pass |
+| S9-UI-016 | Frontend/UI testiranje | Uspješno dodjeljivanje taska kroz UI | Izabrati korisnika, task type i kliknuti assign | Task se kreira, prikazuje se success toastr i active task informacija | Task je uspješno dodijeljen kroz UI | Pass |
+| S9-UI-017 | Frontend/UI testiranje | Duplicate task greška u UI-u | Pokušati dodijeliti drugi aktivni task istog tipa za isti dokument | Korisnik dobija jasnu error poruku | UI prikazuje grešku i ne kreira dupli task | Pass |
+| S9-UI-018 | Frontend/UI testiranje | My Tasks stranica | Ulogovati se kao assigned operator i otvoriti `/tasks/my` | Korisnik vidi svoje dodijeljene taskove | My Tasks stranica prikazuje dodijeljene taskove | Pass |
+| S9-UI-019 | Frontend/UI testiranje | Navigacija sa My Tasks na dokument | Kliknuti task na My Tasks stranici | Otvara se odgovarajući document detail | Klik na task vodi na odgovarajući dokument | Pass |
+| S9-UI-020 | Frontend/UI testiranje | Start task kroz UI | Assigned korisnik klikne start task | Task status prelazi u `IN_PROGRESS` i UI se osvježava | Task je uspješno startan i status je ažuriran | Pass |
+| S9-UI-021 | Frontend/UI testiranje | Complete task kroz UI | Assigned korisnik pokuša kompletirati task | Task se kompletira samo kada je poslovna akcija završena ili je UI spriječio prerano kompletiranje | Task completion ponašanje je usklađeno sa poslovnim flow-om | Pass |
+| S9-UI-022 | Frontend/UI testiranje | Cancel task kao Admin/Manager | Admin/Manager canceluje aktivni task | Task prelazi u `CANCELLED`, a UI prikazuje ažurirano stanje | Task je uspješno cancelovan kroz UI | Pass |
+| S9-UI-023 | Frontend/UI testiranje | Overdue task prikaz | Otvoriti task kojem je prošao due date | UI prikazuje oznaku ili warning da je task overdue | Task sa prošlim rokom je označen kao overdue | Pass |
+| S9-UI-024 | Frontend/UI testiranje | Info banner za dokument assigned drugom korisniku | Operator otvori dokument koji je aktivno dodijeljen drugom operatoru | UI prikazuje info/warning banner da je dokument dodijeljen drugom korisniku | Operator odmah vidi da je dokument assigned drugom korisniku | Pass |
+| S9-UI-025 | Frontend/UI testiranje | Existing extraction flow nakon task UI izmjena | Kao dozvoljeni operator pokrenuti extraction, editovati field i confirmati extraction | Postojeći extraction UI i dalje radi bez regresije | Extraction flow je uspješno izvršen nakon task UI izmjena | Pass |
+| S9-UI-026 | Frontend/UI testiranje | Responsivnost workflow sekcija | Otvoriti document detail na manjoj širini ekrana | Status history, komentari, audit log i task sekcije ostaju čitljive | Workflow sekcije ostaju pregledne na manjim ekranima | Pass |
+
+---
+
+## 9.4 Manualno API testiranje kroz Swagger/Postman
+
+| ID testa | Vrsta testiranja | Alat | Endpoint / funkcionalnost | Koraci | Očekivani rezultat | Stvarni rezultat | Status |
+|---|---|---|---|---|---|---|---|
+| S9-API-001 | Backend/API testiranje | Swagger/Postman | Dohvat status history | Pozvati `GET /api/documents/{id}/status-history` | API vraća status history zapise dokumenta | Status history zapisi su uspješno vraćeni | Pass |
+| S9-API-002 | Backend/API testiranje | Swagger/Postman | Dohvat komentara | Pozvati `GET /api/documents/{id}/comments` | API vraća komentare dokumenta | Komentari su uspješno vraćeni | Pass |
+| S9-API-003 | Backend/API testiranje | Swagger/Postman | Dodavanje komentara | Pozvati `POST /api/documents/{id}/comments` sa validnim sadržajem | Komentar se uspješno kreira | Komentar je kreiran putem API-ja | Pass |
+| S9-API-004 | Validaciono testiranje | Swagger/Postman | Dodavanje praznog komentara | Poslati prazan/whitespace komentar | API vraća `400 Bad Request` | Prazan komentar je odbijen | Pass |
+| S9-API-005 | Backend/API testiranje | Swagger/Postman | Dohvat audit loga kao Admin/Manager | Pozvati `GET /api/documents/{id}/audit-log` sa dozvoljenom rolom | API vraća audit log | Audit log je vraćen dozvoljenom korisniku | Pass |
+| S9-API-006 | Backend/API testiranje | Swagger/Postman | Dohvat audit loga kao Operator/Approver | Pozvati audit endpoint sa nedozvoljenom rolom | API vraća `403 Forbidden` | Pristup audit logu je odbijen | Pass |
+| S9-API-007 | Backend/API testiranje | Swagger/Postman | Dodjela taska | Pozvati `POST /api/documents/{id}/tasks/assign` | API kreira task i vraća task podatke | Task je uspješno kreiran putem API-ja | Pass |
+| S9-API-008 | Backend/API testiranje | Swagger/Postman | Dohvat mojih taskova | Pozvati `GET /api/tasks/my` | API vraća taskove dodijeljene trenutnom korisniku | Vraćeni su taskovi prijavljenog korisnika | Pass |
+| S9-API-009 | Backend/API testiranje | Swagger/Postman | Start taska | Pozvati `PATCH /api/tasks/{id}/start` kao assigned korisnik | API mijenja status taska u `IN_PROGRESS` | Task je uspješno startan putem API-ja | Pass |
+| S9-API-010 | Backend/API testiranje | Swagger/Postman | Complete taska | Pozvati `PATCH /api/tasks/{id}/complete` kao assigned korisnik | API mijenja status taska u `COMPLETED` kada su ispunjeni uslovi | Task je uspješno kompletiran kada su uslovi ispunjeni | Pass |
+| S9-API-011 | Backend/API testiranje | Swagger/Postman | Cancel taska | Pozvati `PATCH /api/tasks/{id}/cancel` kao Admin/Manager | API mijenja status taska u `CANCELLED` | Task je uspješno cancelovan | Pass |
+| S9-API-012 | Validaciono testiranje | Swagger/Postman | Non-assignee workflow akcija | Korisnik koji nije assignee pokuša process/confirm za dokument assigned drugom korisniku | API vraća `403 Forbidden` | Backend je blokirao akciju korisnika koji nije assignee | Pass |
+
+---
+
+## 9.5 End-to-end i regresiono testiranje
+
+| ID testa | Vrsta testiranja | Scenario | Koraci | Očekivani ishod | Stvarni ishod | Status |
+|---|---|---|---|---|---|---|
+| S9-E2E-001 | End-to-end testiranje | Upload → status history → comment | Uploadati dokument, otvoriti detalje, provjeriti status history i dodati komentar | Upload kreira initial history, komentar se sprema i ostaje nakon refresh-a | Dokument ima initial history zapis, a komentar je uspješno spremljen | Pass |
+| S9-E2E-002 | End-to-end testiranje | Upload → extraction → confirm sa status history | Uploadati dokument, pokrenuti extraction i confirmati extraction | History prikazuje `DOCUMENT_UPLOADED`, `EXTRACTION_COMPLETED`, `EXTRACTION_CONFIRMED`; status prelazi u `READY_FOR_APPROVAL` | Workflow je uspješno evidentiran kroz status history | Pass |
+| S9-E2E-003 | End-to-end testiranje | Edit extraction field → audit log | Pokrenuti extraction, editovati jedno polje, otvoriti audit log kao Admin/Manager | Audit log sadrži `FIELD_UPDATED` zapis sa korisnikom i detaljima | Update polja je vidljiv u audit logu | Pass |
+| S9-E2E-004 | End-to-end testiranje | Task assignment → My Tasks → start | Admin/Manager dodijeli task operatoru, operator otvori My Tasks i starta task | Task je vidljiv operatoru i prelazi u `IN_PROGRESS` | Task assignment i start flow su uspješno izvršeni | Pass |
+| S9-E2E-005 | End-to-end testiranje | Assigned extraction flow | Admin dodijeli `EXTRACTION` task operatoru, operator pokrene extraction i potvrdi dokument | Assigned operator može završiti extraction flow, dokument prelazi u `READY_FOR_APPROVAL` | Assigned operator je uspješno završio extraction flow | Pass |
+| S9-E2E-006 | End-to-end testiranje | Non-assignee blokiran u assigned flow-u | Dokument ima aktivan task za operatora A, operator B pokuša raditi process/confirm | Backend vraća `403`, a UI prikazuje odgovarajuću informaciju/grešku | Non-assignee korisnik je blokiran i korisniku je prikazana poruka | Pass |
+| S9-E2E-007 | End-to-end testiranje | Cancel task i novi assignment | Admin/Manager canceluje aktivni task, zatim dodjeljuje novi task istog tipa | Nakon cancel-a moguće je kreirati novi aktivni task | Cancel i novi assignment rade očekivano | Pass |
+| S9-E2E-008 | Regresiono testiranje | Upload flow nakon workflow foundation izmjena | Testirati upload validnog dokumenta | Upload funkcionalnost iz prethodnih sprintova i dalje radi | Upload dokumenta radi bez regresije | Pass |
+| S9-E2E-009 | Regresiono testiranje | Existing extraction/edit/confirm flow bez assigned taska | Dokument nema aktivan task; operator odgovarajuće role radi extraction/edit/confirm | Sistem i dalje podržava free-for-all flow prema roli/statusu | Extraction/edit/confirm radi bez obaveznog assignmenta | Pass |
+| S9-E2E-010 | Regresiono testiranje | Classification review flow nakon status history refaktora | OTHER dokument ode u classification review, zatim se ručno potvrdi tip | Statusi i metadata ostaju ispravni, history se popunjava | Classification review flow radi bez regresije | Pass |
+| S9-E2E-011 | Regresiono testiranje | Role-based UI nakon audit/task izmjena | Provjeriti Admin, Manager, Operator i Approver prikaz document detail stranice | Svaka rola vidi samo dozvoljene sekcije i akcije | Role-based UI prikaz radi očekivano | Pass |
+| S9-E2E-012 | Regresiono testiranje | Delete dokumenta nakon workflow zapisa | Dokument ima history, komentar, extraction i task/audit podatke; obrisati dokument | Delete ne puca zbog FK constrainta i ne ostavlja orphan zapise | Dokument i povezani zapisi su obrisani bez FK greške | Pass |
+
+---
+
+## 9.6 CI i automatizovano build testiranje
+
+| ID testa | Vrsta testiranja | Okruženje | Funkcionalnost | Koraci | Očekivani ishod | Stvarni ishod | Status |
+|---|---|---|---|---|---|---|---|
+| S9-CI-001 | Automatizovano smoke testiranje | GitHub Actions | Backend build i testovi na PR-u | Otvoriti PR prema `develop`; CI pokreće backend job | Backend build i svi Maven testovi prolaze | Backend build i testovi su prošli na CI runneru | Pass |
+| S9-CI-002 | Automatizovano smoke testiranje | GitHub Actions | Frontend build na PR-u | Otvoriti PR prema `develop`; CI pokreće frontend job | Angular build prolazi bez greške | Frontend build je prošao na CI runneru | Pass |
+| S9-CI-003 | Regresiono testiranje | GitHub Actions | Required status checks za develop | PR prema `develop` mora imati zelene backend/frontend checkove | PR koji ruši backend ili frontend build ne može biti normalno merge-an | Required status checks su konfigurisani za backend i frontend build | Pass |
+| S9-CI-004 | Automatizovano smoke testiranje | Lokalno razvojno okruženje | Backend build lokalno | Pokrenuti `mvnw clean install` / `./mvnw clean install` | Backend se kompajlira i testovi prolaze | Backend build i testovi su lokalno prošli | Pass |
+| S9-CI-005 | Automatizovano smoke testiranje | Lokalno razvojno okruženje | Frontend build lokalno | Pokrenuti `npm run build` u frontend folderu | Angular build prolazi | Frontend build je lokalno prošao | Pass |
+
+---
+
+## 9.7 Deployment smoke testiranje
+
+| ID testa | Vrsta testiranja | Okruženje | Funkcionalnost | Koraci | Očekivani ishod | Stvarni ishod | Status |
+|---|---|---|---|---|---|---|---|
+| S9-DEP-001 | Deployment smoke testiranje | Lokalno Docker okruženje | Pokretanje baze nakon novih workflow tabela | Pokrenuti PostgreSQL container i backend aplikaciju | Nove tabele/kolone se kreiraju bez greške | Baza i backend su se uspješno pokrenuli sa novim workflow modelom | Pass |
+| S9-DEP-002 | Deployment smoke testiranje | Lokalno/Server | Enum/check constraint za `NEEDS_CORRECTION` | Pokrenuti ručni SQL za ažuriranje document status constrainta ako je potreban | Baza prihvata novi status `NEEDS_CORRECTION` | Constraint je ažuriran i novi status je prihvaćen | Pass |
+| S9-DEP-003 | Deployment smoke testiranje | Lokalno/Server | Pokretanje backend containera nakon Sprint 9 izmjena | Pokrenuti backend container | Backend se pokreće bez greške | Backend container se uspješno pokrenuo | Pass |
+| S9-DEP-004 | Deployment smoke testiranje | Lokalno/Server | Pokretanje frontend containera nakon workflow UI izmjena | Pokrenuti frontend container | Frontend je dostupan u browseru | Frontend container se uspješno pokrenuo i aplikacija je dostupna | Pass |
+| S9-DEP-005 | Deployment smoke testiranje | Lokalno/Server | FE-BE komunikacija za status history i komentare | Otvoriti document detail, dohvatiti history i dodati komentar | Frontend uspješno poziva backend endpoint-e | Status history i comments endpointi rade kroz UI | Pass |
+| S9-DEP-006 | Deployment smoke testiranje | Lokalno/Server | FE-BE komunikacija za audit log | Otvoriti document detail kao Admin/Manager | Audit log endpoint se poziva i UI prikazuje podatke/empty state | Audit log sekcija radi u aplikaciji | Pass |
+| S9-DEP-007 | Deployment smoke testiranje | Lokalno/Server | FE-BE komunikacija za task assignment | Dodijeliti task kroz UI i otvoriti My Tasks | Task se kreira i prikazuje assigned korisniku | Task assignment i My Tasks rade u aplikaciji | Pass |
+| S9-DEP-008 | Deployment smoke testiranje | Lokalno/Server | Regresiona provjera upload/extraction flow-a | Uploadati dokument, pokrenuti extraction i confirm | Prethodni upload/extraction flow radi nakon Sprint 9 izmjena | Upload, extraction i confirm rade bez regresije | Pass |
+
+---
+
+## Zaključak testiranja
+
+Tokom Sprinta 9, za implementaciju članova 1–4, testirane su workflow foundation funkcionalnosti, status history i komentari, audit log i permission sloj, kao i task assignment i My Tasks flow.
+
+Zaključak:
+
+- Testirano je proširenje backend modela novim workflow entitetima i statusom `NEEDS_CORRECTION`.
+- Testirano je centralizovano bilježenje status promjena kroz `DocumentStatusTransitionService`.
+- Testirano je da upload, extraction, confirm, failure i classification review tokovi kreiraju odgovarajuće status history zapise.
+- Testirano je dodavanje, dohvat, validacija i prikaz komentara na dokumentu.
+- Testirano je brisanje dokumenta sa povezanim workflow i extraction zapisima bez FK grešaka.
+- Testirano je da audit log mogu vidjeti samo Admin i Manager korisnici, dok Operator i Approver nemaju pristup.
+- Testirano je da `AuditLogService.log(...)` kreira zapis i da se audit log popunjava za postojeću akciju update extraction fielda.
+- Testirano je task assignment ponašanje: dodjela taska, duplicate task validacija, My Tasks prikaz, start, complete i cancel task.
+- Testirano je da aktivni assignment ograničava poslovne akcije na assigned korisnika, dok sistem i dalje podržava free-for-all rad kada aktivni task ne postoji.
+- Testirani su frontend prikazi za status history, komentare, audit log, task assignment, My Tasks, overdue oznake i banner za dokument dodijeljen drugom korisniku.
+- Izvršeno je regresiono testiranje upload, extraction, edit, confirm i classification review tokova nakon uvođenja workflow sloja.
+- Dodan je i provjeren basic CI koji na PR-ovima pokreće backend build/testove i frontend build.
+- Svi evidentirani testovi za Sprint 9 imaju status `Pass`.
