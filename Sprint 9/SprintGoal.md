@@ -45,7 +45,6 @@ Zavisnost ovog sprinta je od prethodno implementiranog role/auth sistema iz Spri
 
 Potencijalni problemi i rizici uključuju:
 
-- Probleme sa SMTP/email integracijom (Spring Mail konfiguracija odvojena od Keycloak SMTP)
 - Nejasno ponašanje pri vraćanju dokumenta na doradu (`NEEDS_CORRECTION` vs `REJECTED` semantika)
 - Rizik neusklađenosti permission logike između backend-a i frontend-a; backend mora biti source of truth
 - Postojeći DB enum constraints mogu odbiti novi status `NEEDS_CORRECTION` bez eksplicitne SQL migracije
