@@ -823,7 +823,7 @@ Testirane funkcionalnosti uključuju:
 
 ## Zaključak testiranja
 
-Tokom Sprinta 9, za implementaciju članova 1–4, testirane su workflow foundation funkcionalnosti, status history i komentari, audit log i permission sloj, kao i task assignment i My Tasks flow.
+Tokom Sprinta 9, testirane su workflow foundation funkcionalnosti, status history i komentari, audit log i permission sloj, kao i task assignment i My Tasks flow.
 
 Zaključak:
 
