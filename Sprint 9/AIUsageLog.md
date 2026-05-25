@@ -323,7 +323,7 @@ Napomena: Ovaj AI Usage Log je živi dokument i ažurira se kroz sprintove.
 
 
 ---
-## Unos 18
+## Unos #19
 
 | Polje | Detalji |
 |---|---|
