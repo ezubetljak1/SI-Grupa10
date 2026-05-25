@@ -55,7 +55,8 @@ export const routes: Routes = [
     {
         path: 'tasks/my',
         component: MyTasksPageComponent,
-        canActivate: [authGuard],
+        canActivate: [authGuard, roleGuard],
+        data: { roles: ['ADMIN', 'OPERATOR', 'APPROVER'] },
     },
     {
         path: 'company/users',
