@@ -86,10 +86,10 @@
 
               <span>
                   @if (showAssignedToAnotherUserWarning) {
-                    This document has an active {{ formatTaskType(bannerTask.taskType) }} task assigned to
+                    This document has an active {{ formatTaskTypeTitle(bannerTask.taskType) }} task assigned to
                     {{ bannerTask.assignedUserName || ('user #' + bannerTask.assignedUserId) }}.
                   } @else {
-                    {{ formatTaskType(bannerTask.taskType) }} assigned to
+                    {{ formatTaskTypeTitle(bannerTask.taskType) }} assigned to
                     {{ bannerTask.assignedUserName || ('user #' + bannerTask.assignedUserId) }}.
                   }
                 </span>
@@ -97,10 +97,10 @@
 
             <div class="task-banner__meta">
               @if (isTaskOverdue(bannerTask)) {
-                <span class="task-banner__overdue">Overdue</span>
+                <span class="task-status-pill task-status-pill--overdue">Overdue</span>
               }
 
-              <span class="task-banner__status">{{ bannerTask.status }}</span>
+              <span class="task-status-pill task-status-pill--active">{{ formatTaskStatusLabel(bannerTask.status) }}</span>
             </div>
           </div>
         } @else if (taskError) {

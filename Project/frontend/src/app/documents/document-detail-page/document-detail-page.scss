@@ -1144,6 +1144,144 @@ img {
   line-height: 1.45;
 }
 
+.workflow-task-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.workflow-task-banner__content {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.workflow-task-banner__content strong {
+  color: #0f172a;
+  font-weight: 800;
+}
+
+.workflow-task-banner__content span {
+  color: #0f172a;
+}
+
+.workflow-task-banner__status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.task-status-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 1.8rem;
+  padding: 0.28rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.task-status-pill--active {
+  background: #eef2ff;
+  color: #4f46e5;
+  text-transform: uppercase;
+}
+
+.task-status-pill--overdue {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.workflow-task-banner--overdue {
+  border-color: #fecaca;
+  background: #fff7f7;
+} 
+
+.task-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.task-banner__content {
+  display: grid;
+  gap: 2px;
+}
+
+.task-banner__content strong {
+  color: var(--text-main);
+  font-weight: 800;
+}
+
+.task-banner__content span {
+  color: var(--text-main);
+}
+
+.task-banner__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.task-status-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.task-status-pill--active {
+  background: #eef2ff;
+  color: #4f46e5;
+}
+
+.task-status-pill--overdue {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.task-banner--overdue {
+  border-color: #fecaca;
+  background: #fff7f7;
+}
+
+@media (max-width: 900px) {
+  .task-banner {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .task-banner__meta {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 720px) {
+  .workflow-task-banner {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .workflow-task-banner__status {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}
+
 @media (max-width: 720px) {
   .workflow-event,
   .audit-entry {

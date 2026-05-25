@@ -1759,6 +1759,30 @@ private toTitleCase(value: string): string {
     const fullName = `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim();
 
     return fullName || `user #${numericUserId}`;
+  } 
+
+  formatTaskTypeTitle(taskType: TaskType | string | null | undefined): string {
+  switch (taskType) {
+    case 'EXTRACTION':
+      return 'Extraction';
+    case 'CORRECTION':
+      return 'Correction';
+    case 'APPROVAL':
+      return 'Approval';
+    default:
+      return 'Task';
   }
+}
+
+formatTaskStatusLabel(status: string | null | undefined): string {
+  if (!status) {
+    return 'Unknown';
+  }
+
+  return status
+    .replaceAll('_', ' ')
+    .toLowerCase()
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
 
 }
