@@ -68,7 +68,7 @@ public class TaskServiceImpl implements TaskService {
                         request.getAssignedUserId(), currentUser.companyId());
         validateAssignee(request, assignee);
         validateDocumentReadyForTaskAssignment(document, request.getTaskType());
-        validateDueDate(request.getDueDate());
+        validateDueDate(documentId, request.getTaskType(), request.getDueDate());
         validateNoDuplicateActiveTask(documentId, request.getTaskType());
 
         TaskEntity task = new TaskEntity();
@@ -100,6 +100,11 @@ public class TaskServiceImpl implements TaskService {
     @Override
     @Transactional(readOnly = true)
     public List<TaskResponse> findMyTasks() {
+        RoleName role = RoleName.valueOf(currentUserService.getCurrentUser().role());
+        if (role == RoleName.MANAGER) {
+            throw new AccessDeniedException("Managers do not receive assigned tasks.");
+        }
+
         Long userId = currentUserService.getCurrentUserId();
         return taskMapper.entitiesToDtos(
                 taskDAO.findByAssignedUserId(userId), this::resolveUserName);
@@ -243,7 +248,7 @@ public class TaskServiceImpl implements TaskService {
     private boolean isAllowedAssigneeRole(TaskType taskType, RoleName role) {
         return switch (taskType) {
             case EXTRACTION, CORRECTION -> role == RoleName.OPERATOR;
-            case APPROVAL -> role == RoleName.APPROVER || role == RoleName.MANAGER;
+            case APPROVAL -> role == RoleName.APPROVER;
         };
     }
 
@@ -255,7 +260,7 @@ public class TaskServiceImpl implements TaskService {
         }
     }
 
-    private void validateDueDate(LocalDateTime dueDate) {
+    private void validateDueDate(Long documentId, TaskType taskType, LocalDateTime dueDate) {
         if (dueDate == null) {
             return;
         }
@@ -263,6 +268,39 @@ public class TaskServiceImpl implements TaskService {
         if (dueDate.toLocalDate().isBefore(LocalDate.now())) {
             throwValidation("TASK_DUE_DATE_INVALID", "Task due date cannot be in the past.");
         }
+
+        if (taskType == TaskType.CORRECTION) {
+            LocalDateTime extractionDueDate = latestDueDateForType(documentId, TaskType.EXTRACTION);
+            if (extractionDueDate != null && dueDate.isBefore(extractionDueDate)) {
+                throwValidation(
+                        "TASK_DUE_DATE_ORDER_INVALID",
+                        "Correction due date cannot be before the extraction due date.");
+            }
+        }
+
+        if (taskType == TaskType.APPROVAL) {
+            LocalDateTime correctionDueDate = latestDueDateForType(documentId, TaskType.CORRECTION);
+            if (correctionDueDate != null && dueDate.isBefore(correctionDueDate)) {
+                throwValidation(
+                        "TASK_DUE_DATE_ORDER_INVALID",
+                        "Approval due date cannot be before the correction due date.");
+            }
+
+            LocalDateTime extractionDueDate = latestDueDateForType(documentId, TaskType.EXTRACTION);
+            if (extractionDueDate != null && dueDate.isBefore(extractionDueDate)) {
+                throwValidation(
+                        "TASK_DUE_DATE_ORDER_INVALID",
+                        "Approval due date cannot be before the extraction due date.");
+            }
+        }
+    }
+
+    private LocalDateTime latestDueDateForType(Long documentId, TaskType taskType) {
+        return taskDAO.findByDocumentId(documentId).stream()
+                .filter(task -> task.getTaskType() == taskType && task.getDueDate() != null)
+                .map(TaskEntity::getDueDate)
+                .max(LocalDateTime::compareTo)
+                .orElse(null);
     }
 
     private void validateDocumentReadyForTaskAssignment(

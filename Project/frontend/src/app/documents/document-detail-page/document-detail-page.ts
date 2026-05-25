@@ -26,6 +26,13 @@ import { UserApiService } from '../../users/services/user-api.service';
 import { UserResponse } from '../../users/models/user.models';
 import { TaskApiService } from '../../tasks/services/task-api.service';
 import { AssignTaskRequest, TaskResponse, TaskType } from '../../tasks/models/task.models';
+import {
+  EUROPEAN_DATETIME_PLACEHOLDER,
+  formatApiDateTime,
+  parseApiDateTime,
+  parseEuropeanDateTimeInput,
+  toDatetimeLocalValue,
+} from '../../shared/utils/datetime.utils';
 
 interface EditState {
   fieldId: number;
@@ -114,7 +121,7 @@ export class DocumentDetailPageComponent implements OnInit {
   assignTaskType: TaskType = 'CORRECTION';
   assignTaskDueDate = '';
   assigningTask = false;
-  readonly minDueDate = this.toDatetimeLocalValue(new Date());
+  readonly europeanDatetimePlaceholder = EUROPEAN_DATETIME_PLACEHOLDER;
 
   readonly allTaskTypeOptions: { value: TaskType; label: string }[] = [
     { value: 'EXTRACTION', label: 'Extraction' },
@@ -127,7 +134,7 @@ export class DocumentDetailPageComponent implements OnInit {
   }
 
   get canApproveDocuments(): boolean {
-    return this.authService.hasRole(['ADMIN', 'MANAGER', 'APPROVER']);
+    return this.authService.hasRole(['ADMIN', 'APPROVER']);
   }
 
   get canViewAudit(): boolean {
@@ -223,14 +230,17 @@ export class DocumentDetailPageComponent implements OnInit {
   }
 
   get eligibleAssignees(): UserResponse[] {
-    const allowedRoles =
-      this.assignTaskType === 'APPROVAL'
-        ? ['APPROVER', 'MANAGER']
-        : ['OPERATOR'];
+    const allowedRoles = this.assignTaskType === 'APPROVAL' ? ['APPROVER'] : ['OPERATOR'];
 
     return this.assignableUsers.filter(
       (user) => allowedRoles.includes(user.role) && user.accountStatus !== 'INACTIVE'
     );
+  }
+
+  get minDueDateHint(): string {
+    const prerequisite = this.latestPrerequisiteDueDate(this.assignTaskType);
+    const baseline = prerequisite ?? new Date();
+    return formatApiDateTime(toDatetimeLocalValue(baseline));
   }
 
  get taskTypeOptions(): { value: TaskType; label: string }[] {
@@ -760,14 +770,7 @@ export class DocumentDetailPageComponent implements OnInit {
   }
 
   formatDate(dateStr: string): string {
-    if (!dateStr) return '—';
-    return new Date(dateStr).toLocaleString('en-GB', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+    return formatApiDateTime(dateStr);
   }
 
   loadWorkflowData(documentId: number): void {
@@ -885,10 +888,28 @@ export class DocumentDetailPageComponent implements OnInit {
       return;
     }
 
+    let dueDate: string | null = null;
+    if (this.assignTaskDueDate.trim()) {
+      dueDate = parseEuropeanDateTimeInput(this.assignTaskDueDate);
+      if (!dueDate) {
+        this.toastr.warning(
+          `Use European date format (${EUROPEAN_DATETIME_PLACEHOLDER}).`,
+          'Invalid due date'
+        );
+        return;
+      }
+
+      const dueDateError = this.validateDueDateOrder(dueDate);
+      if (dueDateError) {
+        this.toastr.warning(dueDateError, 'Invalid due date');
+        return;
+      }
+    }
+
     const payload: AssignTaskRequest = {
       assignedUserId: this.assignTaskUserId,
       taskType: this.assignTaskType,
-      dueDate: this.assignTaskDueDate || null,
+      dueDate,
     };
 
     this.assigningTask = true;
@@ -929,6 +950,7 @@ export class DocumentDetailPageComponent implements OnInit {
 
   onTaskTypeChange(): void {
     this.duplicateTaskAssignmentAttempted = false;
+    this.assignTaskDueDate = '';
     this.syncDefaultAssignee();
   }
 
@@ -937,9 +959,11 @@ export class DocumentDetailPageComponent implements OnInit {
   }
 
   isTaskOverdue(task: TaskResponse): boolean {
-    return !!task.dueDate
-      && (task.status === 'OPEN' || task.status === 'IN_PROGRESS')
-      && new Date(task.dueDate).getTime() < Date.now();
+    return (
+      !!task.dueDate &&
+      (task.status === 'OPEN' || task.status === 'IN_PROGRESS') &&
+      parseApiDateTime(task.dueDate).getTime() < Date.now()
+    );
   }
 
   approveDocument(): void {
@@ -1501,10 +1525,47 @@ private toTitleCase(value: string): string {
     this.assignTaskUserId = this.eligibleAssignees[0]?.id ?? null;
   }
 
-  private toDatetimeLocalValue(date: Date): string {
-    const pad = (value: number) => value.toString().padStart(2, '0');
+  private latestPrerequisiteDueDate(taskType: TaskType): Date | null {
+    if (taskType === 'CORRECTION') {
+      return this.latestTaskDueDate('EXTRACTION');
+    }
 
-    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+    if (taskType === 'APPROVAL') {
+      return this.latestTaskDueDate('CORRECTION') ?? this.latestTaskDueDate('EXTRACTION');
+    }
+
+    return null;
+  }
+
+  private latestTaskDueDate(taskType: TaskType): Date | null {
+    const dueDates = this.tasks
+      .filter((task) => task.taskType === taskType && task.dueDate)
+      .map((task) => parseApiDateTime(task.dueDate!));
+
+    if (dueDates.length === 0) {
+      return null;
+    }
+
+    return new Date(Math.max(...dueDates.map((date) => date.getTime())));
+  }
+
+  private validateDueDateOrder(dueDate: string): string | null {
+    const selectedDueDate = parseApiDateTime(dueDate);
+    const prerequisite = this.latestPrerequisiteDueDate(this.assignTaskType);
+
+    if (prerequisite && selectedDueDate.getTime() < prerequisite.getTime()) {
+      if (this.assignTaskType === 'CORRECTION') {
+        return 'Correction due date cannot be before the extraction due date.';
+      }
+
+      return 'Approval due date cannot be before the correction or extraction due date.';
+    }
+
+    if (selectedDueDate.getTime() < Date.now()) {
+      return 'Task due date cannot be in the past.';
+    }
+
+    return null;
   }
 
   private shouldLoadExtractionForStatus(status: string | null | undefined): boolean {

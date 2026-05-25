@@ -12,6 +12,16 @@
   flex-wrap: wrap;
 }
 
+
+.field-header {
+  display: flex;
+  align-items: center;
+}
+
+.field-hint {
+  margin-left: auto;
+}
+
 .detail-actions .btn {
   min-height: 46px;
   padding-inline: 22px;
@@ -339,7 +349,7 @@
 
 .mono {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
-    'Courier New', monospace;
+  'Courier New', monospace;
 }
 
 .field-cell {
