@@ -1019,3 +1019,269 @@ početku svake poslovne logike.
   kompanija.
 
 **Status:** Aktivna
+
+
+---
+
+### DL-033 – Uvođenje workflow foundation modela kroz posebne tabele
+
+**Datum:** 22.05.2026  
+**Opis problema:**  
+Sprint 9 uvodi više novih workflow koncepata: historiju statusa, komentare, zadatke i audit log. Bilo je potrebno odlučiti da li ove podatke dodavati direktno na `DocumentEntity` ili ih modelirati kao posebne entitete.
+
+**Razmatrane opcije:**
+
+1. Dodati sva workflow polja direktno na `DocumentEntity`.
+2. Modelirati workflow koncepte kroz posebne tabele povezane sa dokumentom.
+3. Čuvati workflow događaje samo kao JSON u jednoj generičkoj tabeli.
+
+**Odabrana opcija:**  
+Workflow koncepti se modeliraju kroz posebne entitete i tabele: `status_history`, `document_comment`, `workflow_task` i `audit_log`.
+
+**Razlog izbora:**  
+Dokument već čuva osnovne metapodatke i trenutni status. Dodavanje svih workflow podataka direktno na `DocumentEntity` bi dovelo do prevelikog i teško održivog modela. Posebne tabele omogućavaju jasnije razdvajanje odgovornosti, lakše testiranje i proširenje sistema kroz naredne članove Sprinta 9.
+
+**Posljedice odluke:**
+
+- `DocumentEntity` ostaje fokusiran na osnovne podatke o dokumentu.
+- Status history, komentari, taskovi i audit log imaju vlastite entitete i DAO slojeve.
+- Kasniji članovi mogu implementirati svoje funkcionalnosti bez velikog refaktorisanja document modela.
+- Delete dokumenta mora voditi računa o povezanim workflow zapisima kako ne bi došlo do FK constraint grešaka.
+
+**Status:** Aktivna
+
+---
+
+### DL-034 – Centralizacija promjena statusa kroz DocumentStatusTransitionService
+
+**Datum:** 22.05.2026  
+**Opis problema:**  
+Prije Sprinta 9 status dokumenta se mijenjao direktno u različitim servisima, npr. tokom uploada, ekstrakcije, retry flow-a, potvrde ekstrakcije i classification review toka. U Sprintu 9 je potrebno voditi historiju svih bitnih promjena statusa.
+
+**Razmatrane opcije:**
+
+1. Ostaviti direktne `document.setDocumentStatus(...)` pozive i ručno dodavati status history gdje je potrebno.
+2. Centralizovati promjene statusa kroz poseban servis.
+3. Status history generisati samo na frontend strani na osnovu trenutnog statusa.
+
+**Odabrana opcija:**  
+Promjene statusa se centralizuju kroz `DocumentStatusTransitionService`, koji istovremeno mijenja trenutni status dokumenta i kreira zapis u `status_history`.
+
+**Razlog izbora:**  
+Centralizovani servis smanjuje rizik da neka status promjena bude napravljena bez odgovarajućeg history zapisa. Time se dobija konzistentan workflow trag kroz backend, umjesto da frontend pokušava zaključivati historiju na osnovu trenutnog stanja.
+
+**Posljedice odluke:**
+
+- Status history postaje append-only trag promjena statusa.
+- Postojeći upload, extraction, retry, confirm i classification tokovi se refaktorišu da koriste transition servis.
+- Svaki history zapis sadrži stari status, novi status, akciju, korisnika, vrijeme i opcione detalje.
+- Testovi moraju provjeriti da status promjene kreiraju odgovarajuće history zapise.
+
+**Status:** Aktivna
+
+---
+
+### DL-035 – Uvođenje statusa NEEDS_CORRECTION za popravljivo vraćanje dokumenta
+
+**Datum:** 22.05.2026  
+**Opis problema:**  
+U approval workflow-u potrebno je razlikovati dokument koji je finalno odbijen od dokumenta koji approver vraća operateru na doradu. Postojeći statusi nisu jasno razlikovali ova dva slučaja.
+
+**Razmatrane opcije:**
+
+1. Koristiti postojeći status `REJECTED` i za finalno odbijanje i za vraćanje na korekciju.
+2. Koristiti `UNDER_REVIEW` za dokumente vraćene operateru.
+3. Dodati novi status `NEEDS_CORRECTION`.
+
+**Odabrana opcija:**  
+Dodaje se novi status `NEEDS_CORRECTION`.
+
+**Razlog izbora:**  
+`REJECTED` treba predstavljati jače ili finalno poslovno odbijanje dokumenta, dok je vraćanje na korekciju dio normalnog workflow-a. `NEEDS_CORRECTION` jasno signalizira da dokument nije završen, nego se vraća na ispravku i ponovni confirm.
+
+**Posljedice odluke:**
+
+- `DocumentStatus` enum se proširuje vrijednošću `NEEDS_CORRECTION`.
+- Frontend status model i status badge moraju podržati novi status.
+- PostgreSQL check constraint za `document_status` mora se ručno ažurirati na lokalnoj i server bazi.
+- Kasniji approval i correction flow koriste `NEEDS_CORRECTION` za return-for-correction scenario.
+
+**Status:** Aktivna
+
+---
+
+### DL-036 – Status history i komentari kao odvojeni user-facing workflow trag
+
+**Datum:** 23.05.2026  
+**Opis problema:**  
+Korisniku je potrebno prikazati kako se dokument kretao kroz workflow i omogućiti ostavljanje komentara na dokumentu. Bilo je potrebno odlučiti da li komentare spajati direktno sa status history zapisima ili ih čuvati kao zaseban koncept.
+
+**Razmatrane opcije:**
+
+1. Čuvati komentare samo unutar status history details polja.
+2. Čuvati komentare kao posebne `document_comment` zapise, a status history opcionalno povezati sa komentarom.
+3. Ne čuvati komentare u Sprintu 9, nego ih ostaviti za kasnije.
+
+**Odabrana opcija:**  
+Komentari se čuvaju u posebnoj `document_comment` tabeli, dok `status_history` može referencirati komentar kada je komentar dio status odluke.
+
+**Razlog izbora:**  
+Komentari nisu uvijek vezani za promjenu statusa. Generalni komentar može postojati bez promjene statusa, dok approve, reject ili return komentar je povezan sa konkretnom workflow odlukom. Odvojeni model omogućava oba slučaja.
+
+**Posljedice odluke:**
+
+- Dodaju se endpointi za dohvat status history i komentara na document detail stranici.
+- Status history ostaje append-only i nema korisnički delete/update endpoint.
+- Komentari su vidljivi na document detailu i koriste se za buduće approval/rejection/correction tokove.
+- Delete dokumenta mora ukloniti i povezane komentare/status history zapise prije brisanja dokumenta.
+
+**Status:** Aktivna
+
+---
+
+### DL-037 – Brisanje dokumenta uklanja i povezane workflow zapise
+
+**Datum:** 23.05.2026  
+**Opis problema:**  
+Nakon uvođenja status history i komentara, postojeći delete dokumenta može pasti zbog stranih ključeva prema `document_comment` i `status_history` tabelama. Bilo je potrebno odlučiti kako delete treba tretirati nove workflow zapise.
+
+**Razmatrane opcije:**
+
+1. Zabraniti brisanje dokumenta ako ima status history ili komentare.
+2. Ostaviti workflow zapise kao orphan historiju bez dokumenta.
+3. Pri brisanju dokumenta ukloniti povezane workflow zapise zajedno sa dokumentom.
+
+**Odabrana opcija:**  
+Za trenutni MVP, delete dokumenta uklanja povezane workflow zapise zajedno sa dokumentom.
+
+**Razlog izbora:**  
+Postojeća odluka za dokumente tretira delete kao potpuno uklanjanje dokumenta iz sistema. Za konzistentnost MVP-a, povezani komentari, status history i ostali workflow zapisi ne trebaju ostati bez dokumenta. Time se sprječavaju FK greške i orphan podaci.
+
+**Posljedice odluke:**
+
+- `DocumentServiceImpl.delete` mora obrisati povezane workflow podatke prije brisanja document zapisa.
+- Redoslijed brisanja mora poštovati FK veze, posebno ako `status_history` referencira `document_comment`.
+- Testovi moraju pokriti delete dokumenta koji ima status history, komentare i extraction podatke.
+- Ako se u budućnosti uvede compliance retention, delete strategija će se morati ponovo razmotriti.
+
+**Status:** Aktivna
+
+---
+
+### DL-038 – Centralni WorkflowPermissionService i audit log ograničen na Admin/Manager
+
+**Datum:** 23.05.2026  
+**Opis problema:**  
+Sprint 9 uvodi više workflow akcija koje zavise od role, statusa dokumenta, firme korisnika i task assignmenta. Bilo je potrebno odlučiti gdje centralizovati permission pravila i ko smije vidjeti audit log.
+
+**Razmatrane opcije:**
+
+1. Pisati role provjere direktno u svakom controlleru.
+2. Pisati role provjere direktno u svakom service methodu bez zajedničkog sloja.
+3. Uvesti centralni `WorkflowPermissionService` za workflow akcije i koristiti ga iz servisa.
+4. Audit log učiniti vidljivim svim korisnicima koji imaju pristup dokumentu.
+
+**Odabrana opcija:**  
+Uvodi se `WorkflowPermissionService` kao centralno mjesto za workflow permission provjere, a audit log je vidljiv samo Admin i Manager rolama.
+
+**Razlog izbora:**  
+Workflow pravila se ponavljaju kroz extraction, task, approval, manual field, notification i audit tokove. Centralni servis smanjuje dupliranje i rizik da različiti endpointi provode različita pravila. Audit log sadrži širi trag sistemskih akcija i treba biti ograničen na administrativne/menadžerske role.
+
+**Posljedice odluke:**
+
+- Permission greške se tretiraju kao `403 Forbidden`.
+- `WorkflowPermissionService` se koristi za audit access i postojeći extraction flow.
+- Audit endpoint `GET /api/documents/{id}/audit-log` dostupan je samo Admin/Manager korisnicima iz iste firme.
+- Operator i Approver ne vide audit log.
+- Frontend audit sekcija se prikazuje samo rolama koje smiju pristupiti audit logu.
+- Testovi moraju pokriti Admin/Manager allowed i Operator/Approver forbidden scenarije.
+
+**Status:** Aktivna
+
+---
+
+### DL-039 – Audit log kao append-only sigurnosni trag bitnih akcija
+
+**Datum:** 23.05.2026  
+**Opis problema:**  
+Status history prati promjene statusa dokumenta, ali ne pokriva sve bitne akcije u sistemu, npr. update extraction fielda, assignment taska ili slanje email reminder-a. Bilo je potrebno odlučiti kako pratiti te akcije.
+
+**Razmatrane opcije:**
+
+1. Koristiti samo status history za sve događaje.
+2. Dodati audit log za bitne sistemske i korisničke akcije koje nisu nužno status promjene.
+3. Ne uvoditi audit log u Sprintu 9.
+
+**Odabrana opcija:**  
+Uvodi se `audit_log` kao append-only zapis bitnih akcija.
+
+**Razlog izbora:**  
+Status history odgovara na pitanje kako se status dokumenta mijenjao, dok audit log odgovara na pitanje ko je izvršio bitnu akciju i kada. Neke akcije, kao što je update extraction fielda, ne mijenjaju status dokumenta, ali su bitne za odgovornost i sigurnosni trag.
+
+**Posljedice odluke:**
+
+- `AuditLogEntity` čuva document, userId, action, timestamp i safe details.
+- `AuditLogService.log(...)` se poziva za implementirane audit-worthy akcije, npr. `FIELD_UPDATED`.
+- Kasniji članovi dodaju audit log pozive za assignment, approval i return/reject.
+- Audit details ne smiju sadržavati lozinke, tokene, SMTP secrets ili druge osjetljive vrijednosti.
+
+**Status:** Aktivna
+
+---
+
+### DL-040 – Task assignment kao zaseban workflow sloj iznad document/extraction flow-a
+
+**Datum:** 24.05.2026  
+**Opis problema:**  
+Firma treba moći raditi i po principu striktne dodjele zadataka i po principu “free-for-all” rada nad dostupnim dokumentima. Bilo je potrebno odlučiti da li assignment čuvati direktno na dokumentu ili kroz zasebne task zapise.
+
+**Razmatrane opcije:**
+
+1. Dodati `assignedUserId` direktno na `DocumentEntity`.
+2. Kreirati zasebnu `workflow_task` tabelu za zadatke nad dokumentom.
+3. Ne uvoditi assignment, nego se osloniti samo na role i status dokumenta.
+
+**Odabrana opcija:**  
+Task assignment se implementira kroz zasebnu `workflow_task` tabelu.
+
+**Razlog izbora:**  
+Dokument može tokom životnog ciklusa imati različite vrste odgovornosti: extraction, correction i approval. Jedno `assignedUserId` polje na dokumentu ne bi jasno razlikovalo ove zadatke niti njihovu historiju. `workflow_task` omogućava tip taska, status taska, assignee, assignera, due date i completed metadata.
+
+**Posljedice odluke:**
+
+- Taskovi imaju tipove `EXTRACTION`, `CORRECTION` i `APPROVAL`.
+- Taskovi imaju statuse `OPEN`, `IN_PROGRESS`, `COMPLETED` i `CANCELLED`.
+- Admin/Manager mogu assignati task korisniku odgovarajuće role i firme.
+- Ne smije postojati drugi aktivni task istog tipa za isti dokument.
+- Assignment kreira unos u audit log.
+- Frontend dobija My Tasks stranicu i active task banner na document detailu.
+
+**Status:** Aktivna
+
+---
+
+### DL-041 – Aktivni task ograničava poslovne akcije samo kada postoji assignment
+
+**Datum:** 24.05.2026  
+**Opis problema:**  
+Sistem treba podržati i striktan assignment i “free-for-all” način rada. Bilo je potrebno odlučiti kako backend treba reagovati kada dokument ima aktivan task dodijeljen određenom korisniku.
+
+**Razmatrane opcije:**
+
+1. Uvijek zahtijevati assignment prije bilo koje extraction/correction akcije.
+2. Dozvoliti svakome sa odgovarajućom rolom da radi dokument, bez obzira na assignment.
+3. Ako postoji aktivan task za akciju, dozvoliti akciju samo assigned korisniku; ako task ne postoji, dozvoliti free-for-all prema roli/statusu.
+
+**Odabrana opcija:**  
+Ako postoji aktivan task relevantnog tipa, akciju može izvršiti samo assigned korisnik. Ako aktivan task ne postoji, važe standardna role/status pravila.
+
+**Razlog izbora:**  
+Ovo omogućava firmi fleksibilan rad. Kompanija može striktno dodijeliti dokument određenoj osobi, ali sistem i dalje podržava rad nad dokumentima koji nisu posebno assigned. Backend ostaje source of truth za ovu logiku.
+
+**Posljedice odluke:**
+
+- `WorkflowPermissionService` provjerava aktivni task kada postoje taskovi tipa `EXTRACTION` ili `CORRECTION`.
+- Non-assignee korisnik dobija 403 ako pokuša raditi akciju za dokument koji je aktivno dodijeljen drugom korisniku.
+- Frontend treba prikazati informaciju ako je dokument već assigned drugom korisniku, da korisnik ne sazna tek nakon backend greške.
+
+**Status:** Aktivna
