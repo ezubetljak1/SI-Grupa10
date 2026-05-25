@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
-
+import { AuditLog } from '../documents/models/audit.models';
 import { ApiResponse, PagedResponse } from '../models/api.models';
 import {
   ConfirmDocumentTypeRequest,
@@ -13,6 +13,11 @@ import {
   ManualClassificationDocumentType,
 } from '../documents/models/document.models';
 import { Extraction, ExtractionField } from '../documents/models/extraction.models';
+import {
+  CreateCommentRequest,
+  DocumentComment,
+  StatusHistoryEntry,
+} from '../documents/models/workflow.models';
 
 @Injectable({
   providedIn: 'root',
@@ -120,6 +125,58 @@ export class DocumentApiService {
     );
   }
 
+  approveDocument(
+    documentId: number,
+    payload: CreateCommentRequest
+  ): Observable<ApiResponse<DocflowDocument>> {
+    return this.http.post<ApiResponse<DocflowDocument>>(
+      `${this.baseUrl}/${documentId}/approval/approve`,
+      payload
+    );
+  }
+
+  rejectDocument(
+    documentId: number,
+    payload: CreateCommentRequest
+  ): Observable<ApiResponse<DocflowDocument>> {
+    return this.http.post<ApiResponse<DocflowDocument>>(
+      `${this.baseUrl}/${documentId}/approval/reject`,
+      payload
+    );
+  }
+
+  returnDocumentForCorrection(
+    documentId: number,
+    payload: CreateCommentRequest
+  ): Observable<ApiResponse<DocflowDocument>> {
+    return this.http.post<ApiResponse<DocflowDocument>>(
+      `${this.baseUrl}/${documentId}/approval/correction`,
+      payload
+    );
+  }
+
+  getStatusHistory(documentId: number): Observable<ApiResponse<StatusHistoryEntry[]>> {
+    return this.http.get<ApiResponse<StatusHistoryEntry[]>>(
+      `${this.baseUrl}/${documentId}/status-history`
+    );
+  }
+
+  getComments(documentId: number): Observable<ApiResponse<DocumentComment[]>> {
+    return this.http.get<ApiResponse<DocumentComment[]>>(
+      `${this.baseUrl}/${documentId}/comments`
+    );
+  }
+
+  createComment(
+    documentId: number,
+    payload: CreateCommentRequest
+  ): Observable<ApiResponse<DocumentComment>> {
+    return this.http.post<ApiResponse<DocumentComment>>(
+      `${this.baseUrl}/${documentId}/comments`,
+      payload
+    );
+  }
+
   filter(params: DocumentFilterRequest): Observable<PagedResponse<DocflowDocument>> {
     return this.getAll(params);
   }
@@ -134,5 +191,11 @@ export class DocumentApiService {
     });
 
     return httpParams;
+  }
+
+  getAuditLog(documentId: number) {
+    return this.http.get<{ code: string; payload: AuditLog[] }>(
+      `/api/documents/${documentId}/audit-log`
+    );
   }
 }

@@ -18,6 +18,7 @@ export type DocumentStatus =
   | 'UNDER_REVIEW'
   | 'NEEDS_CLASSIFICATION_REVIEW'
   | 'READY_FOR_APPROVAL'
+  | 'NEEDS_CORRECTION'
   | 'APPROVED'
   | 'REJECTED'
   | 'COMPLETED';

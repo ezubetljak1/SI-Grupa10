@@ -1,20 +1,39 @@
 package ba.unsa.si.docflow.service.document;
 
+import ba.unsa.si.docflow.dao.AuditLogDAO;
+import ba.unsa.si.docflow.dao.CommentDAO;
 import ba.unsa.si.docflow.dao.DocumentDAO;
 import ba.unsa.si.docflow.dao.ExtractionDAO;
+import ba.unsa.si.docflow.dao.NotificationDAO;
+import ba.unsa.si.docflow.dao.StatusHistoryDAO;
+import ba.unsa.si.docflow.dao.TaskDAO;
 import ba.unsa.si.docflow.dto.document.*;
 import ba.unsa.si.docflow.entity.DocumentEntity;
+import ba.unsa.si.docflow.dto.workflow.CommentResponse;
+import ba.unsa.si.docflow.dto.workflow.CreateCommentRequest;
+import ba.unsa.si.docflow.dto.workflow.StatusHistoryResponse;
+import ba.unsa.si.docflow.entity.CommentEntity;
+import ba.unsa.si.docflow.entity.enums.AuditAction;
+import ba.unsa.si.docflow.entity.enums.CommentType;
 import ba.unsa.si.docflow.entity.enums.DocumentStatus;
 import ba.unsa.si.docflow.entity.enums.DocumentType;
+import ba.unsa.si.docflow.entity.enums.RoleName;
+import ba.unsa.si.docflow.entity.enums.StatusHistoryAction;
+import ba.unsa.si.docflow.entity.enums.TaskType;
+import ba.unsa.si.docflow.service.workflow.CommentService;
+import ba.unsa.si.docflow.service.workflow.DocumentStatusTransitionService;
+import ba.unsa.si.docflow.service.workflow.StatusHistoryService;
 import ba.unsa.si.docflow.exception.ApiValidationException;
 import ba.unsa.si.docflow.mapper.DocumentMapper;
 import ba.unsa.si.docflow.response.ApiResponse;
 import ba.unsa.si.docflow.response.PagedResponse;
 import ba.unsa.si.docflow.response.ValidationErrors;
-import ba.unsa.si.docflow.entity.enums.RoleName;
 import ba.unsa.si.docflow.security.CurrentUserService;
+import ba.unsa.si.docflow.service.audit.AuditLogService;
+import ba.unsa.si.docflow.service.security.WorkflowPermissionService;
 import ba.unsa.si.docflow.service.storage.StorageService;
 import ba.unsa.si.docflow.service.storage.StoredFileInfo;
+import ba.unsa.si.docflow.service.task.TaskService;
 
 import lombok.AllArgsConstructor;
 
@@ -42,7 +61,29 @@ public class DocumentServiceImpl implements DocumentService {
 
     private final ExtractionDAO extractionDAO;
 
+    private final StatusHistoryDAO statusHistoryDAO;
+
+    private final CommentDAO commentDAO;
+
+    private final NotificationDAO notificationDAO;
+
+    private final TaskDAO taskDAO;
+
+    private final AuditLogDAO auditLogDAO;
+
     private final CurrentUserService currentUserService;
+
+    private final DocumentStatusTransitionService documentStatusTransitionService;
+
+    private final StatusHistoryService statusHistoryService;
+
+    private final CommentService commentService;
+
+    private final WorkflowPermissionService workflowPermissionService;
+
+    private final AuditLogService auditLogService;
+
+    private final TaskService taskService;
 
     @Override
     @Transactional(readOnly = true)
@@ -118,6 +159,12 @@ public class DocumentServiceImpl implements DocumentService {
 
             DocumentEntity saved = documentDAO.persist(entity);
 
+            documentStatusTransitionService.recordInitialStatus(
+                    saved,
+                    createdByUserId,
+                    StatusHistoryAction.DOCUMENT_UPLOADED,
+                    "Document uploaded.");
+
             return new ApiResponse<>("OK", documentMapper.entityToDto(saved));
         } catch (RuntimeException exception) {
             if (storedFileInfo != null) {
@@ -168,6 +215,11 @@ public class DocumentServiceImpl implements DocumentService {
 
         String storagePath = entity.getStoragePath();
 
+        statusHistoryDAO.deleteByDocumentId(id);
+        notificationDAO.deleteByDocumentId(id);
+        commentDAO.deleteByDocumentId(id);
+        taskDAO.deleteByDocumentId(id);
+        auditLogDAO.deleteByDocumentId(id);
         extractionDAO.deleteByDocumentId(id);
 
         documentDAO.remove(entity);
@@ -195,13 +247,77 @@ public class DocumentServiceImpl implements DocumentService {
             throw new ApiValidationException(errors);
         }
 
+        Long currentUserId = currentUserService.getCurrentUserId();
+
         entity.setDocumentType(confirmedType);
-        entity.setDocumentStatus(DocumentStatus.UPLOADED);
         entity.setProcessorIdUsed(null);
 
-        DocumentEntity saved = documentDAO.merge(entity);
+        DocumentEntity saved =
+                documentStatusTransitionService
+                        .changeStatus(
+                                entity,
+                                DocumentStatus.UPLOADED,
+                                StatusHistoryAction.DOCUMENT_TYPE_CONFIRMED,
+                                currentUserId,
+                                null,
+                                "Manual classification confirmed as " + confirmedType + ".")
+                        .getDocument();
 
         return new ApiResponse<>("OK", documentMapper.entityToDto(saved));
+    }
+
+    @Override
+    public ApiResponse<Document> approveDocument(Long id, CreateCommentRequest request) {
+        return decideApproval(
+                id,
+                request,
+                DocumentStatus.APPROVED,
+                CommentType.APPROVAL,
+                StatusHistoryAction.DOCUMENT_APPROVED,
+                AuditAction.DOCUMENT_APPROVED,
+                "Document approved.");
+    }
+
+    @Override
+    public ApiResponse<Document> rejectDocument(Long id, CreateCommentRequest request) {
+        return decideApproval(
+                id,
+                request,
+                DocumentStatus.REJECTED,
+                CommentType.REJECTION,
+                StatusHistoryAction.DOCUMENT_REJECTED,
+                AuditAction.DOCUMENT_REJECTED,
+                "Document rejected.");
+    }
+
+    @Override
+    public ApiResponse<Document> returnDocumentForCorrection(
+            Long id, CreateCommentRequest request) {
+        return decideApproval(
+                id,
+                request,
+                DocumentStatus.NEEDS_CORRECTION,
+                CommentType.CORRECTION_REQUEST,
+                StatusHistoryAction.DOCUMENT_RETURNED_FOR_CORRECTION,
+                AuditAction.DOCUMENT_RETURNED_FOR_CORRECTION,
+                "Document returned for correction.");
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ApiResponse<List<StatusHistoryResponse>> getStatusHistory(Long id) {
+        return statusHistoryService.getStatusHistory(id);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ApiResponse<List<CommentResponse>> getComments(Long id) {
+        return commentService.getComments(id);
+    }
+
+    @Override
+    public ApiResponse<CommentResponse> createComment(Long id, CreateCommentRequest request) {
+        return commentService.createGeneralComment(id, request);
     }
 
     private DocumentType parseConfirmedDocumentType(String rawDocumentType) {
@@ -230,6 +346,53 @@ public class DocumentServiceImpl implements DocumentService {
         }
 
         return documentType;
+    }
+
+    private ApiResponse<Document> decideApproval(
+            Long id,
+            CreateCommentRequest request,
+            DocumentStatus targetStatus,
+            CommentType commentType,
+            StatusHistoryAction statusHistoryAction,
+            AuditAction auditAction,
+            String details) {
+        currentUserService.requireAnyRole(RoleName.ADMIN, RoleName.APPROVER);
+        DocumentEntity document =
+                documentValidation.validateExistsInCompany(
+                        id, currentUserService.getCurrentCompanyId());
+        workflowPermissionService.requireCanApprove(document);
+
+        if (document.getDocumentStatus() != DocumentStatus.READY_FOR_APPROVAL) {
+            ValidationErrors errors = new ValidationErrors();
+            errors.add(
+                    "DOCUMENT_STATUS_INVALID",
+                    "Document can only be approved or rejected when status is READY_FOR_APPROVAL.");
+            throw new ApiValidationException(errors);
+        }
+
+        Long currentUserId = currentUserService.getCurrentUserId();
+        CommentEntity comment =
+                commentService.createTypedComment(
+                        document, currentUserId, commentType, request.getContent());
+
+        documentStatusTransitionService.changeStatus(
+                document,
+                targetStatus,
+                statusHistoryAction,
+                currentUserId,
+                comment,
+                details);
+
+        auditLogService.log(
+                document,
+                currentUserId,
+                auditAction,
+                String.format(
+                        "{\"documentId\":%d,\"status\":\"%s\"}",
+                        document.getId(), targetStatus));
+        taskService.completeActiveTaskForDocument(document, TaskType.APPROVAL, currentUserId);
+
+        return new ApiResponse<>("OK", documentMapper.entityToDto(document));
     }
 
     private String resolveDownloadFileName(DocumentEntity entity) {

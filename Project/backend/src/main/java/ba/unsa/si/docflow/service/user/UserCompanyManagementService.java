@@ -4,6 +4,7 @@ import ba.unsa.si.docflow.dto.user.*;
 import ba.unsa.si.docflow.entity.CompanyEntity;
 import ba.unsa.si.docflow.entity.UserEntity;
 import ba.unsa.si.docflow.entity.enums.AccountStatus;
+import ba.unsa.si.docflow.entity.enums.RoleName;
 import ba.unsa.si.docflow.response.ApiResponse;
 import ba.unsa.si.docflow.response.PagedResponse;
 import ba.unsa.si.docflow.security.CurrentUserService;
@@ -30,7 +31,7 @@ public class UserCompanyManagementService {
 
     @Transactional
     public PagedResponse<UserResponse> findAll(UserFilterRequest filter) {
-        currentUserService.requireAdmin();
+        currentUserService.requireAnyRole(RoleName.ADMIN, RoleName.MANAGER);
 
         Long companyId = currentUserService.getCurrentCompanyId();
         PagedResponse<UserResponse> response = userService.findAll(filter, companyId);
@@ -65,21 +66,31 @@ public class UserCompanyManagementService {
     @Transactional
     public UserResponse createUser(UserCreateApiRequest request) {
         currentUserService.requireAdmin();
+
         Long companyId = currentUserService.getCurrentCompanyId();
         CompanyEntity company = companyService.getEntityById(companyId);
 
-        KeycloakUserCreationResult keycloakUser =
-                keycloakAdminService.createUser(
-                        request.getEmail(),
-                        request.getFirstName(),
-                        request.getLastName(),
-                        company.getKeycloakGroupId(),
-                        true);
+        String keycloakUserId = null;
 
-        UserResponse response = userService.createUser(companyId, request, keycloakUser.userId());
-        response.setTemporaryPassword(keycloakUser.temporaryPassword());
+        try {
+            KeycloakUserCreationResult keycloakUser =
+                    keycloakAdminService.createUser(
+                            request.getEmail(),
+                            request.getFirstName(),
+                            request.getLastName(),
+                            company.getKeycloakGroupId(),
+                            true);
 
-        return response;
+            keycloakUserId = keycloakUser.userId();
+
+            UserResponse response = userService.createUser(companyId, request, keycloakUserId);
+            keycloakAdminService.sendPasswordSetupEmail(keycloakUserId);
+
+            return response;
+        } catch (RuntimeException ex) {
+            keycloakAdminService.deleteUser(keycloakUserId);
+            throw ex;
+        }
     }
 
     @Transactional
@@ -118,11 +129,10 @@ public class UserCompanyManagementService {
         Long companyId = currentUserService.getCurrentCompanyId();
         UserEntity user = userValidation.validateExistsInCompany(id, companyId);
 
-        String temporaryPassword = keycloakAdminService.resetUserPassword(user.getKeycloakUserId());
-
+        keycloakAdminService.sendPasswordSetupEmail(user.getKeycloakUserId());
         userService.changeStatus(id, AccountStatus.PENDING_PASSWORD_CHANGE, companyId);
 
-        return new ApiResponse<>("OK", temporaryPassword);
+        return new ApiResponse<>("OK", "Password reset email has been sent.");
     }
 
     private UserResponse syncPasswordChangeStatus(UserResponse response, Long companyId) {

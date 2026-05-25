@@ -99,6 +99,11 @@ class DocumentUploadIntegrationTest {
 
     @BeforeEach
     void setUp() throws IOException {
+        jdbcTemplate.execute("DELETE FROM audit_log");
+        jdbcTemplate.execute("DELETE FROM notification");
+        jdbcTemplate.execute("DELETE FROM workflow_task");
+        jdbcTemplate.execute("DELETE FROM status_history");
+        jdbcTemplate.execute("DELETE FROM document_comment");
         jdbcTemplate.execute("DELETE FROM extraction_field");
         jdbcTemplate.execute("DELETE FROM extraction");
         jdbcTemplate.execute("DELETE FROM document");

@@ -4,6 +4,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -14,6 +15,7 @@ import ba.unsa.si.docflow.dto.company.CompanyRegisterRequest;
 import ba.unsa.si.docflow.entity.CompanyEntity;
 import ba.unsa.si.docflow.entity.UserEntity;
 import ba.unsa.si.docflow.entity.enums.AccountStatus;
+import ba.unsa.si.docflow.service.keycloak.KeycloakAdminService;
 import ba.unsa.si.docflow.service.role.RoleService;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -43,6 +45,8 @@ class CompanyRegistrationIntegrationTest {
 
     @Autowired private RoleService roleService;
 
+    @Autowired private KeycloakAdminService keycloakAdminService;
+
     @Test
     void registerCompanyCreatesCompanyAndAdmin() throws Exception {
         CompanyRegisterRequest request = buildValidRequest();
@@ -55,7 +59,7 @@ class CompanyRegistrationIntegrationTest {
                 .andExpect(jsonPath("$.code", equalTo("OK")))
                 .andExpect(jsonPath("$.payload.companyId", notNullValue()))
                 .andExpect(jsonPath("$.payload.companyName", equalTo("Test Company d.o.o.")))
-                .andExpect(jsonPath("$.payload.adminTemporaryPassword", equalTo("TempPass123!")));
+                .andExpect(jsonPath("$.payload.adminTemporaryPassword").doesNotExist());
         ;
 
         CompanyEntity company = companyDAO.findByEmail(request.getCompanyEmail());
@@ -68,6 +72,8 @@ class CompanyRegistrationIntegrationTest {
         assertEquals(company.getId(), admin.getCompanyId());
         assertEquals(AccountStatus.PENDING_PASSWORD_CHANGE, admin.getAccountStatus());
         assertEquals(roleService.getAdminRole().getId(), admin.getRoleId());
+        verify(keycloakAdminService)
+                .sendPasswordSetupEmail("kc-user-" + request.getAdminEmail().hashCode());
     }
 
     @Test

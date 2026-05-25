@@ -69,6 +69,13 @@ export class AuthService {
     });
   }
 
+  changePassword(returnUrl = '/profile'): Promise<void> {
+    return this.keycloak.login({
+      redirectUri: this.resolveRedirectUri(returnUrl),
+      action: 'UPDATE_PASSWORD',
+    });
+  }
+
   logout(): Promise<void> {
     this.profileSubject.next(null);
     this.keycloakProfileSubject.next(null);

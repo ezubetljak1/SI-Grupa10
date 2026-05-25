@@ -25,8 +25,21 @@ public class ExtractionFieldEntity {
     @JoinColumn(name = "extraction_id", nullable = false)
     private ExtractionEntity extraction;
 
+    /**
+     * Canonical backend/XML key. Do not use this as a free user-facing label.
+     *
+     * <p>Examples: - invoice_id - invoice_date - supplier_name - total_amount -
+     * custom.contract_reference
+     */
     @Column(name = "field_name", nullable = false)
     private String fieldName;
+
+    /**
+     * Optional user-facing label. This improves UI readability without breaking validation/XML
+     * mapping.
+     */
+    @Column(name = "display_name")
+    private String displayName;
 
     @Column(name = "`value`", columnDefinition = "TEXT")
     private String value;
@@ -39,4 +52,8 @@ public class ExtractionFieldEntity {
 
     @Column(name = "is_placeholder", nullable = false, columnDefinition = "boolean default false")
     private Boolean placeholder = false;
+
+    /** True when the field was manually added by a user instead of returned by OCR. */
+    @Column(name = "is_manual", nullable = false, columnDefinition = "boolean default false")
+    private Boolean manual = false;
 }

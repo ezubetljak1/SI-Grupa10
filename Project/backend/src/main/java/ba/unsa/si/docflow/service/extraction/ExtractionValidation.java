@@ -39,7 +39,7 @@ public class ExtractionValidation {
             Set.of("supplier_name", "total_amount", "currency");
 
     private static final Set<String> RECEIPT_DATE_FIELD_ALIASES =
-            Set.of("receipt_date", "expense_date", "transaction_date", "purchase_date");
+            Set.of("receipt_date", "expense_date", "transaction_date", "purchase_date", "end_date");
 
     private static final Set<String> REQUIRED_BANK_STATEMENT_FIELDS = Set.of("account_number");
 

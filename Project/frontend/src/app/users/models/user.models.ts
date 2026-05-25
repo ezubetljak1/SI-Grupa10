@@ -8,7 +8,6 @@ export interface UserResponse {
   lastName: string;
   email: string;
   accountStatus: AccountStatus;
-  temporaryPassword?: string;
   createdAt?: string;
   updatedAt?: string;
 }

@@ -10,6 +10,5 @@ export interface CompanyRegisterRequest {
 export interface CompanyRegisterResponse {
   companyId: number;
   companyName: string;
-  adminTemporaryPassword: string;
   message: string;
 }

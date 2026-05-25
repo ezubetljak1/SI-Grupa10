@@ -1,114 +1,137 @@
 @if (initialized$ | async) {
-<div class="app-shell">
-  <aside class="sidebar">
-    <div class="logo">
-      <div class="logo-mark">D</div>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="logo">
+        <div class="logo-mark">D</div>
 
-      <div class="logo-text">
-        <strong>Docflow</strong>
-        <span>Document Intake</span>
-      </div>
-    </div>
-
-    <nav class="nav">
-      @if (authenticated$ | async) {
-        @if (hasRole(['ADMIN', 'MANAGER'])) {
-          <a
-            routerLink="/dashboard"
-            routerLinkActive="active"
-            class="nav-item"
-          >
-            <span class="nav-icon">▦</span>
-            <span>Dashboard</span>
-          </a>
-        }
-
-        @if (hasRole(['ADMIN', 'OPERATOR'])) {
-          <a
-            routerLink="/documents/upload"
-            routerLinkActive="active"
-            class="nav-item"
-          >
-            <span class="nav-icon">↑</span>
-            <span>Upload</span>
-          </a>
-        }
-
-        <a
-          routerLink="/documents"
-          routerLinkActive="active"
-          [routerLinkActiveOptions]="{ exact: true }"
-          class="nav-item"
-        >
-          <span class="nav-icon">◰</span>
-          <span>Documents</span>
-        </a>
-
-        @if (hasRole(['ADMIN'])) {
-          <a
-            routerLink="/company/users"
-            routerLinkActive="active"
-            class="nav-item"
-          >
-            <span class="nav-icon">◎</span>
-            <span>Users</span>
-          </a>
-        }
-      } @else {
-        <a
-          routerLink="/register-company"
-          routerLinkActive="active"
-          class="nav-item"
-        >
-          <span class="nav-icon">+</span>
-          <span>Register company</span>
-        </a>
-      }
-    </nav>
-
-    <div class="sidebar-footer">
-      <p>
-         Upload files, review archived documents, and manage intake records from one workspace.
-      </p>
-    </div>
-  </aside>
-
-  <main class="main">
-    <header class="topbar">
-      <div class="topbar-title">
-        <strong>Docflow Workspace</strong>
-        <span>Document upload and archive management</span>
+        <div class="logo-text">
+          <strong>Docflow</strong>
+          <span>Document Intake</span>
+        </div>
       </div>
 
-      <div class="top-actions">
-        @if (profile$ | async; as profile) {
-          <div class="user-summary">
-            <strong>{{ profile.firstName }} {{ profile.lastName }}</strong>
-            <span>{{ profile.role }}</span>
-          </div>
+      <nav class="nav">
+        @if (authenticated$ | async) {
+          @if (hasRole(['ADMIN', 'MANAGER'])) {
+            <a
+              routerLink="/dashboard"
+              routerLinkActive="active"
+              class="nav-item"
+            >
+              <span class="nav-icon">▦</span>
+              <span>Dashboard</span>
+            </a>
+          }
 
-          <div class="avatar">{{ initials(profile.firstName, profile.lastName, profile.email) }}</div>
+          @if (hasRole(['ADMIN', 'OPERATOR'])) {
+            <a
+              routerLink="/documents/upload"
+              routerLinkActive="active"
+              class="nav-item"
+            >
+              <span class="nav-icon">↑</span>
+              <span>Upload</span>
+            </a>
+          }
 
-          <button type="button" class="btn btn-muted btn-compact" (click)="logout()">
-            Logout
-          </button>
+          <a
+            routerLink="/documents"
+            routerLinkActive="active"
+            [routerLinkActiveOptions]="{ exact: true }"
+            class="nav-item"
+          >
+            <span class="nav-icon">◰</span>
+            <span>Documents</span>
+          </a>
+
+          <a
+            routerLink="/profile"
+            routerLinkActive="active"
+            class="nav-item"
+          >
+            <span class="nav-icon">●</span>
+            <span>Profile</span>
+          </a>
+
+          @if (hasRole(['ADMIN', 'OPERATOR', 'APPROVER'])) {
+            <a
+              routerLink="/tasks/my"
+              routerLinkActive="active"
+              class="nav-item"
+            >
+              <span class="nav-icon">□</span>
+              <span>My tasks</span>
+            </a>
+          }
+
+          @if (hasRole(['ADMIN'])) {
+            <a
+              routerLink="/company/users"
+              routerLinkActive="active"
+              class="nav-item"
+            >
+              <span class="nav-icon">◎</span>
+              <span>Users</span>
+            </a>
+          }
         } @else {
-          <button type="button" class="btn btn-primary btn-compact" (click)="login()">
-            Login
-          </button>
+          <a
+            routerLink="/register-company"
+            routerLinkActive="active"
+            class="nav-item"
+          >
+            <span class="nav-icon">+</span>
+            <span>Register company</span>
+          </a>
         }
-      </div>
-    </header>
+      </nav>
 
-    <section class="content">
-      <router-outlet></router-outlet>
-    </section>
-  </main>
-</div>
+      <div class="sidebar-footer">
+        <p>
+          Upload files, review archived documents, and manage intake records from one workspace.
+        </p>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div class="topbar-title">
+          <strong>Docflow Workspace</strong>
+          <span>Document upload and archive management</span>
+        </div>
+
+        <div class="top-actions">
+          @if (profile$ | async; as profile) {
+            <a class="user-profile-link" routerLink="/profile" aria-label="Open user profile">
+              <div class="user-summary">
+                <strong>{{ profile.firstName }} {{ profile.lastName }}</strong>
+                <span>{{ profile.role }}</span>
+              </div>
+
+              <div class="avatar">{{ initials(profile.firstName, profile.lastName, profile.email) }}</div>
+            </a>
+
+            <button type="button" class="btn btn-muted btn-compact" (click)="logout()">
+              Logout
+            </button>
+          } @else {
+            <button type="button" class="btn btn-primary btn-compact" (click)="login()">
+              Login
+            </button>
+          }
+        </div>
+      </header>
+
+      <section class="content">
+        <router-outlet></router-outlet>
+      </section>
+    </main>
+  </div>
 } @else {
   <div class="app-loading-screen">
     <div class="app-loading-card">
       <div class="app-loading-logo">D</div>
+
       <strong>Docflow</strong>
       <span>Preparing workspace...</span>
     </div>

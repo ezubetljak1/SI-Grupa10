@@ -3,7 +3,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Component, inject, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
-
+import { AuditLog } from '../models/audit.models';
 import { DocumentApiService} from '../../services/document-api.service';
 import {
   FileTypeIconComponent,
@@ -20,7 +20,19 @@ import {
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { ToastrService } from 'ngx-toastr';
 import { Extraction, ExtractionField } from '../models/extraction.models';
+import { DocumentComment, StatusHistoryEntry } from '../models/workflow.models';
 import { AuthService } from '../../auth/services/auth.service';
+import { UserApiService } from '../../users/services/user-api.service';
+import { UserResponse } from '../../users/models/user.models';
+import { TaskApiService } from '../../tasks/services/task-api.service';
+import { AssignTaskRequest, TaskResponse, TaskType } from '../../tasks/models/task.models';
+import {
+  EUROPEAN_DATETIME_PLACEHOLDER,
+  formatApiDateTime,
+  parseApiDateTime,
+  parseEuropeanDateTimeInput,
+  toDatetimeLocalValue,
+} from '../../shared/utils/datetime.utils';
 
 interface EditState {
   fieldId: number;
@@ -55,6 +67,8 @@ export class DocumentDetailPageComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly toastr = inject(ToastrService);
   private readonly authService = inject(AuthService);
+  private readonly userApiService = inject(UserApiService);
+  private readonly taskApiService = inject(TaskApiService);
 
   document: DocflowDocument | null = null;
   loading = false;
@@ -83,8 +97,181 @@ export class DocumentDetailPageComponent implements OnInit {
   selectedManualDocumentType: ManualClassificationDocumentType = 'FORM';
   confirmingDocumentType = false;
 
+  statusHistory: StatusHistoryEntry[] = [];
+  statusHistoryLoading = false;
+  statusHistoryError: string | null = null;
+
+  documentComments: DocumentComment[] = [];
+  commentsLoading = false;
+  commentsError: string | null = null;
+  newCommentContent = '';
+  submittingComment = false;
+  approvalComment = '';
+  approvalSubmitting = false;
+  auditLogs: AuditLog[] = [];
+  auditLoading = false;
+  auditError: string | null = null;
+  auditExpanded = false;
+  tasks: TaskResponse[] = [];
+  tasksLoading = false;
+  taskError: string | null = null;
+  duplicateTaskAssignmentAttempted = false;
+  assignableUsers: UserResponse[] = [];
+  assignTaskUserId: number | null = null;
+  assignTaskType: TaskType = 'CORRECTION';
+  assignTaskDueDate = '';
+  assigningTask = false;
+  readonly europeanDatetimePlaceholder = EUROPEAN_DATETIME_PLACEHOLDER;
+
+  readonly allTaskTypeOptions: { value: TaskType; label: string }[] = [
+    { value: 'EXTRACTION', label: 'Extraction' },
+    { value: 'CORRECTION', label: 'Correction' },
+    { value: 'APPROVAL', label: 'Approval' },
+  ];
+
   get canManageExtraction(): boolean {
     return this.authService.hasRole(['ADMIN', 'OPERATOR']);
+  }
+
+  get canApproveDocuments(): boolean {
+    return this.authService.hasRole(['ADMIN', 'APPROVER']);
+  }
+
+  get canViewAudit(): boolean {
+    return this.authService.hasRole(['ADMIN', 'MANAGER']);
+  }
+
+  get canAssignTasks(): boolean {
+    return this.authService.hasRole(['ADMIN', 'MANAGER']);
+  }
+
+  Tasks(): TaskResponse[] {
+    return this.tasks.filter((task) => task.status === 'OPEN' || task.status === 'IN_PROGRESS');
+  }
+
+  get activeTasks(): TaskResponse[] {
+    return this.tasks.filter(
+      (task) => task.status === 'OPEN' || task.status === 'IN_PROGRESS'
+    );
+  }
+
+  get activeTask(): TaskResponse | null {
+    return this.activeTasks[0] ?? null;
+  }
+
+  get currentUserId(): number | null {
+    return this.authService.profile?.id ?? null;
+  }
+
+ get workflowRelevantTaskType(): TaskType | null {
+    switch (this.document?.documentStatus) {
+      case 'UPLOADED':
+      case 'PROCESSING_FAILED':
+      case 'NEEDS_CLASSIFICATION_REVIEW':
+        return 'EXTRACTION';
+
+      case 'EXTRACTED':
+      case 'NEEDS_CORRECTION':
+        return 'CORRECTION';
+
+      case 'READY_FOR_APPROVAL':
+        return 'APPROVAL';
+
+      default:
+        return null;
+    }
+  }
+
+  get activeTaskOfSelectedType(): TaskResponse | null {
+    return (
+      this.activeTasks.find((task) => task.taskType === this.assignTaskType) ??
+      null
+    );
+  }
+
+  get blockingTaskForCurrentStatus(): TaskResponse | null {
+    const taskType = this.workflowRelevantTaskType;
+
+    if (!taskType) {
+      return null;
+    }
+
+    return (
+      this.activeTasks.find((task) => task.taskType === taskType) ??
+      null
+    );
+  }
+
+  get workflowBannerTask(): TaskResponse | null {
+    return this.blockingTaskForCurrentStatus ?? this.activeTask;
+  }
+
+  get activeTaskAssignedToAnotherUser(): boolean {
+    const blockingTask = this.blockingTaskForCurrentStatus;
+
+    return (
+      !!blockingTask &&
+      !!this.currentUserId &&
+      !this.canAssignTasks &&
+      blockingTask.assignedUserId !== this.currentUserId
+    );
+  }
+
+  get showAssignedToAnotherUserWarning(): boolean {
+    return this.activeTaskAssignedToAnotherUser;
+  }
+
+  get canUseExtractionActions(): boolean {
+    return this.canManageExtraction && !this.activeTaskAssignedToAnotherUser;
+  }
+
+  get canUseApprovalActions(): boolean {
+    return this.canApproveDocuments && !this.activeTaskAssignedToAnotherUser;
+  }
+
+  get eligibleAssignees(): UserResponse[] {
+    const allowedRoles = this.assignTaskType === 'APPROVAL' ? ['APPROVER'] : ['OPERATOR'];
+
+    return this.assignableUsers.filter(
+      (user) => allowedRoles.includes(user.role) && user.accountStatus !== 'INACTIVE'
+    );
+  }
+
+  get minDueDateHint(): string {
+    const prerequisite = this.latestPrerequisiteDueDate(this.assignTaskType);
+    const baseline = prerequisite ?? new Date();
+    return formatApiDateTime(toDatetimeLocalValue(baseline));
+  }
+
+ get taskTypeOptions(): { value: TaskType; label: string }[] {
+    switch (this.document?.documentStatus) {
+      case 'UPLOADED':
+      case 'PROCESSING_FAILED':
+      case 'NEEDS_CLASSIFICATION_REVIEW':
+        return this.allTaskTypeOptions.filter((type) =>
+          ['EXTRACTION', 'CORRECTION', 'APPROVAL'].includes(type.value)
+        );
+
+      case 'EXTRACTED':
+      case 'NEEDS_CORRECTION':
+        return this.allTaskTypeOptions.filter((type) =>
+          ['CORRECTION', 'APPROVAL'].includes(type.value)
+        );
+
+      case 'READY_FOR_APPROVAL':
+        return this.allTaskTypeOptions.filter((type) => type.value === 'APPROVAL');
+
+      default:
+        return [];
+    }
+  }
+
+  get canAssignSelectedTaskType(): boolean {
+    return this.taskTypeOptions.some((type) => type.value === this.assignTaskType);
+  }
+
+  get canAssignTaskForCurrentStatus(): boolean {
+    return this.canAssignTasks && this.taskTypeOptions.length > 0;
   }
 
   ngOnInit(): void {
@@ -105,6 +292,7 @@ export class DocumentDetailPageComponent implements OnInit {
       next: (response) => {
         this.loading = false;
         this.document = response.payload;
+        this.syncAssignmentDefaultsForCurrentStatus();
         this.selectedManualDocumentType = this.resolveDefaultManualDocumentType(this.document);
         // Fetch preview as a blob so Authorization header is included by interceptor
         // then create an object URL for the iframe/img src. This avoids 401 on iframe
@@ -135,6 +323,8 @@ export class DocumentDetailPageComponent implements OnInit {
         if (this.shouldLoadExtractionForStatus(this.document.documentStatus)) {
           this.loadExtraction();
         }
+
+        this.loadWorkflowData(this.document.id);
       },
       error: (err: HttpErrorResponse) => {
         this.loading = false;
@@ -580,14 +770,311 @@ export class DocumentDetailPageComponent implements OnInit {
   }
 
   formatDate(dateStr: string): string {
-    if (!dateStr) return '—';
-    return new Date(dateStr).toLocaleString('en-GB', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
+    return formatApiDateTime(dateStr);
+  }
+
+  loadWorkflowData(documentId: number): void {
+    this.loadStatusHistory(documentId);
+    this.loadComments(documentId);
+    this.loadAuditLogs(documentId);
+    this.loadTasks(documentId);
+    this.loadAssignableUsers();
+  }
+
+  loadStatusHistory(documentId: number): void {
+    this.statusHistoryLoading = true;
+    this.statusHistoryError = null;
+
+    this.documentApiService.getStatusHistory(documentId).subscribe({
+      next: (response) => {
+        this.statusHistoryLoading = false;
+        this.statusHistory = response.payload ?? [];
+      },
+      error: (err: HttpErrorResponse) => {
+        this.statusHistoryLoading = false;
+        this.statusHistory = [];
+        this.statusHistoryError =
+          this.extractErrorMessage(err.error) ?? 'Failed to load status history.';
+      },
     });
+  }
+
+  loadComments(documentId: number): void {
+    this.commentsLoading = true;
+    this.commentsError = null;
+
+    this.documentApiService.getComments(documentId).subscribe({
+      next: (response) => {
+        this.commentsLoading = false;
+        this.documentComments = response.payload ?? [];
+      },
+      error: (err: HttpErrorResponse) => {
+        this.commentsLoading = false;
+        this.documentComments = [];
+        this.commentsError =
+          this.extractErrorMessage(err.error) ?? 'Failed to load comments.';
+      },
+    });
+  }
+
+  loadAuditLogs(documentId: number): void {
+    if (!this.canViewAudit) {
+      return;
+    }
+
+    this.auditLoading = true;
+
+    this.documentApiService.getAuditLog(documentId).subscribe({
+      next: (response) => {
+        this.auditLoading = false;
+        this.auditLogs = response.payload ?? [];
+      },
+      error: (err) => {
+        this.auditLoading = false;
+        this.auditError =
+          this.extractErrorMessage(err.error) ?? 'Failed to load audit log.';
+      }
+    });
+  }
+
+  loadTasks(documentId: number): void {
+    this.tasksLoading = true;
+    this.taskError = null;
+
+    this.taskApiService.getByDocument(documentId).subscribe({
+      next: (response) => {
+        this.tasksLoading = false;
+        this.tasks = response.payload ?? [];
+        this.duplicateTaskAssignmentAttempted = false;
+      },
+      error: (err: HttpErrorResponse) => {
+        this.tasksLoading = false;
+        this.tasks = [];
+        this.taskError = this.extractErrorMessage(err.error) ?? 'Failed to load document tasks.';
+      },
+    });
+  }
+
+  loadAssignableUsers(): void {
+    if (!this.canAssignTasks || this.assignableUsers.length > 0) {
+      return;
+    }
+
+    this.userApiService.list({ page: 0, size: 100 }).subscribe({
+      next: (response) => {
+        this.assignableUsers = response.payload ?? [];
+        this.syncDefaultAssignee();
+      },
+      error: () => {
+        this.assignableUsers = [];
+      },
+    });
+  }
+
+  assignTask(): void {
+    if (!this.document || !this.assignTaskUserId) {
+      this.toastr.warning('Choose a user before assigning the task.', 'Assignee required');
+      return;
+    }
+
+    const existingActiveTaskOfSameType = this.activeTaskOfSelectedType;
+
+    if (existingActiveTaskOfSameType) {
+      this.duplicateTaskAssignmentAttempted = true;
+      this.toastr.warning(
+        `An active ${this.formatTaskType(this.assignTaskType)} task already exists for this document. Cancel it before assigning another one.`,
+        'Duplicate task type'
+      );
+      return;
+    }
+
+    let dueDate: string | null = null;
+    if (this.assignTaskDueDate.trim()) {
+      dueDate = parseEuropeanDateTimeInput(this.assignTaskDueDate);
+      if (!dueDate) {
+        this.toastr.warning(
+          `Use European date format (${EUROPEAN_DATETIME_PLACEHOLDER}).`,
+          'Invalid due date'
+        );
+        return;
+      }
+
+      const dueDateError = this.validateDueDateOrder(dueDate);
+      if (dueDateError) {
+        this.toastr.warning(dueDateError, 'Invalid due date');
+        return;
+      }
+    }
+
+    const payload: AssignTaskRequest = {
+      assignedUserId: this.assignTaskUserId,
+      taskType: this.assignTaskType,
+      dueDate,
+    };
+
+    this.assigningTask = true;
+
+    this.taskApiService.assign(this.document.id, payload).subscribe({
+      next: () => {
+        this.assigningTask = false;
+        this.toastr.success('Task assigned.', 'Success');
+        this.loadTasks(this.document!.id);
+        this.loadAuditLogs(this.document!.id);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.assigningTask = false;
+        if (this.extractErrorCode(err.error) === 'TASK_DUPLICATE_ACTIVE') {
+          this.duplicateTaskAssignmentAttempted = true;
+        }
+        this.toastr.error(this.extractErrorMessage(err.error) ?? 'Failed to assign task.', 'Error');
+      },
+    });
+  }
+
+  cancelTask(task: TaskResponse): void {
+    if (!this.document) {
+      return;
+    }
+
+    this.taskApiService.cancel(task.id).subscribe({
+      next: () => {
+        this.toastr.success('Task cancelled.', 'Success');
+        this.loadTasks(this.document!.id);
+        this.loadAuditLogs(this.document!.id);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.toastr.error(this.extractErrorMessage(err.error) ?? 'Failed to cancel task.', 'Error');
+      },
+    });
+  }
+
+  onTaskTypeChange(): void {
+    this.duplicateTaskAssignmentAttempted = false;
+    this.assignTaskDueDate = '';
+    this.syncDefaultAssignee();
+  }
+
+  formatTaskType(taskType: string): string {
+    return taskType.replaceAll('_', ' ').toLowerCase();
+  }
+
+  isTaskOverdue(task: TaskResponse): boolean {
+    return (
+      !!task.dueDate &&
+      (task.status === 'OPEN' || task.status === 'IN_PROGRESS') &&
+      parseApiDateTime(task.dueDate).getTime() < Date.now()
+    );
+  }
+
+  approveDocument(): void {
+    this.submitApprovalDecision('approve');
+  }
+
+  rejectDocument(): void {
+    this.submitApprovalDecision('reject');
+  }
+
+  returnDocumentForCorrection(): void {
+    this.submitApprovalDecision('correction');
+  }
+
+  submitComment(): void {
+    if (!this.document || !this.newCommentContent.trim()) {
+      this.toastr.warning('Enter a comment before submitting.', 'Comment required');
+      return;
+    }
+
+    const documentId = this.document.id;
+    this.submittingComment = true;
+
+    this.documentApiService
+      .createComment(documentId, { content: this.newCommentContent.trim() })
+      .subscribe({
+        next: () => {
+          this.submittingComment = false;
+          this.newCommentContent = '';
+          this.toastr.success('Comment added.', 'Success');
+          this.loadComments(documentId);
+        },
+        error: (err: HttpErrorResponse) => {
+          this.submittingComment = false;
+          const message =
+            this.extractErrorMessage(err.error) ?? 'Failed to add comment.';
+          this.toastr.error(message, 'Error');
+        },
+      });
+  }
+
+  private submitApprovalDecision(decision: 'approve' | 'reject' | 'correction'): void {
+    if (!this.document) {
+      return;
+    }
+
+    const content = this.approvalComment.trim();
+    if (!content) {
+      this.toastr.warning('Enter an approval comment before submitting.', 'Comment required');
+      return;
+    }
+
+    const documentId = this.document.id;
+    const payload = { content };
+    const request =
+      decision === 'approve'
+        ? this.documentApiService.approveDocument(documentId, payload)
+        : decision === 'reject'
+          ? this.documentApiService.rejectDocument(documentId, payload)
+          : this.documentApiService.returnDocumentForCorrection(documentId, payload);
+
+    this.approvalSubmitting = true;
+
+    request.subscribe({
+      next: (response) => {
+        this.approvalSubmitting = false;
+        this.document = response.payload;
+        this.approvalComment = '';
+        this.toastr.success('Approval decision saved.', 'Success');
+        this.loadTasks(documentId);
+        this.loadStatusHistory(documentId);
+        this.loadComments(documentId);
+        this.loadAuditLogs(documentId);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.approvalSubmitting = false;
+        this.toastr.error(
+          this.extractErrorMessage(err.error) ?? 'Failed to save approval decision.',
+          'Error'
+        );
+      },
+    });
+  }
+
+  formatHistoryAction(action: string): string {
+    const labels: Record<string, string> = {
+      DOCUMENT_UPLOADED: 'Document uploaded',
+      DOCUMENT_TYPE_CONFIRMED: 'Document type confirmed',
+      EXTRACTION_COMPLETED: 'Extraction completed',
+      EXTRACTION_FAILED: 'Extraction failed',
+      EXTRACTION_CONFIRMED: 'Extraction confirmed',
+      EXTRACTION_RECONFIRMED: 'Extraction reconfirmed',
+      DOCUMENT_APPROVED: 'Document approved',
+      DOCUMENT_REJECTED: 'Document rejected',
+      DOCUMENT_RETURNED_FOR_CORRECTION: 'Returned for correction',
+      SYSTEM_STATUS_CHANGE: 'Status updated',
+    };
+
+    return labels[action] ?? action.replaceAll('_', ' ').toLowerCase();
+  }
+
+  formatCommentType(type: string): string {
+    const labels: Record<string, string> = {
+      GENERAL: 'General',
+      APPROVAL: 'Approval',
+      REJECTION: 'Rejection',
+      CORRECTION_REQUEST: 'Correction request',
+      SYSTEM: 'System',
+    };
+
+    return labels[type] ?? type;
   }
 
   isPlaceholderField(field: ExtractionField): boolean {
@@ -773,6 +1260,176 @@ export class DocumentDetailPageComponent implements OnInit {
     );
   }
 
+  formatAuditAction(action: string): string {
+    const labels: Record<string, string> = {
+      DOCUMENT_ASSIGNED: 'Document assigned',
+      TASK_STARTED: 'Task started',
+      TASK_COMPLETED: 'Task completed',
+      TASK_CANCELLED: 'Task cancelled',
+
+      FIELD_ADDED: 'Field added',
+      FIELD_UPDATED: 'Field updated',
+
+      DOCUMENT_APPROVED: 'Document approved',
+      DOCUMENT_REJECTED: 'Document rejected',
+      DOCUMENT_RETURNED_FOR_CORRECTION: 'Returned for correction',
+
+      NOTIFICATION_CREATED: 'Notification created',
+      NOTIFICATION_READ: 'Notification read',
+      NOTIFICATIONS_READ_ALL: 'All notifications read',
+
+      EMAIL_REMINDER_SENT: 'Email reminder sent',
+      PERMISSION_DENIED: 'Permission denied',
+      SYSTEM_ACTION: 'System action',
+    };
+
+    return labels[action] ?? this.toReadableText(action);
+  }
+
+  get latestAuditLog(): AuditLog | null {
+  return this.auditLogs.length > 0 ? this.auditLogs[0] : null;
+}
+
+get visibleAuditLogs(): AuditLog[] {
+  return this.auditExpanded ? this.auditLogs : this.auditLogs.slice(0, 3);
+}
+
+toggleAuditExpanded(): void {
+  this.auditExpanded = !this.auditExpanded;
+}
+
+formatStatusTransition(entry: StatusHistoryEntry): string {
+  if (!entry.oldStatus) {
+    return entry.newStatus;
+  }
+
+  return `${entry.oldStatus} → ${entry.newStatus}`;
+}
+
+getStatusHistoryIcon(action: string): string {
+  if (action.includes('UPLOADED')) return '↑';
+  if (action.includes('EXTRACTION')) return '✎';
+  if (action.includes('APPROVED')) return '✓';
+  if (action.includes('REJECTED')) return '!';
+  if (action.includes('RETURNED')) return '↩';
+  if (action.includes('CONFIRMED')) return '✓';
+
+  return '•';
+}
+
+getStatusHistoryClass(action: string): string {
+  if (action.includes('APPROVED')) return 'workflow-event--success';
+  if (action.includes('REJECTED')) return 'workflow-event--danger';
+  if (action.includes('RETURNED')) return 'workflow-event--warning';
+  if (action.includes('EXTRACTION')) return 'workflow-event--info';
+
+  return 'workflow-event--neutral';
+}
+
+formatAuditDetails(entry: AuditLog): string {
+  const details = entry.details;
+
+  if (!details) {
+    return 'No additional details.';
+  }
+
+  try {
+    const parsed = JSON.parse(details);
+    const taskType = parsed.taskType ? this.toTitleCase(this.formatTaskType(parsed.taskType)) : 'workflow';
+
+    switch (entry.action) {
+      case 'DOCUMENT_ASSIGNED': {
+  const assignedUserName =
+          parsed.assignedUserName || this.resolveAuditAssignedUserName(parsed.assignedUserId);
+
+        return `Assigned ${taskType} task to ${assignedUserName}.`;
+      }
+
+      case 'TASK_STARTED':
+        return `${taskType} task was started.`;
+
+      case 'TASK_COMPLETED':
+        return parsed.completedAutomatically
+          ? `${taskType} task was completed automatically after the workflow action.`
+          : `${taskType} task was completed.`;
+
+      case 'TASK_CANCELLED':
+        return `${taskType} task was cancelled.`;
+
+      case 'FIELD_UPDATED':
+        return parsed.fieldName
+          ? `Updated extracted field: ${this.formatFieldName(parsed.fieldName)}.`
+          : 'An extracted field was updated.';
+
+      case 'DOCUMENT_APPROVED':
+        return 'Document was moved to Approved.';
+
+      case 'DOCUMENT_REJECTED':
+        return 'Document was moved to Rejected.';
+
+      case 'DOCUMENT_RETURNED_FOR_CORRECTION':
+        return 'Document was returned to the operator for correction.';
+
+      default:
+        return Object.entries(parsed)
+          .map(([key, value]) => `${this.formatFieldName(key)}: ${value}`)
+          .join(' · ');
+    }
+  } catch {
+    return details
+      .replaceAll('taskId', 'Task ID')
+      .replaceAll('taskType', 'Task type')
+      .replaceAll('completedAutomatically', 'Completed automatically')
+      .replaceAll('{', '')
+      .replaceAll('}', '')
+      .replaceAll('"', '');
+  }
+}
+
+private toTitleCase(value: string): string {
+  return value
+    .split(' ')
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+  formatFieldName(value: string): string {
+    return value
+      .replace(/^custom\./, '')
+      .split('_')
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(' ');
+  }
+
+  getAuditIcon(action: string): string {
+    if (action.includes('FIELD')) return '✎';
+    if (action.includes('APPROVED')) return '✓';
+    if (action.includes('REJECTED')) return '!';
+    if (action.includes('RETURNED')) return '↩';
+    if (action.includes('ASSIGNED') || action.includes('TASK')) return '→';
+    if (action.includes('NOTIFICATION')) return '🔔';
+    return '•';
+  }
+
+  getAuditActionClass(action: string): string {
+    if (action.includes('APPROVED')) return 'audit-success';
+    if (action.includes('REJECTED') || action.includes('DENIED')) return 'audit-danger';
+    if (action.includes('RETURNED')) return 'audit-warning';
+    if (action.includes('FIELD')) return 'audit-info';
+    return 'audit-neutral';
+  }
+
+  private toReadableText(value: string): string {
+    return value
+      .toLowerCase()
+      .split('_')
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(' ');
+  }
+
   private resolveDownloadFileName(doc: DocflowDocument): string {
     if (doc.name.includes('.')) return doc.name;
     const ext = this.resolveExtension(doc);
@@ -804,6 +1461,11 @@ export class DocumentDetailPageComponent implements OnInit {
   }
 
   private extractErrorCode(errorBody: unknown): string | null {
+    if (Array.isArray(errorBody)) {
+      const firstError = errorBody[0];
+      return typeof firstError?.code === 'string' ? firstError.code : null;
+    }
+
     if (errorBody && typeof errorBody === 'object') {
       const body = errorBody as {code?: string};
       if (typeof body.code === 'string') return body.code;
@@ -835,10 +1497,120 @@ export class DocumentDetailPageComponent implements OnInit {
     this.extractionRunning = false;
     this.editState = null;
     this.confirmingExtraction = false;
+    this.statusHistory = [];
+    this.statusHistoryLoading = false;
+    this.statusHistoryError = null;
+    this.documentComments = [];
+    this.commentsLoading = false;
+    this.commentsError = null;
+    this.newCommentContent = '';
+    this.submittingComment = false;
+    this.approvalComment = '';
+    this.approvalSubmitting = false;
+    this.tasks = [];
+    this.tasksLoading = false;
+    this.taskError = null;
+    this.duplicateTaskAssignmentAttempted = false;
+    this.assignTaskUserId = null;
+    this.assignTaskType = 'CORRECTION';
+    this.assignTaskDueDate = '';
+    this.assigningTask = false;
+  }
+
+  private syncDefaultAssignee(): void {
+    if (this.eligibleAssignees.some((user) => user.id === this.assignTaskUserId)) {
+      return;
+    }
+
+    this.assignTaskUserId = this.eligibleAssignees[0]?.id ?? null;
+  }
+
+  private latestPrerequisiteDueDate(taskType: TaskType): Date | null {
+    if (taskType === 'CORRECTION') {
+      return this.latestTaskDueDate('EXTRACTION');
+    }
+
+    if (taskType === 'APPROVAL') {
+      return this.latestTaskDueDate('CORRECTION') ?? this.latestTaskDueDate('EXTRACTION');
+    }
+
+    return null;
+  }
+
+  private latestTaskDueDate(taskType: TaskType): Date | null {
+    const dueDates = this.tasks
+      .filter((task) => task.taskType === taskType && task.dueDate)
+      .map((task) => parseApiDateTime(task.dueDate!));
+
+    if (dueDates.length === 0) {
+      return null;
+    }
+
+    return new Date(Math.max(...dueDates.map((date) => date.getTime())));
+  }
+
+  private validateDueDateOrder(dueDate: string): string | null {
+    const selectedDueDate = parseApiDateTime(dueDate);
+    const prerequisite = this.latestPrerequisiteDueDate(this.assignTaskType);
+
+    if (prerequisite && selectedDueDate.getTime() < prerequisite.getTime()) {
+      if (this.assignTaskType === 'CORRECTION') {
+        return 'Correction due date cannot be before the extraction due date.';
+      }
+
+      return 'Approval due date cannot be before the correction or extraction due date.';
+    }
+
+    if (selectedDueDate.getTime() < Date.now()) {
+      return 'Task due date cannot be in the past.';
+    }
+
+    return null;
   }
 
   private shouldLoadExtractionForStatus(status: string | null | undefined): boolean {
-    return status === 'EXTRACTED' || status === 'READY_FOR_APPROVAL';
+    return [
+      'EXTRACTED',
+      'READY_FOR_APPROVAL',
+      'NEEDS_CORRECTION',
+      'APPROVED',
+      'REJECTED',
+    ].includes(status ?? '');
+  }
+
+
+  shouldShowExtractionFields(): boolean {
+    return [
+      'EXTRACTED',
+      'READY_FOR_APPROVAL',
+      'NEEDS_CORRECTION',
+      'APPROVED',
+      'REJECTED',
+    ].includes(this.document?.documentStatus ?? '');
+  }
+
+  canEditExtractionField(): boolean {
+    return (
+      this.canUseExtractionActions &&
+      (this.document?.documentStatus === 'EXTRACTED' ||
+        this.document?.documentStatus === 'NEEDS_CORRECTION')
+    );
+  }
+
+  canConfirmCurrentExtraction(): boolean {
+    return (
+      this.canUseExtractionActions &&
+      (this.document?.documentStatus === 'EXTRACTED' ||
+        this.document?.documentStatus === 'NEEDS_CORRECTION')
+    );
+  }
+
+  canRetryCurrentExtraction(): boolean {
+    return (
+      this.canUseExtractionActions &&
+      (this.document?.documentStatus === 'EXTRACTED' ||
+        this.document?.documentStatus === 'NEEDS_CORRECTION')
+    );
   }
 
   private hasValidationErrors(errorBody: unknown): boolean {
@@ -955,4 +1727,62 @@ export class DocumentDetailPageComponent implements OnInit {
 
     return Array.from(new Set(names));
   }
+
+  private syncAssignmentDefaultsForCurrentStatus(): void {
+    const availableTypes = this.taskTypeOptions;
+
+    if (availableTypes.length === 0) {
+      this.assignTaskUserId = null;
+      return;
+    }
+
+    if (!availableTypes.some((type) => type.value === this.assignTaskType)) {
+      this.assignTaskType = availableTypes[0].value;
+    }
+
+    this.syncDefaultAssignee();
+  }
+
+  private resolveAuditAssignedUserName(userId: unknown): string {
+    const numericUserId = Number(userId);
+
+    if (!Number.isFinite(numericUserId)) {
+      return 'selected user';
+    }
+
+    const user = this.assignableUsers.find((candidate) => candidate.id === numericUserId);
+
+    if (!user) {
+      return `user #${numericUserId}`;
+    }
+
+    const fullName = `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim();
+
+    return fullName || `user #${numericUserId}`;
+  } 
+
+  formatTaskTypeTitle(taskType: TaskType | string | null | undefined): string {
+  switch (taskType) {
+    case 'EXTRACTION':
+      return 'Extraction';
+    case 'CORRECTION':
+      return 'Correction';
+    case 'APPROVAL':
+      return 'Approval';
+    default:
+      return 'Task';
+  }
+}
+
+formatTaskStatusLabel(status: string | null | undefined): string {
+  if (!status) {
+    return 'Unknown';
+  }
+
+  return status
+    .replaceAll('_', ' ')
+    .toLowerCase()
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
 }

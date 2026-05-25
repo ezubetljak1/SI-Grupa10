@@ -25,20 +25,22 @@ export class StatusBadgeComponent {
   get label(): string {
     const labels: Record<string, string> = {
       UPLOADED: 'Uploaded',
+      PROCESSING_FAILED: 'Processing Failed',
+      EXTRACTED: 'Extracted',
+      UNDER_REVIEW: 'Under Review',
+      NEEDS_CLASSIFICATION_REVIEW: 'Needs Classification Review',
+      READY_FOR_APPROVAL: 'Ready for Approval',
+      NEEDS_CORRECTION: 'Needs Correction',
+      APPROVED: 'Approved',
+      REJECTED: 'Rejected',
+      COMPLETED: 'Completed',
+
       STORED: 'Stored',
       VALIDATED: 'Validated',
       PROCESSING: 'Processing',
       PENDING: 'Pending',
       FAILED: 'Failed',
       ERROR: 'Error',
-      REJECTED: 'Rejected',
-      PROCESSING_FAILED: 'Processing Failed',
-      EXTRACTED: 'Extracted',
-      UNDER_REVIEW: 'Under Review',
-      NEEDS_CLASSIFICATION_REVIEW: 'Needs Classification Review',
-      READY_FOR_APPROVAL: 'Ready For Approval',
-      APPROVED: 'Approved',
-      COMPLETED: 'Completed',
       UNKNOWN: 'Unknown',
     };
 
@@ -48,20 +50,22 @@ export class StatusBadgeComponent {
   get variant(): BadgeVariant {
     const variants: Record<string, BadgeVariant> = {
       UPLOADED: 'success',
+      PROCESSING_FAILED: 'error',
+      EXTRACTED: 'info',
+      UNDER_REVIEW: 'warning',
+      NEEDS_CLASSIFICATION_REVIEW: 'warning',
+      READY_FOR_APPROVAL: 'approval',
+      NEEDS_CORRECTION: 'warning',
+      APPROVED: 'success',
+      REJECTED: 'error',
+      COMPLETED: 'success',
+
       STORED: 'success',
       VALIDATED: 'success',
       PROCESSING: 'processing',
       PENDING: 'warning',
       FAILED: 'error',
       ERROR: 'error',
-      REJECTED: 'error',
-      PROCESSING_FAILED: 'error',
-      EXTRACTED: 'info',
-      UNDER_REVIEW: 'warning',
-      NEEDS_CLASSIFICATION_REVIEW: 'warning',
-      READY_FOR_APPROVAL: 'approval',
-      APPROVED: 'success',
-      COMPLETED: 'success',
       UNKNOWN: 'neutral',
     };
 

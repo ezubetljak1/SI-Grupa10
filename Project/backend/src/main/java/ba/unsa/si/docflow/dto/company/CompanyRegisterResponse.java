@@ -8,6 +8,5 @@ import lombok.Data;
 public class CompanyRegisterResponse {
     private Long companyId;
     private String companyName;
-    private String adminTemporaryPassword;
     private String message;
 }

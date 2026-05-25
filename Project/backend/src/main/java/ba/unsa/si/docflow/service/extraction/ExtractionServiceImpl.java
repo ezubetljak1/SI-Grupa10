@@ -9,9 +9,7 @@ import ba.unsa.si.docflow.dto.extraction.UpdateExtractionFieldRequest;
 import ba.unsa.si.docflow.entity.DocumentEntity;
 import ba.unsa.si.docflow.entity.ExtractionEntity;
 import ba.unsa.si.docflow.entity.ExtractionFieldEntity;
-import ba.unsa.si.docflow.entity.enums.DocumentStatus;
-import ba.unsa.si.docflow.entity.enums.DocumentType;
-import ba.unsa.si.docflow.entity.enums.RoleName;
+import ba.unsa.si.docflow.entity.enums.*;
 import ba.unsa.si.docflow.exception.ApiNotFoundException;
 import ba.unsa.si.docflow.exception.ApiValidationException;
 import ba.unsa.si.docflow.exception.DocumentClassificationReviewRequiredException;
@@ -20,6 +18,7 @@ import ba.unsa.si.docflow.mapper.ExtractionMapper;
 import ba.unsa.si.docflow.response.ApiResponse;
 import ba.unsa.si.docflow.response.ValidationErrors;
 import ba.unsa.si.docflow.security.CurrentUserService;
+import ba.unsa.si.docflow.service.audit.AuditLogService;
 import ba.unsa.si.docflow.service.document.DocumentValidation;
 import ba.unsa.si.docflow.service.ocr.DocumentAiProcessorRouter;
 import ba.unsa.si.docflow.service.ocr.DocumentClassificationService;
@@ -27,7 +26,10 @@ import ba.unsa.si.docflow.service.ocr.OcrProvider;
 import ba.unsa.si.docflow.service.ocr.model.DocumentClassificationResult;
 import ba.unsa.si.docflow.service.ocr.model.OcrExtractedField;
 import ba.unsa.si.docflow.service.ocr.model.OcrResult;
+import ba.unsa.si.docflow.service.security.WorkflowPermissionService;
 import ba.unsa.si.docflow.service.storage.StorageService;
+import ba.unsa.si.docflow.service.task.TaskService;
+import ba.unsa.si.docflow.service.workflow.DocumentStatusTransitionService;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -103,10 +105,18 @@ public class ExtractionServiceImpl implements ExtractionService {
     private final DocumentClassificationService documentClassificationService;
     private final CurrentUserService currentUserService;
 
+    private final DocumentStatusTransitionService documentStatusTransitionService;
+
+    private final WorkflowPermissionService workflowPermissionService;
+    private final AuditLogService auditLogService;
+    private final TaskService taskService;
+
     @Override
     public ApiResponse<ExtractionResponse> process(Long documentId) {
         currentUserService.requireAnyRole(RoleName.ADMIN, RoleName.OPERATOR);
         DocumentEntity document = requireDocumentInCurrentCompany(documentId);
+        workflowPermissionService.requireCanRunExtraction(document);
+        Long currentUserId = currentUserService.getCurrentUserId();
 
         try {
             byte[] fileContent = readDocumentContent(document);
@@ -121,23 +131,41 @@ public class ExtractionServiceImpl implements ExtractionService {
 
             document.setDocumentType(documentType);
             document.setProcessorIdUsed(processorId);
-            document.setDocumentStatus(DocumentStatus.EXTRACTED);
-            documentDAO.merge(document);
+
+            documentStatusTransitionService.changeStatus(
+                    document,
+                    DocumentStatus.EXTRACTED,
+                    StatusHistoryAction.EXTRACTION_COMPLETED,
+                    currentUserId,
+                    null,
+                    "Document extraction completed.");
+
+            taskService.completeActiveTaskForDocument(document, TaskType.EXTRACTION, currentUserId);
 
             ExtractionResponse response = extractionMapper.entityToDto(extraction);
             return new ApiResponse<>("OK", response);
 
         } catch (ExtractionException exception) {
             if (document.getDocumentStatus() != DocumentStatus.NEEDS_CLASSIFICATION_REVIEW) {
-                document.setDocumentStatus(DocumentStatus.PROCESSING_FAILED);
-                documentDAO.merge(document);
+                documentStatusTransitionService.changeStatus(
+                        document,
+                        DocumentStatus.PROCESSING_FAILED,
+                        StatusHistoryAction.EXTRACTION_FAILED,
+                        currentUserId,
+                        null,
+                        exception.getMessage());
             }
 
             throw exception;
 
         } catch (Exception exception) {
-            document.setDocumentStatus(DocumentStatus.PROCESSING_FAILED);
-            documentDAO.merge(document);
+            documentStatusTransitionService.changeStatus(
+                    document,
+                    DocumentStatus.PROCESSING_FAILED,
+                    StatusHistoryAction.EXTRACTION_FAILED,
+                    currentUserId,
+                    null,
+                    exception.getMessage());
 
             throw new ExtractionException(
                     "Document extraction failed: " + exception.getMessage(), exception);
@@ -205,7 +233,7 @@ public class ExtractionServiceImpl implements ExtractionService {
     public ApiResponse<ExtractionResponse> confirmExtraction(Long documentId) {
         currentUserService.requireAnyRole(RoleName.ADMIN, RoleName.OPERATOR);
         DocumentEntity document = requireDocumentInCurrentCompany(documentId);
-
+        workflowPermissionService.requireCanConfirmExtraction(document);
         ExtractionEntity extraction = extractionDAO.findByDocumentId(documentId);
 
         if (extraction == null) {
@@ -215,8 +243,29 @@ public class ExtractionServiceImpl implements ExtractionService {
 
         extractionValidation.validateRequiredFields(extraction);
 
-        document.setDocumentStatus(DocumentStatus.READY_FOR_APPROVAL);
-        documentDAO.merge(document);
+        DocumentStatus currentStatus = document.getDocumentStatus();
+
+        TaskType taskTypeToComplete =
+                currentStatus == DocumentStatus.EXTRACTED
+                        || currentStatus == DocumentStatus.NEEDS_CORRECTION
+                        ? TaskType.CORRECTION
+                        : TaskType.EXTRACTION;
+
+        StatusHistoryAction confirmAction =
+                currentStatus == DocumentStatus.NEEDS_CORRECTION
+                        ? StatusHistoryAction.EXTRACTION_RECONFIRMED
+                        : StatusHistoryAction.EXTRACTION_CONFIRMED;
+
+        documentStatusTransitionService.changeStatus(
+                document,
+                DocumentStatus.READY_FOR_APPROVAL,
+                confirmAction,
+                currentUserService.getCurrentUserId(),
+                null,
+                "Extraction confirmed and sent for approval.");
+
+        taskService.completeActiveTaskForDocument(
+                document, taskTypeToComplete, currentUserService.getCurrentUserId());
 
         return new ApiResponse<>("OK", extractionMapper.entityToDto(extraction));
     }
@@ -237,13 +286,21 @@ public class ExtractionServiceImpl implements ExtractionService {
                                                         + " and field id: "
                                                         + fieldId));
 
+        DocumentEntity document = field.getExtraction().getDocument();
+        workflowPermissionService.requireCanEditExtraction(document);
         validateUpdatedFieldValue(field, request.getValue());
-
         field.setValue(request.getValue());
         field.setCorrected(true);
         field.setPlaceholder(false);
 
         ExtractionFieldEntity updatedField = extractionFieldDAO.merge(field);
+
+        auditLogService.log(
+                document,
+                currentUserService.getCurrentUserId(),
+                AuditAction.FIELD_UPDATED,
+                "{\"fieldId\":" + fieldId + ",\"fieldName\":\"" + field.getFieldName() + "\"}"
+        );
 
         return new ApiResponse<>("OK", extractionMapper.fieldToDto(updatedField));
     }
@@ -276,8 +333,13 @@ public class ExtractionServiceImpl implements ExtractionService {
 
         if (!supportedDetectedType
                 || confidence.compareTo(CLASSIFICATION_CONFIDENCE_THRESHOLD) < 0) {
-            document.setDocumentStatus(DocumentStatus.NEEDS_CLASSIFICATION_REVIEW);
-            documentDAO.merge(document);
+            documentStatusTransitionService.changeStatus(
+                    document,
+                    DocumentStatus.NEEDS_CLASSIFICATION_REVIEW,
+                    StatusHistoryAction.SYSTEM_STATUS_CHANGE,
+                    currentUserService.getCurrentUserId(),
+                    null,
+                    "Document classification requires manual review.");
 
             throw new DocumentClassificationReviewRequiredException(
                     document.getId(), detectedType, confidence);

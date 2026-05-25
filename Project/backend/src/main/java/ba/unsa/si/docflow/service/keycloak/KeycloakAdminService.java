@@ -11,7 +11,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.keycloak.admin.client.CreatedResponseUtil;
 import org.keycloak.admin.client.Keycloak;
 import org.keycloak.admin.client.resource.RealmResource;
-import org.keycloak.representations.idm.CredentialRepresentation;
 import org.keycloak.representations.idm.GroupRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
 import org.springframework.context.annotation.Profile;
@@ -19,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.security.SecureRandom;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -31,6 +31,8 @@ public class KeycloakAdminService {
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
     private static final String PASSWORD_ALPHABET =
             "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%";
+
+    private static final String UPDATE_PASSWORD_ACTION = "UPDATE_PASSWORD";
 
     private final Keycloak keycloak;
     private final KeycloakProperties keycloakProperties;
@@ -77,26 +79,47 @@ public class KeycloakAdminService {
         user.setEmailVerified(true);
 
         if (requirePasswordUpdate) {
-            user.setRequiredActions(List.of("UPDATE_PASSWORD"));
+            user.setRequiredActions(List.of(UPDATE_PASSWORD_ACTION));
         }
 
         String userId = null;
 
         try (Response response = realm().users().create(user)) {
             assertSuccessfulResponse(response, "create user");
-            userId = CreatedResponseUtil.getCreatedId(response);
-            String temporaryPassword = generateTemporaryPassword();
 
-            setTemporaryPassword(userId, temporaryPassword);
+            userId = CreatedResponseUtil.getCreatedId(response);
             joinGroup(userId, keycloakGroupId);
 
-            return new KeycloakUserCreationResult(userId, temporaryPassword);
+            return new KeycloakUserCreationResult(userId);
         } catch (KeycloakIntegrationException ex) {
             deleteUser(userId);
             throw ex;
         } catch (Exception ex) {
             deleteUser(userId);
             throw new KeycloakIntegrationException("Failed to create user in Keycloak.", ex);
+        }
+    }
+
+    public void sendPasswordSetupEmail(String keycloakUserId) {
+        if (!StringUtils.hasText(keycloakUserId)) {
+            throw new KeycloakIntegrationException(
+                    "Keycloak user id is required for password setup email.");
+        }
+
+        try {
+            ensureRequiredAction(keycloakUserId, UPDATE_PASSWORD_ACTION);
+
+            realm().users()
+                    .get(keycloakUserId)
+                    .executeActionsEmail(
+                            keycloakProperties.getFrontendClientId(),
+                            keycloakProperties.getFrontendRedirectUri(),
+                            keycloakProperties.getPasswordSetupLinkLifespanSeconds(),
+                            List.of(UPDATE_PASSWORD_ACTION));
+        } catch (KeycloakIntegrationException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new KeycloakIntegrationException("Failed to send password setup email.", ex);
         }
     }
 
@@ -138,29 +161,6 @@ public class KeycloakAdminService {
         }
     }
 
-    public String resetUserPassword(String keycloakUserId) {
-        if (!StringUtils.hasText(keycloakUserId)) {
-            throw new KeycloakIntegrationException(
-                    "Keycloak user id is required for password reset.");
-        }
-
-        try {
-            String temporaryPassword = generateTemporaryPassword();
-            setTemporaryPassword(keycloakUserId, temporaryPassword);
-
-            UserRepresentation user = realm().users().get(keycloakUserId).toRepresentation();
-            user.setRequiredActions(List.of("UPDATE_PASSWORD"));
-            realm().users().get(keycloakUserId).update(user);
-
-            return temporaryPassword;
-        } catch (KeycloakIntegrationException ex) {
-            throw ex;
-        } catch (Exception ex) {
-            throw new KeycloakIntegrationException(
-                    "Failed to reset user password in Keycloak.", ex);
-        }
-    }
-
     public boolean isPasswordUpdateRequired(String keycloakUserId) {
         if (!StringUtils.hasText(keycloakUserId)) {
             return false;
@@ -178,20 +178,6 @@ public class KeycloakAdminService {
 
     protected RealmResource realm() {
         return keycloak.realm(keycloakProperties.getRealm());
-    }
-
-    private void setTemporaryPassword(String userId, String temporaryPassword) {
-        CredentialRepresentation credential = new CredentialRepresentation();
-        credential.setType(CredentialRepresentation.PASSWORD);
-        credential.setTemporary(true);
-        credential.setValue(temporaryPassword);
-
-        try {
-            realm().users().get(userId).resetPassword(credential);
-        } catch (Exception ex) {
-            throw new KeycloakIntegrationException(
-                    "Failed to set temporary password in Keycloak.", ex);
-        }
     }
 
     private void joinGroup(String userId, String keycloakGroupId) {
@@ -238,14 +224,23 @@ public class KeycloakAdminService {
         return slug + "-" + UUID.randomUUID().toString().substring(0, 8);
     }
 
-    private String generateTemporaryPassword() {
-        StringBuilder builder = new StringBuilder(16);
+    private void ensureRequiredAction(String keycloakUserId, String requiredAction) {
+        try {
+            UserRepresentation user = realm().users().get(keycloakUserId).toRepresentation();
 
-        for (int i = 0; i < 16; i++) {
-            builder.append(
-                    PASSWORD_ALPHABET.charAt(SECURE_RANDOM.nextInt(PASSWORD_ALPHABET.length())));
+            List<String> requiredActions =
+                    user.getRequiredActions() == null
+                            ? new ArrayList<>()
+                            : new ArrayList<>(user.getRequiredActions());
+
+            if (!requiredActions.contains(requiredAction)) {
+                requiredActions.add(requiredAction);
+                user.setRequiredActions(requiredActions);
+                realm().users().get(keycloakUserId).update(user);
+            }
+        } catch (Exception ex) {
+            throw new KeycloakIntegrationException(
+                    "Failed to set required password update action in Keycloak.", ex);
         }
-
-        return builder.toString();
     }
 }
