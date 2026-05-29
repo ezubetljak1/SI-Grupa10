@@ -7,6 +7,7 @@ import { ToastrService } from 'ngx-toastr';
 import { AccountStatus, RoleName } from '../../../auth/models/auth.models';
 import { AuthService } from '../../../auth/services/auth.service';
 import { PageHeaderComponent, UiCardComponent } from '../../../shared/components';
+import { formatApiDateTime } from '../../../shared/utils/datetime.utils';
 import { UserResponse } from '../../models/user.models';
 import { UserApiService } from '../../services/user-api.service';
 
@@ -134,11 +135,7 @@ export class ProfilePageComponent implements OnInit {
   }
 
   formatDate(value?: string): string {
-    if (!value) {
-      return '—';
-    }
-
-    return new Date(value).toLocaleString();
+    return formatApiDateTime(value);
   }
 
   private extractErrorMessage(errorBody: unknown): string {

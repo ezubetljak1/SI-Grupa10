@@ -71,138 +71,147 @@
         </div>
 
         @if (tasksLoading) {
-            <div class="task-banner task-banner--muted">
-              Loading workflow tasks...
-            </div>
-          } @else if (workflowBannerTask; as bannerTask) {
-            <div
-              class="task-banner"
-              [class.task-banner--warning]="showAssignedToAnotherUserWarning"
-              [class.task-banner--overdue]="isTaskOverdue(bannerTask)">
-              <div class="task-banner__content">
-                <strong>
-                  {{ showAssignedToAnotherUserWarning ? 'Assigned to another user' : 'Active task' }}
-                </strong>
+          <div class="task-banner task-banner--muted">
+            Loading workflow tasks...
+          </div>
+        } @else if (workflowBannerTask; as bannerTask) {
+          <div
+            class="task-banner"
+            [class.task-banner--warning]="showAssignedToAnotherUserWarning"
+            [class.task-banner--overdue]="isTaskOverdue(bannerTask)">
+            <div class="task-banner__content">
+              <strong>
+                {{ showAssignedToAnotherUserWarning ? 'Assigned to another user' : 'Active task' }}
+              </strong>
 
-                <span>
+              <span>
                   @if (showAssignedToAnotherUserWarning) {
-                    This document has an active {{ formatTaskType(bannerTask.taskType) }} task assigned to
+                    This document has an active {{ formatTaskTypeTitle(bannerTask.taskType) }} task assigned to
                     {{ bannerTask.assignedUserName || ('user #' + bannerTask.assignedUserId) }}.
                   } @else {
-                    {{ formatTaskType(bannerTask.taskType) }} assigned to
+                    {{ formatTaskTypeTitle(bannerTask.taskType) }} assigned to
                     {{ bannerTask.assignedUserName || ('user #' + bannerTask.assignedUserId) }}.
                   }
                 </span>
-              </div>
-
-              <div class="task-banner__meta">
-                @if (isTaskOverdue(bannerTask)) {
-                  <span class="task-banner__overdue">Overdue</span>
-                }
-
-                <span class="task-banner__status">{{ bannerTask.status }}</span>
-              </div>
-            </div>
-          } @else if (taskError) {
-            <div class="task-banner task-banner--error">{{ taskError }}</div>
-          }
-
-      @if (hasAiClassificationMetadata()) {
-  <div class="ai-classification-metadata">
-    <div class="ai-classification-metadata__header">
-      <div>
-        <span class="ai-classification-metadata__eyebrow">AI classification</span>
-        <h3>Automatic classification result</h3>
-      </div>
-
-      @if (document.documentStatus === 'NEEDS_CLASSIFICATION_REVIEW') {
-              <span class="meta-chip meta-chip--warning">Manual review required</span>
-            }
-          </div>
-
-          <div class="meta-grid meta-grid--ai">
-            <div class="meta-item meta-item--ai">
-              <span class="meta-item__label">AI detected type</span>
-              <strong class="meta-item__value">
-                {{ formatDocumentTypeLabel(document.detectedDocumentType) }}
-              </strong>
             </div>
 
-            <div class="meta-item meta-item--ai">
-              <span class="meta-item__label">Classification confidence</span>
-              <strong class="meta-item__value">
-                {{ formatClassificationConfidence(document.classificationConfidence) }}
-              </strong>
-            </div>
+            <div class="task-banner__meta">
+              @if (isTaskOverdue(bannerTask)) {
+                <span class="task-status-pill task-status-pill--overdue">Overdue</span>
+              }
 
-            <div class="meta-item meta-item--ai">
-              <span class="meta-item__label">Processor used</span>
-              <strong class="meta-item__value">
-                {{ formatProcessorLabel(document) }}
-              </strong>
+              <span class="task-status-pill task-status-pill--active">{{ formatTaskStatusLabel(bannerTask.status) }}</span>
             </div>
           </div>
-        </div>
-      }
+        } @else if (taskError) {
+          <div class="task-banner task-banner--error">{{ taskError }}</div>
+        }
+
+        @if (hasAiClassificationMetadata()) {
+          <div class="ai-classification-metadata">
+            <div class="ai-classification-metadata__header">
+              <div>
+                <span class="ai-classification-metadata__eyebrow">AI classification</span>
+                <h3>Automatic classification result</h3>
+              </div>
+
+              @if (document.documentStatus === 'NEEDS_CLASSIFICATION_REVIEW') {
+                <span class="meta-chip meta-chip--warning">Manual review required</span>
+              }
+            </div>
+
+            <div class="meta-grid meta-grid--ai">
+              <div class="meta-item meta-item--ai">
+                <span class="meta-item__label">AI detected type</span>
+                <strong class="meta-item__value">
+                  {{ formatDocumentTypeLabel(document.detectedDocumentType) }}
+                </strong>
+              </div>
+
+              <div class="meta-item meta-item--ai">
+                <span class="meta-item__label">Classification confidence</span>
+                <strong class="meta-item__value">
+                  {{ formatClassificationConfidence(document.classificationConfidence) }}
+                </strong>
+              </div>
+
+              <div class="meta-item meta-item--ai">
+                <span class="meta-item__label">Processor used</span>
+                <strong class="meta-item__value">
+                  {{ formatProcessorLabel(document) }}
+                </strong>
+              </div>
+            </div>
+          </div>
+        }
       </app-ui-card>
 
       @if (document && canAssignTasks) {
         <app-ui-card
           title="Task assignment"
           subtitle="Assign document work to the right workflow role.">
-          <div class="task-assignment">
-            <div class="field">
-              <label for="taskType">Task type</label>
-              <select
-                id="taskType"
-                class="select"
-                name="taskType"
-                [(ngModel)]="assignTaskType"
-                (ngModelChange)="onTaskTypeChange()">
-                @for (type of taskTypeOptions; track type.value) {
-                  <option [value]="type.value">{{ type.label }}</option>
-                }
-              </select>
+
+          @if (canAssignTaskForCurrentStatus) {
+            <div class="task-assignment">
+              <div class="field">
+                <label for="taskType">Task type</label>
+                <select
+                  id="taskType"
+                  class="select"
+                  name="taskType"
+                  [(ngModel)]="assignTaskType"
+                  (ngModelChange)="onTaskTypeChange()">
+                  @for (type of taskTypeOptions; track type.value) {
+                    <option [value]="type.value">{{ type.label }}</option>
+                  }
+                </select>
+              </div>
+
+              <div class="field">
+                <label for="taskAssignee">Assignee</label>
+                <select
+                  id="taskAssignee"
+                  class="select"
+                  name="taskAssignee"
+                  [(ngModel)]="assignTaskUserId">
+                  @for (user of eligibleAssignees; track user.id) {
+                    <option [ngValue]="user.id">
+                      {{ user.firstName }} {{ user.lastName }} · {{ user.role }}
+                    </option>
+                  }
+                </select>
+              </div>
+
+              <div class="field">
+                <div class="field-header">
+                  <label for="taskDueDate">Due date</label>
+
+                  <small class="field-hint">
+                    Earliest allowed: {{ minDueDateHint }}.
+                  </small>
+                </div>
+                <input
+                  id="taskDueDate"
+                  class="input"
+                  type="text"
+                  name="taskDueDate"
+                  lang="bs"
+                  [placeholder]="europeanDatetimePlaceholder"
+                  [(ngModel)]="assignTaskDueDate"/>
+
+              </div>
+
+              <button
+                type="button"
+                class="btn btn-primary"
+                [disabled]="assigningTask || !assignTaskUserId || !canAssignSelectedTaskType"
+                (click)="assignTask()">
+                {{ assigningTask ? 'Assigning...' : 'Assign task' }}
+              </button>
             </div>
-
-            <div class="field">
-              <label for="taskAssignee">Assignee</label>
-              <select
-                id="taskAssignee"
-                class="select"
-                name="taskAssignee"
-                [(ngModel)]="assignTaskUserId">
-                @for (user of eligibleAssignees; track user.id) {
-                  <option [ngValue]="user.id">
-                    {{ user.firstName }} {{ user.lastName }} · {{ user.role }}
-                  </option>
-                }
-              </select>
-            </div>
-
-            <div class="field">
-              <label for="taskDueDate">Due date</label>
-              <input
-                id="taskDueDate"
-                class="input"
-                type="datetime-local"
-                name="taskDueDate"
-                [min]="minDueDate"
-                [(ngModel)]="assignTaskDueDate" />
-            </div>
-
-            <button
-              type="button"
-              class="btn btn-primary"
-              [disabled]="assigningTask || !assignTaskUserId || !canAssignSelectedTaskType"
-              (click)="assignTask()">
-              {{ assigningTask ? 'Assigning...' : 'Assign task' }}
-            </button>
-          </div>
-
-          @if (document.documentStatus !== 'READY_FOR_APPROVAL') {
+          } @else {
             <div class="task-assignment-hint">
-              Approval can be assigned after extraction is confirmed and the document is ready for approval.
+              No new task can be assigned for the current document status.
             </div>
           }
 
@@ -213,11 +222,11 @@
                   <div>
                     <strong>{{ formatTaskType(task.taskType) }}</strong>
                     <span>
-                      {{ task.assignedUserName || ('user #' + task.assignedUserId) }} · {{ task.status }}
+                        {{ task.assignedUserName || ('user #' + task.assignedUserId) }} · {{ task.status }}
                       @if (isTaskOverdue(task)) {
                         · Overdue
                       }
-                    </span>
+                      </span>
                   </div>
                   <button type="button" class="btn btn-muted btn-compact" (click)="cancelTask(task)">
                     Cancel
@@ -358,7 +367,7 @@
             } @else {
               Your role can view extracted fields, but extraction actions are restricted.
             }
-          } @else if (document.documentStatus === 'EXTRACTED') {
+          } @else if (canConfirmCurrentExtraction()) {
             <div class="extraction-actions__left">
               <button
                 type="button"
@@ -383,19 +392,32 @@
                 class="btn btn-primary"
                 (click)="confirmExtraction()"
                 [disabled]="extractionRunning || extractionLoading || confirmingExtraction || !!editState">
-                {{ confirmingExtraction ? 'Confirming...' : 'Confirm extraction' }}
+                {{
+                  confirmingExtraction
+                    ? 'Confirming...'
+                    : document.documentStatus === 'NEEDS_CORRECTION'
+                      ? 'Reconfirm extraction'
+                      : 'Confirm extraction'
+                }}
               </button>
             </div>
 
-              @if (hasUnreviewedDateFields()) {
-                <div class="date-format-notice">
-                  <strong>Check extracted date fields:</strong>
-                  <span>
-                    Dates should be in European format: DD.MM.YYYY or DD/MM/YYYY.
-                    If OCR returns an ambiguous date, verify that the day and month are correct before confirming extraction.
-                  </span>
-                </div>
-              }
+            @if (document.documentStatus === 'NEEDS_CORRECTION') {
+              <div class="message-card message-card--warning">
+                <strong>Correction required.</strong>
+                Review the returned document, update extracted fields if needed, then reconfirm extraction.
+              </div>
+            }
+
+            @if (hasUnreviewedDateFields()) {
+              <div class="date-format-notice">
+                <strong>Check extracted date fields:</strong>
+                <span>
+                  Dates should be in European format: DD.MM.YYYY or DD/MM/YYYY.
+                  If OCR returns an ambiguous date, verify that the day and month are correct before confirming extraction.
+                </span>
+              </div>
+            }
           } @else if (document.documentStatus === 'READY_FOR_APPROVAL') {
             <button
               type="button"
@@ -405,18 +427,22 @@
               {{ extractionLoading ? 'Refreshing...' : 'Refresh fields' }}
             </button>
           } @else if (document.documentStatus === 'NEEDS_CLASSIFICATION_REVIEW') {
-              <span class="classification-review-hint">
-                Confirm the document type before running extraction again.
-              </span>
+            <span class="classification-review-hint">
+              Confirm the document type before running extraction again.
+            </span>
+          } @else if (document.documentStatus === 'APPROVED' || document.documentStatus === 'REJECTED') {
+            <span class="classification-review-hint">
+              This document is finalized and extraction fields are view-only.
+            </span>
           } @else {
-              <button
-                type="button"
-                class="btn btn-primary"
-                [disabled]="extractionRunning"
-                (click)="runExtraction()">
-                {{ extractionRunning ? 'Running extraction...' : 'Run extraction' }}
-              </button>
-            }
+            <button
+              type="button"
+              class="btn btn-primary"
+              [disabled]="extractionRunning"
+              (click)="runExtraction()">
+              {{ extractionRunning ? 'Running extraction...' : 'Run extraction' }}
+            </button>
+          }
         </div>
 
         @if (document.documentStatus === 'READY_FOR_APPROVAL') {
@@ -449,14 +475,14 @@
           <div class="extraction-table-wrapper">
             <table class="extraction-table">
               <thead>
-                <tr>
-                  <th>Field</th>
-                  <th>Value</th>
-                  <th>Confidence</th>
-                  <th>Corrected</th>
-                  <th>Review status</th>
-                  <th>Actions</th>
-                </tr>
+              <tr>
+                <th>Field</th>
+                <th>Value</th>
+                <th>Confidence</th>
+                <th>Corrected</th>
+                <th>Review status</th>
+                <th>Actions</th>
+              </tr>
               </thead>
 
               <tbody>
@@ -533,13 +559,13 @@
                     </td>
 
                     <td class="actions-cell">
-                      @if (!canUseExtractionActions) {
+                      @if (!canEditExtractionField()) {
                         <span class="meta-chip meta-chip--muted">View only</span>
                       } @else if (!isEditing(field)) {
                         <button
                           type="button"
                           class="icon-btn"
-                          title="Koriguj vrijednost"
+                          title="Edit value"
                           [disabled]="editState !== null || extractionRunning || extractionLoading || confirmingExtraction"
                           (click)="startEdit(field)">
                           ✎
@@ -549,7 +575,7 @@
                           <button
                             type="button"
                             class="icon-btn icon-btn--confirm"
-                            title="Potvrdi izmjenu"
+                            title="Save change"
                             [disabled]="editState!.saving"
                             (click)="confirmEdit(field)">
                             {{ editState!.saving ? '…' : '✓' }}
@@ -558,7 +584,7 @@
                           <button
                             type="button"
                             class="icon-btn icon-btn--cancel"
-                            title="Odustani"
+                            title="Cancel edit"
                             [disabled]="editState!.saving"
                             (click)="cancelEdit()">
                             ✕
@@ -582,7 +608,7 @@
         } @else if (statusHistoryError) {
           <div class="message-card message-card--error">{{ statusHistoryError }}</div>
         } @else if (statusHistory.length === 0) {
-          <div class="workflow-state">
+          <div class="workflow-state workflow-state--compact">
             @if (document) {
               <p>No status history recorded yet.</p>
               <p>
@@ -592,80 +618,128 @@
             }
           </div>
         } @else {
-          <ul class="history-timeline">
+          <div class="workflow-timeline">
             @for (entry of statusHistory; track entry.id) {
-              <li
-                class="history-timeline__item"
-                [class.history-timeline__item--audit]="entry.details">
-                <div class="history-timeline__header">
-                  <strong>{{ formatHistoryAction(entry.action) }}</strong>
-                  <span class="history-timeline__time">{{ formatDate(entry.changedAt) }}</span>
+              <article class="workflow-event" [ngClass]="getStatusHistoryClass(entry.action)">
+                <div class="workflow-event__marker">
+                  {{ getStatusHistoryIcon(entry.action) }}
                 </div>
-                <div class="history-timeline__meta">
-                  <app-status-badge [status]="entry.newStatus"></app-status-badge>
-                  @if (entry.oldStatus) {
-                    <span class="meta-chip meta-chip--muted">from {{ entry.oldStatus }}</span>
+
+                <div class="workflow-event__body">
+                  <div class="workflow-event__header">
+                    <div>
+                      <h3>{{ formatHistoryAction(entry.action) }}</h3>
+                      <p>{{ formatStatusTransition(entry) }}</p>
+                    </div>
+
+                    <span class="workflow-event__time">
+                        {{ formatDate(entry.changedAt) }}
+                      </span>
+                  </div>
+
+                  <div class="workflow-event__meta">
+                    <app-status-badge [status]="entry.newStatus"></app-status-badge>
+
+                    <span class="meta-chip">
+                        {{ entry.changedByUserName || ('User #' + entry.changedByUserId) }}
+                      </span>
+                  </div>
+
+                  @if (entry.commentContent) {
+                    <div class="workflow-event__note">
+                      {{ entry.commentContent }}
+                    </div>
+                  } @else if (entry.details) {
+                    <div class="workflow-event__note workflow-event__note--muted">
+                      {{ entry.details }}
+                    </div>
                   }
-                  <span class="meta-chip">
-                    {{ entry.changedByUserName || ('User #' + entry.changedByUserId) }}
-                  </span>
                 </div>
-                @if (entry.commentContent) {
-                  <p class="history-timeline__comment">{{ entry.commentContent }}</p>
-                } @else if (entry.details) {
-                  <p class="history-timeline__details">{{ entry.details }}</p>
-                }
-              </li>
+              </article>
             }
-          </ul>
+          </div>
         }
       </app-ui-card>
 
       @if (canViewAudit) {
-        <section class="audit-log-card">
-          <div class="section-header">
+        <section class="audit-log-card audit-log-card--collapsible">
+          <div class="section-header audit-log-header">
             <div>
               <h2>Audit log</h2>
-              <p>Audit trail of document actions.</p>
+              <p>Audit trail of document actions. Expand only when detailed traceability is needed.</p>
             </div>
+
+            @if (auditLogs.length > 0) {
+              <button
+                type="button"
+                class="btn btn-muted btn-compact"
+                (click)="toggleAuditExpanded()">
+                {{ auditExpanded ? 'Collapse audit log' : 'Show audit log' }}
+              </button>
+            }
           </div>
 
-          @if (auditLogs.length === 0) {
+          @if (auditLoading) {
+            <div class="audit-empty">Loading audit log...</div>
+          } @else if (auditError) {
+            <div class="message-card message-card--error">{{ auditError }}</div>
+          } @else if (auditLogs.length === 0) {
             <div class="audit-empty">
               No audit actions recorded yet.
             </div>
           } @else {
-            <div class="audit-timeline">
-              @for (entry of auditLogs; track entry.id) {
-                <article class="audit-entry" [ngClass]="getAuditActionClass(entry.action)">
-                  <div class="audit-icon">
-                    {{ getAuditIcon(entry.action) }}
-                  </div>
+            <div class="audit-summary">
+              <div>
+                <span class="audit-summary__label">Recorded actions</span>
+                <strong>{{ auditLogs.length }}</strong>
+              </div>
 
-                  <div class="audit-content">
-                    <div class="audit-entry-header">
-                      <div>
-                        <h3>{{ formatAuditAction(entry.action) }}</h3>
-
-                        <div class="audit-meta">
-                          <span class="audit-user">
-                            {{ entry.userFullName || 'Unknown user' }}
-                          </span>
-                        </div>
-                      </div>
-
-                      <span class="audit-date">
-                        {{ entry.timestamp | date:'dd MMM yyyy, HH:mm' }}
-                      </span>
-                    </div>
-
-                    <p class="audit-details">
-                      {{ formatAuditDetails(entry.details) }}
-                    </p>
-                  </div>
-                </article>
+              @if (latestAuditLog; as latest) {
+                <div>
+                  <span class="audit-summary__label">Latest action</span>
+                  <strong>{{ formatAuditAction(latest.action) }}</strong>
+                  <small>{{ formatDate(latest.timestamp) }}</small>
+                </div>
               }
             </div>
+
+            @if (auditExpanded) {
+              <div class="audit-timeline">
+                @for (entry of visibleAuditLogs; track entry.id) {
+                  <article class="audit-entry" [ngClass]="getAuditActionClass(entry.action)">
+                    <div class="audit-icon">
+                      {{ getAuditIcon(entry.action) }}
+                    </div>
+
+                    <div class="audit-content">
+                      <div class="audit-entry-header">
+                        <div>
+                          <h3>{{ formatAuditAction(entry.action) }}</h3>
+
+                          <div class="audit-meta">
+                      <span class="audit-user">
+                        {{ entry.userFullName || 'Unknown user' }}
+                      </span>
+                          </div>
+                        </div>
+
+                        <span class="audit-date">
+                    {{ formatDate(entry.timestamp) }}
+                  </span>
+                      </div>
+
+                      <p class="audit-details">
+                        {{ formatAuditDetails(entry) }}
+                      </p>
+                    </div>
+                  </article>
+                }
+              </div>
+            } @else {
+              <div class="audit-collapsed-note">
+                Audit log is collapsed to keep this page readable.
+              </div>
+            }
           }
         </section>
       }

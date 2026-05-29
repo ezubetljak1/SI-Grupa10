@@ -56,7 +56,7 @@ public class WorkflowPermissionServiceImpl implements WorkflowPermissionService 
 
         RoleName role = RoleName.valueOf(currentUserService.getCurrentUser().role());
 
-        if (role != RoleName.ADMIN && role != RoleName.MANAGER && role != RoleName.APPROVER) {
+        if (role != RoleName.ADMIN && role != RoleName.APPROVER) {
 
             throwForbidden("You do not have permission to approve documents.");
         }
@@ -96,12 +96,12 @@ public class WorkflowPermissionServiceImpl implements WorkflowPermissionService 
         RoleName role = RoleName.valueOf(currentUserService.getCurrentUser().role());
 
         if (role == RoleName.APPROVER) {
-
             throwForbidden("Approvers cannot confirm extraction.");
         }
 
         TaskType taskType =
-                document.getDocumentStatus() == DocumentStatus.NEEDS_CORRECTION
+                document.getDocumentStatus() == DocumentStatus.EXTRACTED
+                                || document.getDocumentStatus() == DocumentStatus.NEEDS_CORRECTION
                         ? TaskType.CORRECTION
                         : TaskType.EXTRACTION;
 
@@ -132,7 +132,7 @@ public class WorkflowPermissionServiceImpl implements WorkflowPermissionService 
 
         RoleName role = RoleName.valueOf(currentUserService.getCurrentUser().role());
 
-        return role == RoleName.ADMIN || role == RoleName.MANAGER || role == RoleName.APPROVER;
+        return role == RoleName.ADMIN || role == RoleName.APPROVER;
     }
 
     @Override

@@ -356,7 +356,7 @@ public class DocumentServiceImpl implements DocumentService {
             StatusHistoryAction statusHistoryAction,
             AuditAction auditAction,
             String details) {
-        currentUserService.requireAnyRole(RoleName.ADMIN, RoleName.MANAGER, RoleName.APPROVER);
+        currentUserService.requireAnyRole(RoleName.ADMIN, RoleName.APPROVER);
         DocumentEntity document =
                 documentValidation.validateExistsInCompany(
                         id, currentUserService.getCurrentCompanyId());

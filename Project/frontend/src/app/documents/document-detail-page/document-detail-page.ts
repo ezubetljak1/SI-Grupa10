@@ -26,6 +26,13 @@ import { UserApiService } from '../../users/services/user-api.service';
 import { UserResponse } from '../../users/models/user.models';
 import { TaskApiService } from '../../tasks/services/task-api.service';
 import { AssignTaskRequest, TaskResponse, TaskType } from '../../tasks/models/task.models';
+import {
+  EUROPEAN_DATETIME_PLACEHOLDER,
+  formatApiDateTime,
+  parseApiDateTime,
+  parseEuropeanDateTimeInput,
+  toDatetimeLocalValue,
+} from '../../shared/utils/datetime.utils';
 
 interface EditState {
   fieldId: number;
@@ -104,6 +111,7 @@ export class DocumentDetailPageComponent implements OnInit {
   auditLogs: AuditLog[] = [];
   auditLoading = false;
   auditError: string | null = null;
+  auditExpanded = false;
   tasks: TaskResponse[] = [];
   tasksLoading = false;
   taskError: string | null = null;
@@ -113,7 +121,7 @@ export class DocumentDetailPageComponent implements OnInit {
   assignTaskType: TaskType = 'CORRECTION';
   assignTaskDueDate = '';
   assigningTask = false;
-  readonly minDueDate = this.toDatetimeLocalValue(new Date());
+  readonly europeanDatetimePlaceholder = EUROPEAN_DATETIME_PLACEHOLDER;
 
   readonly allTaskTypeOptions: { value: TaskType; label: string }[] = [
     { value: 'EXTRACTION', label: 'Extraction' },
@@ -126,7 +134,7 @@ export class DocumentDetailPageComponent implements OnInit {
   }
 
   get canApproveDocuments(): boolean {
-    return this.authService.hasRole(['ADMIN', 'MANAGER', 'APPROVER']);
+    return this.authService.hasRole(['ADMIN', 'APPROVER']);
   }
 
   get canViewAudit(): boolean {
@@ -155,13 +163,14 @@ export class DocumentDetailPageComponent implements OnInit {
     return this.authService.profile?.id ?? null;
   }
 
-  get workflowRelevantTaskType(): TaskType | null {
+ get workflowRelevantTaskType(): TaskType | null {
     switch (this.document?.documentStatus) {
       case 'UPLOADED':
       case 'PROCESSING_FAILED':
-      case 'EXTRACTED':
+      case 'NEEDS_CLASSIFICATION_REVIEW':
         return 'EXTRACTION';
 
+      case 'EXTRACTED':
       case 'NEEDS_CORRECTION':
         return 'CORRECTION';
 
@@ -221,26 +230,48 @@ export class DocumentDetailPageComponent implements OnInit {
   }
 
   get eligibleAssignees(): UserResponse[] {
-    const allowedRoles =
-      this.assignTaskType === 'APPROVAL'
-        ? ['APPROVER', 'MANAGER']
-        : ['OPERATOR'];
+    const allowedRoles = this.assignTaskType === 'APPROVAL' ? ['APPROVER'] : ['OPERATOR'];
 
     return this.assignableUsers.filter(
       (user) => allowedRoles.includes(user.role) && user.accountStatus !== 'INACTIVE'
     );
   }
 
-  get taskTypeOptions(): { value: TaskType; label: string }[] {
-    return this.allTaskTypeOptions.filter(
-      (type) => type.value !== 'APPROVAL'
-        || this.document?.documentStatus === 'READY_FOR_APPROVAL'
-    );
+  get minDueDateHint(): string {
+    const prerequisite = this.latestPrerequisiteDueDate(this.assignTaskType);
+    const baseline = prerequisite ?? new Date();
+    return formatApiDateTime(toDatetimeLocalValue(baseline));
+  }
+
+ get taskTypeOptions(): { value: TaskType; label: string }[] {
+    switch (this.document?.documentStatus) {
+      case 'UPLOADED':
+      case 'PROCESSING_FAILED':
+      case 'NEEDS_CLASSIFICATION_REVIEW':
+        return this.allTaskTypeOptions.filter((type) =>
+          ['EXTRACTION', 'CORRECTION', 'APPROVAL'].includes(type.value)
+        );
+
+      case 'EXTRACTED':
+      case 'NEEDS_CORRECTION':
+        return this.allTaskTypeOptions.filter((type) =>
+          ['CORRECTION', 'APPROVAL'].includes(type.value)
+        );
+
+      case 'READY_FOR_APPROVAL':
+        return this.allTaskTypeOptions.filter((type) => type.value === 'APPROVAL');
+
+      default:
+        return [];
+    }
   }
 
   get canAssignSelectedTaskType(): boolean {
-    return this.assignTaskType !== 'APPROVAL'
-      || this.document?.documentStatus === 'READY_FOR_APPROVAL';
+    return this.taskTypeOptions.some((type) => type.value === this.assignTaskType);
+  }
+
+  get canAssignTaskForCurrentStatus(): boolean {
+    return this.canAssignTasks && this.taskTypeOptions.length > 0;
   }
 
   ngOnInit(): void {
@@ -261,10 +292,7 @@ export class DocumentDetailPageComponent implements OnInit {
       next: (response) => {
         this.loading = false;
         this.document = response.payload;
-        if (!this.canAssignSelectedTaskType) {
-          this.assignTaskType = 'CORRECTION';
-          this.syncDefaultAssignee();
-        }
+        this.syncAssignmentDefaultsForCurrentStatus();
         this.selectedManualDocumentType = this.resolveDefaultManualDocumentType(this.document);
         // Fetch preview as a blob so Authorization header is included by interceptor
         // then create an object URL for the iframe/img src. This avoids 401 on iframe
@@ -742,14 +770,7 @@ export class DocumentDetailPageComponent implements OnInit {
   }
 
   formatDate(dateStr: string): string {
-    if (!dateStr) return '—';
-    return new Date(dateStr).toLocaleString('en-GB', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+    return formatApiDateTime(dateStr);
   }
 
   loadWorkflowData(documentId: number): void {
@@ -867,10 +888,28 @@ export class DocumentDetailPageComponent implements OnInit {
       return;
     }
 
+    let dueDate: string | null = null;
+    if (this.assignTaskDueDate.trim()) {
+      dueDate = parseEuropeanDateTimeInput(this.assignTaskDueDate);
+      if (!dueDate) {
+        this.toastr.warning(
+          `Use European date format (${EUROPEAN_DATETIME_PLACEHOLDER}).`,
+          'Invalid due date'
+        );
+        return;
+      }
+
+      const dueDateError = this.validateDueDateOrder(dueDate);
+      if (dueDateError) {
+        this.toastr.warning(dueDateError, 'Invalid due date');
+        return;
+      }
+    }
+
     const payload: AssignTaskRequest = {
       assignedUserId: this.assignTaskUserId,
       taskType: this.assignTaskType,
-      dueDate: this.assignTaskDueDate || null,
+      dueDate,
     };
 
     this.assigningTask = true;
@@ -911,6 +950,7 @@ export class DocumentDetailPageComponent implements OnInit {
 
   onTaskTypeChange(): void {
     this.duplicateTaskAssignmentAttempted = false;
+    this.assignTaskDueDate = '';
     this.syncDefaultAssignee();
   }
 
@@ -919,9 +959,11 @@ export class DocumentDetailPageComponent implements OnInit {
   }
 
   isTaskOverdue(task: TaskResponse): boolean {
-    return !!task.dueDate
-      && (task.status === 'OPEN' || task.status === 'IN_PROGRESS')
-      && new Date(task.dueDate).getTime() < Date.now();
+    return (
+      !!task.dueDate &&
+      (task.status === 'OPEN' || task.status === 'IN_PROGRESS') &&
+      parseApiDateTime(task.dueDate).getTime() < Date.now()
+    );
   }
 
   approveDocument(): void {
@@ -1244,29 +1286,113 @@ export class DocumentDetailPageComponent implements OnInit {
     return labels[action] ?? this.toReadableText(action);
   }
 
-  formatAuditDetails(details?: string | null): string {
-    if (!details) {
-      return 'No additional details.';
-    }
+  get latestAuditLog(): AuditLog | null {
+  return this.auditLogs.length > 0 ? this.auditLogs[0] : null;
+}
 
-    try {
-      const parsed = JSON.parse(details);
+get visibleAuditLogs(): AuditLog[] {
+  return this.auditExpanded ? this.auditLogs : this.auditLogs.slice(0, 3);
+}
 
-      if (parsed.fieldName) {
-        return `Updated field: ${this.formatFieldName(parsed.fieldName)}`;
-      }
+toggleAuditExpanded(): void {
+  this.auditExpanded = !this.auditExpanded;
+}
 
-      if (parsed.assignedUserId) {
-        return `Assigned to user ID ${parsed.assignedUserId}.`;
-      }
-
-      return Object.entries(parsed)
-        .map(([key, value]) => `${this.formatFieldName(key)}: ${value}`)
-        .join(' · ');
-    } catch {
-      return details;
-    }
+formatStatusTransition(entry: StatusHistoryEntry): string {
+  if (!entry.oldStatus) {
+    return entry.newStatus;
   }
+
+  return `${entry.oldStatus} → ${entry.newStatus}`;
+}
+
+getStatusHistoryIcon(action: string): string {
+  if (action.includes('UPLOADED')) return '↑';
+  if (action.includes('EXTRACTION')) return '✎';
+  if (action.includes('APPROVED')) return '✓';
+  if (action.includes('REJECTED')) return '!';
+  if (action.includes('RETURNED')) return '↩';
+  if (action.includes('CONFIRMED')) return '✓';
+
+  return '•';
+}
+
+getStatusHistoryClass(action: string): string {
+  if (action.includes('APPROVED')) return 'workflow-event--success';
+  if (action.includes('REJECTED')) return 'workflow-event--danger';
+  if (action.includes('RETURNED')) return 'workflow-event--warning';
+  if (action.includes('EXTRACTION')) return 'workflow-event--info';
+
+  return 'workflow-event--neutral';
+}
+
+formatAuditDetails(entry: AuditLog): string {
+  const details = entry.details;
+
+  if (!details) {
+    return 'No additional details.';
+  }
+
+  try {
+    const parsed = JSON.parse(details);
+    const taskType = parsed.taskType ? this.toTitleCase(this.formatTaskType(parsed.taskType)) : 'workflow';
+
+    switch (entry.action) {
+      case 'DOCUMENT_ASSIGNED': {
+  const assignedUserName =
+          parsed.assignedUserName || this.resolveAuditAssignedUserName(parsed.assignedUserId);
+
+        return `Assigned ${taskType} task to ${assignedUserName}.`;
+      }
+
+      case 'TASK_STARTED':
+        return `${taskType} task was started.`;
+
+      case 'TASK_COMPLETED':
+        return parsed.completedAutomatically
+          ? `${taskType} task was completed automatically after the workflow action.`
+          : `${taskType} task was completed.`;
+
+      case 'TASK_CANCELLED':
+        return `${taskType} task was cancelled.`;
+
+      case 'FIELD_UPDATED':
+        return parsed.fieldName
+          ? `Updated extracted field: ${this.formatFieldName(parsed.fieldName)}.`
+          : 'An extracted field was updated.';
+
+      case 'DOCUMENT_APPROVED':
+        return 'Document was moved to Approved.';
+
+      case 'DOCUMENT_REJECTED':
+        return 'Document was moved to Rejected.';
+
+      case 'DOCUMENT_RETURNED_FOR_CORRECTION':
+        return 'Document was returned to the operator for correction.';
+
+      default:
+        return Object.entries(parsed)
+          .map(([key, value]) => `${this.formatFieldName(key)}: ${value}`)
+          .join(' · ');
+    }
+  } catch {
+    return details
+      .replaceAll('taskId', 'Task ID')
+      .replaceAll('taskType', 'Task type')
+      .replaceAll('completedAutomatically', 'Completed automatically')
+      .replaceAll('{', '')
+      .replaceAll('}', '')
+      .replaceAll('"', '');
+  }
+}
+
+private toTitleCase(value: string): string {
+  return value
+    .split(' ')
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
 
   formatFieldName(value: string): string {
     return value
@@ -1399,14 +1525,92 @@ export class DocumentDetailPageComponent implements OnInit {
     this.assignTaskUserId = this.eligibleAssignees[0]?.id ?? null;
   }
 
-  private toDatetimeLocalValue(date: Date): string {
-    const pad = (value: number) => value.toString().padStart(2, '0');
+  private latestPrerequisiteDueDate(taskType: TaskType): Date | null {
+    if (taskType === 'CORRECTION') {
+      return this.latestTaskDueDate('EXTRACTION');
+    }
 
-    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+    if (taskType === 'APPROVAL') {
+      return this.latestTaskDueDate('CORRECTION') ?? this.latestTaskDueDate('EXTRACTION');
+    }
+
+    return null;
+  }
+
+  private latestTaskDueDate(taskType: TaskType): Date | null {
+    const dueDates = this.tasks
+      .filter((task) => task.taskType === taskType && task.dueDate)
+      .map((task) => parseApiDateTime(task.dueDate!));
+
+    if (dueDates.length === 0) {
+      return null;
+    }
+
+    return new Date(Math.max(...dueDates.map((date) => date.getTime())));
+  }
+
+  private validateDueDateOrder(dueDate: string): string | null {
+    const selectedDueDate = parseApiDateTime(dueDate);
+    const prerequisite = this.latestPrerequisiteDueDate(this.assignTaskType);
+
+    if (prerequisite && selectedDueDate.getTime() < prerequisite.getTime()) {
+      if (this.assignTaskType === 'CORRECTION') {
+        return 'Correction due date cannot be before the extraction due date.';
+      }
+
+      return 'Approval due date cannot be before the correction or extraction due date.';
+    }
+
+    if (selectedDueDate.getTime() < Date.now()) {
+      return 'Task due date cannot be in the past.';
+    }
+
+    return null;
   }
 
   private shouldLoadExtractionForStatus(status: string | null | undefined): boolean {
-    return status === 'EXTRACTED' || status === 'READY_FOR_APPROVAL';
+    return [
+      'EXTRACTED',
+      'READY_FOR_APPROVAL',
+      'NEEDS_CORRECTION',
+      'APPROVED',
+      'REJECTED',
+    ].includes(status ?? '');
+  }
+
+
+  shouldShowExtractionFields(): boolean {
+    return [
+      'EXTRACTED',
+      'READY_FOR_APPROVAL',
+      'NEEDS_CORRECTION',
+      'APPROVED',
+      'REJECTED',
+    ].includes(this.document?.documentStatus ?? '');
+  }
+
+  canEditExtractionField(): boolean {
+    return (
+      this.canUseExtractionActions &&
+      (this.document?.documentStatus === 'EXTRACTED' ||
+        this.document?.documentStatus === 'NEEDS_CORRECTION')
+    );
+  }
+
+  canConfirmCurrentExtraction(): boolean {
+    return (
+      this.canUseExtractionActions &&
+      (this.document?.documentStatus === 'EXTRACTED' ||
+        this.document?.documentStatus === 'NEEDS_CORRECTION')
+    );
+  }
+
+  canRetryCurrentExtraction(): boolean {
+    return (
+      this.canUseExtractionActions &&
+      (this.document?.documentStatus === 'EXTRACTED' ||
+        this.document?.documentStatus === 'NEEDS_CORRECTION')
+    );
   }
 
   private hasValidationErrors(errorBody: unknown): boolean {
@@ -1523,4 +1727,62 @@ export class DocumentDetailPageComponent implements OnInit {
 
     return Array.from(new Set(names));
   }
+
+  private syncAssignmentDefaultsForCurrentStatus(): void {
+    const availableTypes = this.taskTypeOptions;
+
+    if (availableTypes.length === 0) {
+      this.assignTaskUserId = null;
+      return;
+    }
+
+    if (!availableTypes.some((type) => type.value === this.assignTaskType)) {
+      this.assignTaskType = availableTypes[0].value;
+    }
+
+    this.syncDefaultAssignee();
+  }
+
+  private resolveAuditAssignedUserName(userId: unknown): string {
+    const numericUserId = Number(userId);
+
+    if (!Number.isFinite(numericUserId)) {
+      return 'selected user';
+    }
+
+    const user = this.assignableUsers.find((candidate) => candidate.id === numericUserId);
+
+    if (!user) {
+      return `user #${numericUserId}`;
+    }
+
+    const fullName = `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim();
+
+    return fullName || `user #${numericUserId}`;
+  } 
+
+  formatTaskTypeTitle(taskType: TaskType | string | null | undefined): string {
+  switch (taskType) {
+    case 'EXTRACTION':
+      return 'Extraction';
+    case 'CORRECTION':
+      return 'Correction';
+    case 'APPROVAL':
+      return 'Approval';
+    default:
+      return 'Task';
+  }
+}
+
+formatTaskStatusLabel(status: string | null | undefined): string {
+  if (!status) {
+    return 'Unknown';
+  }
+
+  return status
+    .replaceAll('_', ' ')
+    .toLowerCase()
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
 }

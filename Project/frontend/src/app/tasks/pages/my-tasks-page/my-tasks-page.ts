@@ -7,6 +7,7 @@ import { ToastrService } from 'ngx-toastr';
 import { EmptyStateComponent, PageHeaderComponent, UiCardComponent } from '../../../shared/components';
 import { TaskApiService } from '../../services/task-api.service';
 import { TaskResponse, TaskStatus } from '../../models/task.models';
+import { formatApiDateTime, parseApiDateTime } from '../../../shared/utils/datetime.utils';
 
 type TaskTab = 'ACTIVE' | 'COMPLETED' | 'CANCELLED';
 
@@ -70,13 +71,7 @@ export class MyTasksPageComponent implements OnInit {
       return '-';
     }
 
-    return new Date(value).toLocaleString('en-GB', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+    return formatApiDateTime(value);
   }
 
   formatTaskType(value: string): string {
@@ -91,7 +86,7 @@ export class MyTasksPageComponent implements OnInit {
     return (
       !!task.dueDate &&
       (task.status === 'OPEN' || task.status === 'IN_PROGRESS') &&
-      new Date(task.dueDate).getTime() < Date.now()
+      parseApiDateTime(task.dueDate).getTime() < Date.now()
     );
   }
 
