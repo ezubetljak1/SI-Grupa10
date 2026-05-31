@@ -1,7 +1,10 @@
 package ba.unsa.si.docflow.controller;
 
+import ba.unsa.si.docflow.dto.extraction.CreateExtractionFieldRequest;
 import ba.unsa.si.docflow.dto.extraction.ExtractionFieldResponse;
 import ba.unsa.si.docflow.dto.extraction.UpdateExtractionFieldRequest;
+
+import jakarta.validation.Valid;
 import ba.unsa.si.docflow.response.ApiResponse;
 import ba.unsa.si.docflow.service.extraction.ExtractionService;
 
@@ -33,5 +36,12 @@ public class ExtractionFieldController {
             @PathVariable Long fieldId,
             @RequestBody UpdateExtractionFieldRequest request) {
         return extractionService.updateField(extractionId, fieldId, request);
+    }
+
+    @PostMapping
+    public ApiResponse<ExtractionFieldResponse> addField(
+            @PathVariable Long extractionId,
+            @Valid @RequestBody CreateExtractionFieldRequest request) {
+        return extractionService.addField(extractionId, request);
     }
 }

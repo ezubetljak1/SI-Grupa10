@@ -64,4 +64,23 @@ public class ExtractionFieldDAO extends AbstractDAO<ExtractionFieldEntity, Long>
 
         return query.getResultStream().findFirst();
     }
+
+    public boolean existsByExtractionIdAndFieldName(Long extractionId, String fieldName) {
+        String jpql =
+                """
+                SELECT COUNT(ef)
+                FROM ExtractionFieldEntity ef
+                WHERE ef.extraction.id = :extractionId
+                  AND LOWER(ef.fieldName) = LOWER(:fieldName)
+                """;
+
+        Long count =
+                entityManager
+                        .createQuery(jpql, Long.class)
+                        .setParameter("extractionId", extractionId)
+                        .setParameter("fieldName", fieldName)
+                        .getSingleResult();
+
+        return count != null && count > 0;
+    }
 }
