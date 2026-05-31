@@ -24,4 +24,6 @@ public interface TaskService {
     TaskResponse cancel(Long id);
 
     void completeActiveTaskForDocument(DocumentEntity document, TaskType taskType, Long completedByUserId);
+
+    void createCorrectionTask(DocumentEntity document, Long assignedToUserId, Long assignedByUserId);
 }

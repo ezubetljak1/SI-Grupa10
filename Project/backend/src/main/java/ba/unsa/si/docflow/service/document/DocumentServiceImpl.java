@@ -8,11 +8,12 @@ import ba.unsa.si.docflow.dao.NotificationDAO;
 import ba.unsa.si.docflow.dao.StatusHistoryDAO;
 import ba.unsa.si.docflow.dao.TaskDAO;
 import ba.unsa.si.docflow.dto.document.*;
-import ba.unsa.si.docflow.entity.DocumentEntity;
 import ba.unsa.si.docflow.dto.workflow.CommentResponse;
 import ba.unsa.si.docflow.dto.workflow.CreateCommentRequest;
 import ba.unsa.si.docflow.dto.workflow.StatusHistoryResponse;
 import ba.unsa.si.docflow.entity.CommentEntity;
+import ba.unsa.si.docflow.entity.DocumentEntity;
+import ba.unsa.si.docflow.entity.StatusHistoryEntity;
 import ba.unsa.si.docflow.entity.enums.AuditAction;
 import ba.unsa.si.docflow.entity.enums.CommentType;
 import ba.unsa.si.docflow.entity.enums.DocumentStatus;
@@ -20,9 +21,6 @@ import ba.unsa.si.docflow.entity.enums.DocumentType;
 import ba.unsa.si.docflow.entity.enums.RoleName;
 import ba.unsa.si.docflow.entity.enums.StatusHistoryAction;
 import ba.unsa.si.docflow.entity.enums.TaskType;
-import ba.unsa.si.docflow.service.workflow.CommentService;
-import ba.unsa.si.docflow.service.workflow.DocumentStatusTransitionService;
-import ba.unsa.si.docflow.service.workflow.StatusHistoryService;
 import ba.unsa.si.docflow.exception.ApiValidationException;
 import ba.unsa.si.docflow.mapper.DocumentMapper;
 import ba.unsa.si.docflow.response.ApiResponse;
@@ -34,6 +32,9 @@ import ba.unsa.si.docflow.service.security.WorkflowPermissionService;
 import ba.unsa.si.docflow.service.storage.StorageService;
 import ba.unsa.si.docflow.service.storage.StoredFileInfo;
 import ba.unsa.si.docflow.service.task.TaskService;
+import ba.unsa.si.docflow.service.workflow.CommentService;
+import ba.unsa.si.docflow.service.workflow.DocumentStatusTransitionService;
+import ba.unsa.si.docflow.service.workflow.StatusHistoryService;
 
 import lombok.AllArgsConstructor;
 
@@ -371,9 +372,18 @@ public class DocumentServiceImpl implements DocumentService {
         }
 
         Long currentUserId = currentUserService.getCurrentUserId();
-        CommentEntity comment =
-                commentService.createTypedComment(
-                        document, currentUserId, commentType, request.getContent());
+        // Approve allows optional comment; reject and return require comment (validated in CommentService)
+        CommentEntity comment = null;
+        String commentContent = request != null ? request.getContent() : null;
+        if (targetStatus == DocumentStatus.APPROVED) {
+            if (org.springframework.util.StringUtils.hasText(commentContent)) {
+                comment = commentService.createTypedComment(
+                        document, currentUserId, commentType, commentContent);
+            }
+        } else {
+            comment = commentService.createTypedComment(
+                    document, currentUserId, commentType, commentContent);
+        }
 
         documentStatusTransitionService.changeStatus(
                 document,
@@ -392,9 +402,62 @@ public class DocumentServiceImpl implements DocumentService {
                         document.getId(), targetStatus));
         taskService.completeActiveTaskForDocument(document, TaskType.APPROVAL, currentUserId);
 
+        // If returning for correction, find responsible operator and create correction task
+        if (targetStatus == DocumentStatus.NEEDS_CORRECTION) {
+            Long responsibleOperatorId = findResponsibleOperator(document);
+            taskService.createCorrectionTask(document, responsibleOperatorId, currentUserId);
+        }
+
+        // Notification hook — actual notification logic implemented by Član 7 (NotificationService)
+        // TODO: call notificationService.notifyApprovalDecision(document, targetStatus, currentUserId)
+
         return new ApiResponse<>("OK", documentMapper.entityToDto(document));
     }
 
+    private Long findResponsibleOperator(DocumentEntity document) {
+        StatusHistoryEntity initialConfirmation =
+                statusHistoryDAO.findLatestByDocumentIdAndAction(
+                        document.getId(),
+                        StatusHistoryAction.EXTRACTION_CONFIRMED);
+
+        StatusHistoryEntity reconfirmation =
+                statusHistoryDAO.findLatestByDocumentIdAndAction(
+                        document.getId(),
+                        StatusHistoryAction.EXTRACTION_RECONFIRMED);
+
+        StatusHistoryEntity latestConfirmation =
+                resolveLatestConfirmation(initialConfirmation, reconfirmation);
+
+        if (latestConfirmation != null) {
+            return latestConfirmation.getChangedByUserId();
+        }
+
+        return document.getCreatedBy();
+    }
+
+    private StatusHistoryEntity resolveLatestConfirmation(
+            StatusHistoryEntity initialConfirmation,
+            StatusHistoryEntity reconfirmation) {
+
+        if (initialConfirmation == null) {
+            return reconfirmation;
+        }
+
+        if (reconfirmation == null) {
+            return initialConfirmation;
+        }
+
+        if (reconfirmation.getChangedAt().isAfter(initialConfirmation.getChangedAt())) {
+            return reconfirmation;
+        }
+
+        if (reconfirmation.getChangedAt().isEqual(initialConfirmation.getChangedAt())
+                && reconfirmation.getId() > initialConfirmation.getId()) {
+            return reconfirmation;
+        }
+
+        return initialConfirmation;
+    }
     private String resolveDownloadFileName(DocumentEntity entity) {
         String documentName = entity.getName();
         String storageExtension = StringUtils.getFilenameExtension(entity.getStoragePath());

@@ -64,6 +64,17 @@
             </a>
           }
 
+          @if (hasRole(['ADMIN', 'MANAGER', 'APPROVER'])) {
+            <a
+              routerLink="/review"
+              routerLinkActive="active"
+              class="nav-item"
+            >
+              <span class="nav-icon">✓</span>
+              <span>Review</span>
+            </a>
+          }
+
           @if (hasRole(['ADMIN'])) {
             <a
               routerLink="/company/users"
