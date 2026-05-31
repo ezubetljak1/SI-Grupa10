@@ -1466,12 +1466,16 @@ formatAuditDetails(entry: AuditLog): string {
 
   try {
     const parsed = JSON.parse(details);
-    const taskType = parsed.taskType ? this.toTitleCase(this.formatTaskType(parsed.taskType)) : 'workflow';
+
+    const taskType = parsed.taskType
+      ? this.toTitleCase(this.formatTaskType(parsed.taskType))
+      : 'workflow';
 
     switch (entry.action) {
       case 'DOCUMENT_ASSIGNED': {
-  const assignedUserName =
-          parsed.assignedUserName || this.resolveAuditAssignedUserName(parsed.assignedUserId);
+        const assignedUserName =
+          parsed.assignedUserName ||
+          this.resolveAuditAssignedUserName(parsed.assignedUserId);
 
         return `Assigned ${taskType} task to ${assignedUserName}.`;
       }
@@ -1487,10 +1491,11 @@ formatAuditDetails(entry: AuditLog): string {
       case 'TASK_CANCELLED':
         return `${taskType} task was cancelled.`;
 
+      case 'FIELD_ADDED':
+        return `Added field: ${this.resolveAuditFieldLabel(parsed)}.`;
+
       case 'FIELD_UPDATED':
-        return parsed.fieldName
-          ? `Updated extracted field: ${this.formatFieldName(parsed.fieldName)}.`
-          : 'An extracted field was updated.';
+        return `Updated field: ${this.resolveAuditFieldLabel(parsed)}.`;
 
       case 'DOCUMENT_APPROVED':
         return 'Document was moved to Approved.';
@@ -1503,6 +1508,7 @@ formatAuditDetails(entry: AuditLog): string {
 
       default:
         return Object.entries(parsed)
+          .filter(([key]) => !['fieldId', 'taskId'].includes(key))
           .map(([key, value]) => `${this.formatFieldName(key)}: ${value}`)
           .join(' · ');
     }
@@ -1515,6 +1521,26 @@ formatAuditDetails(entry: AuditLog): string {
       .replaceAll('}', '')
       .replaceAll('"', '');
   }
+}
+
+private resolveAuditFieldLabel(parsed: Record<string, unknown>): string {
+  const displayName =
+    typeof parsed['displayName'] === 'string'
+      ? parsed['displayName'].trim()
+      : '';
+
+  if (displayName) {
+    return displayName;
+  }
+
+  const fieldName =
+    typeof parsed['fieldName'] === 'string'
+      ? parsed['fieldName']
+      : '';
+
+  return fieldName
+    ? this.formatFieldName(fieldName)
+    : 'Unknown field';
 }
 
 private toTitleCase(value: string): string {

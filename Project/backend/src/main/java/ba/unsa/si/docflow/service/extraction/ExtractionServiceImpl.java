@@ -248,7 +248,7 @@ public class ExtractionServiceImpl implements ExtractionService {
 
         TaskType taskTypeToComplete =
                 currentStatus == DocumentStatus.EXTRACTED
-                        || currentStatus == DocumentStatus.NEEDS_CORRECTION
+                                || currentStatus == DocumentStatus.NEEDS_CORRECTION
                         ? TaskType.CORRECTION
                         : TaskType.EXTRACTION;
 
@@ -301,8 +301,7 @@ public class ExtractionServiceImpl implements ExtractionService {
                 document,
                 currentUserService.getCurrentUserId(),
                 AuditAction.FIELD_UPDATED,
-                "{\"fieldId\":" + fieldId + ",\"fieldName\":\"" + field.getFieldName() + "\"}"
-        );
+                "{\"fieldId\":" + fieldId + ",\"fieldName\":\"" + field.getFieldName() + "\"}");
 
         return new ApiResponse<>("OK", extractionMapper.fieldToDto(updatedField));
     }
@@ -320,7 +319,8 @@ public class ExtractionServiceImpl implements ExtractionService {
 
         String normalizedFieldName = normalizeFieldName(request.getFieldName());
 
-        if (extractionFieldDAO.existsByExtractionIdAndFieldName(extractionId, normalizedFieldName)) {
+        if (extractionFieldDAO.existsByExtractionIdAndFieldName(
+                extractionId, normalizedFieldName)) {
             ValidationErrors errors = new ValidationErrors();
             errors.add(
                     "EXTRACTION_FIELD_DUPLICATE",
@@ -344,16 +344,16 @@ public class ExtractionServiceImpl implements ExtractionService {
                 document,
                 currentUserService.getCurrentUserId(),
                 AuditAction.FIELD_ADDED,
-                "{\"fieldId\":"
-                        + savedField.getId()
-                        + ",\"fieldName\":\""
-                        + normalizedFieldName
-                        + "\"}");
+                """
+                {"fieldId":%d,"fieldName":"%s","displayName":"%s"}
+                """
+                        .formatted(field.getId(), field.getFieldName(), field.getDisplayName()));
 
         return new ApiResponse<>("OK", extractionMapper.fieldToDto(savedField));
     }
 
-    private String resolveDisplayName(CreateExtractionFieldRequest request, String normalizedFieldName) {
+    private String resolveDisplayName(
+            CreateExtractionFieldRequest request, String normalizedFieldName) {
         if (StringUtils.hasText(request.getDisplayName())) {
             return request.getDisplayName().trim();
         }

@@ -1879,10 +1879,13 @@ class ExtractionIntegrationTest {
         long extractionId = uploadAndExtractWith(sampleOcrResult())[0];
         Long documentId =
                 jdbcTemplate.queryForObject(
-                        "SELECT document_id FROM extraction WHERE id = ?", Long.class, extractionId);
+                        "SELECT document_id FROM extraction WHERE id = ?",
+                        Long.class,
+                        extractionId);
 
         jdbcTemplate.update(
-                "UPDATE document SET document_status = 'NEEDS_CORRECTION' WHERE id = ?", documentId);
+                "UPDATE document SET document_status = 'NEEDS_CORRECTION' WHERE id = ?",
+                documentId);
 
         mockMvc.perform(
                         post("/api/extractions/{extractionId}/fields", extractionId)
@@ -1919,11 +1922,13 @@ class ExtractionIntegrationTest {
                         .get("id")
                         .asLong();
 
-        updateField(extractionId, findFieldId(extractionId, "supplier_name"), "Manual Supplier d.o.o.");
+        updateField(
+                extractionId, findFieldId(extractionId, "supplier_name"), "Manual Supplier d.o.o.");
         updateField(extractionId, findFieldId(extractionId, "currency"), "EUR");
 
         jdbcTemplate.update(
-                "UPDATE document SET document_status = 'NEEDS_CORRECTION' WHERE id = ?", documentId);
+                "UPDATE document SET document_status = 'NEEDS_CORRECTION' WHERE id = ?",
+                documentId);
 
         mockMvc.perform(post("/api/documents/{documentId}/extraction/confirm", documentId))
                 .andExpect(status().isOk())
@@ -1977,6 +1982,274 @@ class ExtractionIntegrationTest {
                                         }
                                         """))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void addCustomManualFieldThenStoresMetadataAndCreatesAuditLog() throws Exception {
+        ProcessedInvoice invoice = processInvoiceAndGetIds("Invoice for custom manual field");
+
+        mockMvc.perform(
+                        post("/api/extractions/{extractionId}/fields", invoice.extractionId())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                                        {
+                                          "fieldName": "custom.project_code",
+                                          "displayName": "Project code",
+                                          "value": "PRJ-2026-01"
+                                        }
+                                        """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("OK"))
+                .andExpect(jsonPath("$.payload.fieldName").value("custom.project_code"))
+                .andExpect(jsonPath("$.payload.displayName").value("Project code"))
+                .andExpect(jsonPath("$.payload.value").value("PRJ-2026-01"))
+                .andExpect(jsonPath("$.payload.manual").value(true))
+                .andExpect(jsonPath("$.payload.corrected").value(true))
+                .andExpect(jsonPath("$.payload.placeholder").value(false))
+                .andExpect(jsonPath("$.payload.confidence").doesNotExist());
+
+        Map<String, Object> storedField =
+                jdbcTemplate.queryForMap(
+                        """
+                        SELECT field_name, display_name, "value",
+                               confidence, is_corrected, is_placeholder, is_manual
+                        FROM extraction_field
+                        WHERE extraction_id = ?
+                          AND field_name = 'custom.project_code'
+                        """,
+                        invoice.extractionId());
+
+        assertEquals("custom.project_code", storedField.get("field_name"));
+        assertEquals("Project code", storedField.get("display_name"));
+        assertEquals("PRJ-2026-01", storedField.get("value"));
+        assertNull(storedField.get("confidence"));
+        assertEquals(true, storedField.get("is_corrected"));
+        assertEquals(false, storedField.get("is_placeholder"));
+        assertEquals(true, storedField.get("is_manual"));
+
+        Integer auditCount =
+                jdbcTemplate.queryForObject(
+                        """
+                        SELECT COUNT(*)
+                        FROM audit_log
+                        WHERE document_id = ?
+                          AND action = 'FIELD_ADDED'
+                        """,
+                        Integer.class,
+                        invoice.documentId());
+
+        assertEquals(1, auditCount);
+    }
+
+    @Test
+    void addCanonicalManualFieldThenUsesCanonicalNameWithoutRequiredDisplayName() throws Exception {
+        ProcessedInvoice invoice = processInvoiceAndGetIds("Invoice for canonical manual field");
+
+        mockMvc.perform(
+                        post("/api/extractions/{extractionId}/fields", invoice.extractionId())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                                        {
+                                          "fieldName": "payment_reference",
+                                          "value": "PAY-2026-77"
+                                        }
+                                        """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("OK"))
+                .andExpect(jsonPath("$.payload.fieldName").value("payment_reference"))
+                .andExpect(jsonPath("$.payload.value").value("PAY-2026-77"))
+                .andExpect(jsonPath("$.payload.manual").value(true))
+                .andExpect(jsonPath("$.payload.corrected").value(true))
+                .andExpect(jsonPath("$.payload.placeholder").value(false));
+    }
+
+    @Test
+    void addCustomManualFieldWithoutDisplayNameThenReturnsBadRequest() throws Exception {
+        ProcessedInvoice invoice = processInvoiceAndGetIds("Invoice for missing display name");
+
+        mockMvc.perform(
+                        post("/api/extractions/{extractionId}/fields", invoice.extractionId())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                                        {
+                                          "fieldName": "custom.project_code",
+                                          "value": "PRJ-01"
+                                        }
+                                        """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$[0].code").value("EXTRACTION_FIELD_DISPLAY_NAME_REQUIRED"));
+
+        Integer fieldCount =
+                jdbcTemplate.queryForObject(
+                        """
+                        SELECT COUNT(*)
+                        FROM extraction_field
+                        WHERE extraction_id = ?
+                          AND field_name = 'custom.project_code'
+                        """,
+                        Integer.class,
+                        invoice.extractionId());
+
+        assertEquals(0, fieldCount);
+    }
+
+    @Test
+    void addManualFieldWithInvalidCustomKeyThenReturnsBadRequest() throws Exception {
+        ProcessedInvoice invoice = processInvoiceAndGetIds("Invoice for invalid custom key");
+
+        mockMvc.perform(
+                        post("/api/extractions/{extractionId}/fields", invoice.extractionId())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                                        {
+                                          "fieldName": "custom.project-code",
+                                          "displayName": "Project code",
+                                          "value": "PRJ-01"
+                                        }
+                                        """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$[0].code").value("EXTRACTION_FIELD_NAME_INVALID"));
+    }
+
+    @Test
+    void addDuplicateManualFieldWithDifferentCaseThenReturnsBadRequest() throws Exception {
+        ProcessedInvoice invoice = processInvoiceAndGetIds("Invoice for duplicate manual field");
+
+        mockMvc.perform(
+                        post("/api/extractions/{extractionId}/fields", invoice.extractionId())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                                        {
+                                          "fieldName": "CURRENCY",
+                                          "value": "BAM"
+                                        }
+                                        """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$[0].code").value("EXTRACTION_FIELD_DUPLICATE"));
+    }
+
+    @Test
+    void addManualFieldWithWhitespaceValueThenReturnsBadRequest() throws Exception {
+        ProcessedInvoice invoice = processInvoiceAndGetIds("Invoice for blank manual field");
+
+        mockMvc.perform(
+                        post("/api/extractions/{extractionId}/fields", invoice.extractionId())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                                        {
+                                          "fieldName": "custom.empty_value",
+                                          "displayName": "Empty value",
+                                          "value": "   "
+                                        }
+                                        """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$[0].code").value("EXTRACTION_FIELD_EMPTY"));
+    }
+
+    @Test
+    void addManualFieldAfterConfirmationThenReturnsInvalidDocumentStatus() throws Exception {
+        ProcessedInvoice invoice = processInvoiceAndGetIds("Invoice already ready for approval");
+
+        mockMvc.perform(
+                        post(
+                                "/api/documents/{documentId}/extraction/confirm",
+                                invoice.documentId()))
+                .andExpect(status().isOk());
+
+        assertDocumentStatus(invoice.documentId(), "READY_FOR_APPROVAL");
+
+        mockMvc.perform(
+                        post("/api/extractions/{extractionId}/fields", invoice.extractionId())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                                        {
+                                          "fieldName": "custom.late_field",
+                                          "displayName": "Late field",
+                                          "value": "Should not be accepted"
+                                        }
+                                        """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$[0].code").value("DOCUMENT_STATUS_INVALID"));
+    }
+
+    @Test
+    void addFieldWhileNeedsCorrectionThenReconfirmMovesDocumentToReadyForApproval()
+            throws Exception {
+        ProcessedInvoice invoice = processInvoiceAndGetIds("Invoice returned for correction");
+
+        jdbcTemplate.update(
+                """
+                UPDATE document
+                SET document_status = 'NEEDS_CORRECTION'
+                WHERE id = ?
+                """,
+                invoice.documentId());
+
+        mockMvc.perform(
+                        post("/api/extractions/{extractionId}/fields", invoice.extractionId())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                                        {
+                                          "fieldName": "custom.internal_note",
+                                          "displayName": "Internal note",
+                                          "value": "Reviewed after correction"
+                                        }
+                                        """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.payload.manual").value(true));
+
+        mockMvc.perform(
+                        post(
+                                "/api/documents/{documentId}/extraction/confirm",
+                                invoice.documentId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("OK"));
+
+        assertDocumentStatus(invoice.documentId(), "READY_FOR_APPROVAL");
+
+        String latestAction =
+                jdbcTemplate.queryForObject(
+                        """
+                        SELECT action
+                        FROM status_history
+                        WHERE document_id = ?
+                        ORDER BY changed_at DESC, id DESC
+                        LIMIT 1
+                        """,
+                        String.class,
+                        invoice.documentId());
+
+        assertEquals("EXTRACTION_RECONFIRMED", latestAction);
+    }
+
+    private record ProcessedInvoice(Long documentId, Long extractionId) {}
+
+    private ProcessedInvoice processInvoiceAndGetIds(String name) throws Exception {
+        Long documentId = uploadPdf(name);
+
+        when(ocrProvider.process(
+                        any(byte[].class), eq("application/pdf"), eq(TEST_INVOICE_PROCESSOR_ID)))
+                .thenReturn(sampleOcrResult());
+
+        MvcResult result =
+                mockMvc.perform(post("/api/documents/{documentId}/extraction", documentId))
+                        .andExpect(status().isOk())
+                        .andExpect(jsonPath("$.code").value("OK"))
+                        .andReturn();
+
+        JsonNode response = objectMapper.readTree(result.getResponse().getContentAsString());
+
+        Long extractionId = response.get("payload").get("id").asLong();
+
+        return new ProcessedInvoice(documentId, extractionId);
     }
 
     private OcrResult sampleOcrResultWithTotalSmallerThanNet() {
