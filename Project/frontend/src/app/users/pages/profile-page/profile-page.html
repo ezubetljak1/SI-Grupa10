@@ -2,7 +2,7 @@
   <app-page-header
     eyebrow="My workspace"
     title="My profile"
-    description="Manage your own account actions and view workflow notifications."
+    description="Manage your account and review workflow notifications."
   ></app-page-header>
 
   @if (loading) {
@@ -17,60 +17,113 @@
       <section class="notifications-column">
         <app-ui-card
           title="Notification center"
-          subtitle="Planned Sprint 9 workspace notifications will appear here."
+          subtitle="Review document assignments, approval requests, and correction updates."
         >
           <div class="notification-hero">
             <div>
-              <p class="section-kicker">Coming soon</p>
-              <h2>Workflow notifications</h2>
+              <p class="section-kicker">Workflow updates</p>
+              <h2>Your notifications</h2>
               <span>
-                This area is reserved for approval and document-status alerts once the notification
-                functionality is connected.
+                Stay up to date with tasks and document-processing actions that require your attention.
               </span>
             </div>
 
             <div class="notification-count">
-              <strong>{{ notificationPreview.length }}</strong>
-              <span>planned alerts</span>
+              <strong>{{ unreadCount() }}</strong>
+              <span>Unread</span>
             </div>
           </div>
 
-          <div class="notification-list">
-            @for (notification of notificationPreview; track notification.title) {
-              <article class="notification-preview">
-                <div class="notification-icon">!</div>
+          <div class="notification-toolbar">
+            <strong>Recent notifications</strong>
 
-                <div class="notification-content">
-                  <div class="notification-heading">
-                    <strong>{{ notification.title }}</strong>
-                    <span>{{ notification.status }}</span>
-                  </div>
-
-                  <p>{{ notification.description }}</p>
-
-                  <div class="notification-meta">
-                    <span>{{ notification.audience }}</span>
-                    <span>{{ notification.signal }}</span>
-                  </div>
-                </div>
-              </article>
+            @if (unreadCount() > 0) {
+              <button
+                type="button"
+                class="btn btn-secondary btn-compact"
+                (click)="markAllNotificationsAsRead()"
+              >
+                Mark all as read
+              </button>
             }
           </div>
+
+          @if (notificationLoading()) {
+            <div class="loading-state">
+              <span class="loading-spinner" aria-hidden="true"></span>
+              <span>Loading notifications...</span>
+            </div>
+          } @else if (notifications().length === 0) {
+            <div class="notification-empty">
+              No workflow notifications yet.
+            </div>
+          } @else {
+            <div class="notification-list">
+              @for (notification of notifications(); track notification.id) {
+                <article
+                  class="notification-preview"
+                  [class.notification-preview--unread]="!notification.read"
+                  (click)="openNotification(notification)"
+                >
+                  <div class="notification-icon" aria-hidden="true">
+                    !
+                  </div>
+
+                  <div class="notification-content">
+                    <div class="notification-heading">
+                      <strong>{{ notification.title }}</strong>
+
+                      <span>
+                        {{ notification.read ? 'Read' : 'Unread' }}
+                      </span>
+                    </div>
+
+                    <p>{{ notification.text }}</p>
+
+                    <div class="notification-meta">
+                      <span>{{ formatDate(notification.createdAt) }}</span>
+
+                      @if (!notification.read) {
+                        <button
+                          type="button"
+                          class="notification-read-button"
+                          (click)="markNotificationAsRead(notification.id, $event)"
+                        >
+                          Mark as read
+                        </button>
+                      }
+                    </div>
+                  </div>
+                </article>
+              }
+            </div>
+          }
         </app-ui-card>
       </section>
 
       <aside class="profile-side">
-        <app-ui-card title="Account" subtitle="Signed-in user.">
+        <app-ui-card
+          title="Account"
+          subtitle="Signed-in user."
+        >
           <div class="compact-profile">
-            <div class="profile-avatar" aria-hidden="true">{{ initials(profile) }}</div>
+            <div class="profile-avatar" aria-hidden="true">
+              {{ initials(profile) }}
+            </div>
 
             <div>
               <h2>{{ fullName(profile) }}</h2>
               <span>{{ profile.email }}</span>
 
               <div class="profile-tags">
-                <span class="role-pill">{{ profile.role }}</span>
-                <span class="status-pill" [ngClass]="statusClass(profile.accountStatus)">
+                <span class="role-pill">
+                  {{ profile.role }}
+                </span>
+
+                <span
+                  class="status-pill"
+                  [ngClass]="statusClass(profile.accountStatus)"
+                >
                   {{ statusLabel(profile.accountStatus) }}
                 </span>
               </div>
@@ -78,7 +131,10 @@
           </div>
         </app-ui-card>
 
-        <app-ui-card title="Security" subtitle="You can change your account password here.">
+        <app-ui-card
+          title="Security"
+          subtitle="You can change your account password here."
+        >
           <div class="security-card">
             <button
               type="button"
@@ -91,8 +147,13 @@
           </div>
         </app-ui-card>
 
-        <app-ui-card title="Role access" subtitle="What your current role means.">
-          <p class="role-description">{{ roleDescription(profile.role) }}</p>
+        <app-ui-card
+          title="Role access"
+          subtitle="What your current role means."
+        >
+          <p class="role-description">
+            {{ roleDescription(profile.role) }}
+          </p>
         </app-ui-card>
       </aside>
     </div>

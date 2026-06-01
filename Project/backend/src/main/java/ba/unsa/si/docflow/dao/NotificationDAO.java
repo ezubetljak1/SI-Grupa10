@@ -4,18 +4,19 @@ import ba.unsa.si.docflow.entity.NotificationEntity;
 
 import org.springframework.stereotype.Repository;
 
+import java.time.Instant;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Repository
 public class NotificationDAO extends AbstractDAO<NotificationEntity, Long> {
 
-    public List<NotificationEntity> findByUserIdOrderByCreatedAt(Long userId) {
+    public List<NotificationEntity> findByUserId(Long userId) {
         String jpql =
                 """
                 SELECT n
                 FROM NotificationEntity n
-                LEFT JOIN FETCH n.document
-                LEFT JOIN FETCH n.comment
                 WHERE n.userId = :userId
                 ORDER BY n.createdAt DESC, n.id DESC
                 """;
@@ -23,6 +24,7 @@ public class NotificationDAO extends AbstractDAO<NotificationEntity, Long> {
         return entityManager
                 .createQuery(jpql, NotificationEntity.class)
                 .setParameter("userId", userId)
+                .setMaxResults(100)
                 .getResultList();
     }
 
@@ -41,28 +43,68 @@ public class NotificationDAO extends AbstractDAO<NotificationEntity, Long> {
                 .getSingleResult();
     }
 
-    public List<NotificationEntity> findUnreadByUserId(Long userId) {
+    public NotificationEntity findByIdAndUserId(Long id, Long userId) {
         String jpql =
                 """
                 SELECT n
                 FROM NotificationEntity n
-                LEFT JOIN FETCH n.document
-                LEFT JOIN FETCH n.comment
-                WHERE n.userId = :userId
-                AND n.read = false
-                ORDER BY n.createdAt DESC, n.id DESC
+                WHERE n.id = :id
+                AND n.userId = :userId
                 """;
 
         return entityManager
                 .createQuery(jpql, NotificationEntity.class)
+                .setParameter("id", id)
                 .setParameter("userId", userId)
-                .getResultList();
+                .getResultList()
+                .stream()
+                .findFirst()
+                .orElse(null);
+    }
+
+    public int markAllReadForUser(Long userId, Instant now) {
+        String jpql =
+                """
+                UPDATE NotificationEntity n
+                SET n.read = true, n.readAt = :now
+                WHERE n.userId = :userId
+                  AND n.read = false
+                """;
+
+        int updatedRows =
+                entityManager
+                        .createQuery(jpql)
+                        .setParameter("now", now)
+                        .setParameter("userId", userId)
+                        .executeUpdate();
+
+        entityManager.clear();
+
+        return updatedRows;
+    }
+
+    public Map<Long, List<NotificationEntity>> findUnreadOlderThanWithNoEmail(Instant threshold) {
+        String jpql =
+                """
+                SELECT n
+                FROM NotificationEntity n
+                WHERE n.read = false
+                AND n.emailSentAt IS NULL
+                AND n.createdAt < :threshold
+                """;
+
+        List<NotificationEntity> list =
+                entityManager
+                        .createQuery(jpql, NotificationEntity.class)
+                        .setParameter("threshold", threshold)
+                        .getResultList();
+
+        return list.stream().collect(Collectors.groupingBy(NotificationEntity::getUserId));
     }
 
     public void deleteByDocumentId(Long documentId) {
         entityManager
-                .createQuery(
-                        "DELETE FROM NotificationEntity n WHERE n.document.id = :documentId")
+                .createQuery("DELETE FROM NotificationEntity n WHERE n.documentId = :documentId")
                 .setParameter("documentId", documentId)
                 .executeUpdate();
     }
