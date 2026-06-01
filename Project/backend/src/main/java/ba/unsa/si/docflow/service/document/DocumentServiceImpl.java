@@ -1,12 +1,6 @@
 package ba.unsa.si.docflow.service.document;
 
-import ba.unsa.si.docflow.dao.AuditLogDAO;
-import ba.unsa.si.docflow.dao.CommentDAO;
-import ba.unsa.si.docflow.dao.DocumentDAO;
-import ba.unsa.si.docflow.dao.ExtractionDAO;
-import ba.unsa.si.docflow.dao.NotificationDAO;
-import ba.unsa.si.docflow.dao.StatusHistoryDAO;
-import ba.unsa.si.docflow.dao.TaskDAO;
+import ba.unsa.si.docflow.dao.*;
 import ba.unsa.si.docflow.dto.document.*;
 import ba.unsa.si.docflow.dto.workflow.CommentResponse;
 import ba.unsa.si.docflow.dto.workflow.CreateCommentRequest;
@@ -14,6 +8,7 @@ import ba.unsa.si.docflow.dto.workflow.StatusHistoryResponse;
 import ba.unsa.si.docflow.entity.CommentEntity;
 import ba.unsa.si.docflow.entity.DocumentEntity;
 import ba.unsa.si.docflow.entity.StatusHistoryEntity;
+import ba.unsa.si.docflow.entity.XmlOutputEntity;
 import ba.unsa.si.docflow.entity.enums.AuditAction;
 import ba.unsa.si.docflow.entity.enums.CommentType;
 import ba.unsa.si.docflow.entity.enums.DocumentStatus;
@@ -88,6 +83,8 @@ public class DocumentServiceImpl implements DocumentService {
     private final TaskService taskService;
 
     private final NotificationService notificationService;
+
+    private final XmlOutputDAO xmlOutputDAO;
 
     @Override
     @Transactional(readOnly = true)
@@ -210,25 +207,39 @@ public class DocumentServiceImpl implements DocumentService {
     @Override
     public ApiResponse<String> delete(Long id) {
         currentUserService.requireAnyRole(RoleName.ADMIN, RoleName.OPERATOR);
+
         DocumentEntity entity =
                 documentValidation.validateExistsInCompany(
                         id, currentUserService.getCurrentCompanyId());
 
         documentValidation.validateDelete(entity);
 
-        String storagePath = entity.getStoragePath();
+        String documentStoragePath = entity.getStoragePath();
+
+        XmlOutputEntity xmlOutput = xmlOutputDAO.findByDocumentId(id);
+
+        String xmlStoragePath = xmlOutput != null ? xmlOutput.getStoragePath() : null;
 
         statusHistoryDAO.deleteByDocumentId(id);
         notificationDAO.deleteByDocumentId(id);
         commentDAO.deleteByDocumentId(id);
         taskDAO.deleteByDocumentId(id);
         auditLogDAO.deleteByDocumentId(id);
+
+        if (xmlOutput != null) {
+            xmlOutputDAO.remove(xmlOutput);
+        }
+
         extractionDAO.deleteByDocumentId(id);
 
         documentDAO.remove(entity);
         documentDAO.flush();
 
-        storageService.delete(storagePath);
+        storageService.delete(documentStoragePath);
+
+        if (StringUtils.hasText(xmlStoragePath)) {
+            storageService.delete(xmlStoragePath);
+        }
 
         return new ApiResponse<>("OK", "Document deleted successfully.");
     }

@@ -356,6 +356,63 @@ public class ExtractionServiceImpl implements ExtractionService {
         return new ApiResponse<>("OK", extractionMapper.fieldToDto(savedField));
     }
 
+    @Override
+    public ApiResponse<ExtractionFieldResponse> deleteField(Long extractionId, Long fieldId) {
+        currentUserService.requireAnyRole(RoleName.ADMIN, RoleName.OPERATOR);
+        requireExtractionInCurrentCompany(extractionId);
+
+        ExtractionFieldEntity field =
+                extractionFieldDAO
+                        .findByIdAndExtractionId(fieldId, extractionId)
+                        .orElseThrow(
+                                () ->
+                                        new ApiNotFoundException(
+                                                "Extraction field was not found for extraction with id: "
+                                                        + extractionId
+                                                        + " and field id: "
+                                                        + fieldId));
+
+        DocumentEntity document = field.getExtraction().getDocument();
+
+        workflowPermissionService.requireCanEditExtraction(document);
+        extractionValidation.validateFieldEditAllowed(document);
+
+        String normalizedFieldName = normalizeFieldName(field.getFieldName());
+
+        boolean requiredCanonicalField =
+                extractionValidation
+                        .getRequiredFields(document.getDocumentType())
+                        .contains(normalizedFieldName);
+
+        if (requiredCanonicalField) {
+            field.setValue(null);
+            field.setConfidence(BigDecimal.ZERO.setScale(6, RoundingMode.HALF_UP));
+            field.setCorrected(false);
+            field.setPlaceholder(true);
+            field.setManual(false);
+
+            ExtractionFieldEntity clearedField = extractionFieldDAO.merge(field);
+
+            auditLogService.log(
+                    document,
+                    currentUserService.getCurrentUserId(),
+                    AuditAction.FIELD_CLEARED,
+                    "{\"fieldId\":" + fieldId + ",\"fieldName\":\"" + normalizedFieldName + "\"}");
+
+            return new ApiResponse<>("OK", extractionMapper.fieldToDto(clearedField));
+        }
+
+        extractionFieldDAO.remove(field);
+
+        auditLogService.log(
+                document,
+                currentUserService.getCurrentUserId(),
+                AuditAction.FIELD_DELETED,
+                "{\"fieldId\":" + fieldId + ",\"fieldName\":\"" + normalizedFieldName + "\"}");
+
+        return new ApiResponse<>("OK", null);
+    }
+
     private String resolveDisplayName(
             CreateExtractionFieldRequest request, String normalizedFieldName) {
         if (StringUtils.hasText(request.getDisplayName())) {

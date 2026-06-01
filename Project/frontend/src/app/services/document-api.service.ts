@@ -22,6 +22,7 @@ import {
   DocumentComment,
   StatusHistoryEntry,
 } from '../documents/models/workflow.models';
+import { XmlOutputResponse } from '../documents/models/xml-output.models';
 
 @Injectable({
   providedIn: 'root',
@@ -132,9 +133,51 @@ export class DocumentApiService {
     );
   }
 
+  deleteExtractionField(
+    extractionId: number,
+    fieldId: number
+  ): Observable<ApiResponse<ExtractionField | null>> {
+    return this.http.delete<ApiResponse<ExtractionField | null>>(
+      `${this.extractionsBaseUrl}/${extractionId}/fields/${fieldId}`
+    );
+  }
+
   confirmExtraction(documentId: number): Observable<ApiResponse<Extraction>> {
     return this.http.post<ApiResponse<Extraction>>(
       `${this.baseUrl}/${documentId}/extraction/confirm`,
+      {}
+    );
+  }
+
+    generateXmlOutput(
+    documentId: number
+  ): Observable<ApiResponse<XmlOutputResponse>> {
+    return this.http.post<ApiResponse<XmlOutputResponse>>(
+      `${this.baseUrl}/${documentId}/xml-output`,
+      {}
+    );
+  }
+
+  getXmlOutput(
+    documentId: number
+  ): Observable<ApiResponse<XmlOutputResponse>> {
+    return this.http.get<ApiResponse<XmlOutputResponse>>(
+      `${this.baseUrl}/${documentId}/xml-output`
+    );
+  }
+
+  downloadXmlOutput(documentId: number): Observable<Blob> {
+    return this.http.get(
+      `${this.baseUrl}/${documentId}/xml-output/file`,
+      { responseType: 'blob' }
+    );
+  }
+
+  completeXmlOutput(
+    documentId: number
+  ): Observable<ApiResponse<XmlOutputResponse>> {
+    return this.http.post<ApiResponse<XmlOutputResponse>>(
+      `${this.baseUrl}/${documentId}/xml-output/complete`,
       {}
     );
   }

@@ -26,5 +26,7 @@ public interface ExtractionService {
     ApiResponse<ExtractionFieldResponse> addField(
             Long extractionId, CreateExtractionFieldRequest request);
 
+    ApiResponse<ExtractionFieldResponse> deleteField(Long extractionId, Long fieldId);
+
     ApiResponse<ExtractionResponse> confirmExtraction(Long documentId);
 }
