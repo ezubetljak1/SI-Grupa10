@@ -8,6 +8,7 @@ import ba.unsa.si.docflow.exception.XmlOutputException;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
@@ -17,6 +18,12 @@ import java.util.List;
 import javax.xml.stream.XMLOutputFactory;
 import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.XMLStreamWriter;
+import javax.xml.transform.OutputKeys;
+import javax.xml.transform.Transformer;
+import javax.xml.transform.TransformerException;
+import javax.xml.transform.TransformerFactory;
+import javax.xml.transform.stream.StreamResult;
+import javax.xml.transform.stream.StreamSource;
 
 @Service
 public class XmlOutputGenerator {
@@ -43,7 +50,7 @@ public class XmlOutputGenerator {
             writer.flush();
             writer.close();
 
-            return outputStream.toByteArray();
+            return formatXml(outputStream.toByteArray());
 
         } catch (XMLStreamException exception) {
             throw new XmlOutputException("Could not generate XML output.", exception);
@@ -127,5 +134,30 @@ public class XmlOutputGenerator {
 
     private String normalizeFieldName(String fieldName) {
         return fieldName.trim().toLowerCase();
+    }
+
+    private byte[] formatXml(byte[] xmlContent) {
+        try {
+            Transformer transformer = TransformerFactory.newInstance().newTransformer();
+
+            transformer.setOutputProperty(OutputKeys.INDENT, "yes");
+
+            transformer.setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "no");
+
+            transformer.setOutputProperty(OutputKeys.ENCODING, StandardCharsets.UTF_8.name());
+
+            transformer.setOutputProperty("{http://xml.apache.org/xslt}indent-amount", "2");
+
+            ByteArrayOutputStream formattedOutput = new ByteArrayOutputStream();
+
+            transformer.transform(
+                    new StreamSource(new ByteArrayInputStream(xmlContent)),
+                    new StreamResult(formattedOutput));
+
+            return formattedOutput.toByteArray();
+
+        } catch (TransformerException exception) {
+            throw new XmlOutputException("Could not format XML output.", exception);
+        }
     }
 }
