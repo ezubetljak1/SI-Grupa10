@@ -3,12 +3,12 @@ package ba.unsa.si.docflow.controller;
 import ba.unsa.si.docflow.dto.extraction.CreateExtractionFieldRequest;
 import ba.unsa.si.docflow.dto.extraction.ExtractionFieldResponse;
 import ba.unsa.si.docflow.dto.extraction.UpdateExtractionFieldRequest;
-
-import jakarta.validation.Valid;
 import ba.unsa.si.docflow.response.ApiResponse;
 import ba.unsa.si.docflow.service.extraction.ExtractionService;
 
 import io.swagger.v3.oas.annotations.tags.Tag;
+
+import jakarta.validation.Valid;
 
 import lombok.AllArgsConstructor;
 
@@ -43,5 +43,13 @@ public class ExtractionFieldController {
             @PathVariable Long extractionId,
             @Valid @RequestBody CreateExtractionFieldRequest request) {
         return extractionService.addField(extractionId, request);
+    }
+
+    @DeleteMapping("/{fieldId}")
+    public ApiResponse<ExtractionFieldResponse> deleteField(
+            @PathVariable Long extractionId,
+            @PathVariable Long fieldId) {
+
+        return extractionService.deleteField(extractionId, fieldId);
     }
 }

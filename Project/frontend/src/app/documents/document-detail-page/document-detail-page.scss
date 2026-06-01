@@ -1357,6 +1357,68 @@ img {
   background: #fff7f7;
 }
 
+.row-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.icon-btn--delete {
+  color: var(--error);
+  border-color: var(--error-border);
+  background: var(--error-soft);
+
+  svg {
+    width: 15px;
+    height: 15px;
+  }
+
+  &:hover:not(:disabled) {
+    color: var(--error);
+    border-color: var(--error);
+    background: var(--error-soft);
+  }
+}
+
+.delete-field-modal {
+  width: min(500px, 100%);
+}
+
+.modal-eyebrow--warning {
+  color: #9a6700;
+}
+
+.modal-eyebrow--danger {
+  color: var(--error);
+}
+
+.delete-field-preview {
+  display: grid;
+  gap: 5px;
+  padding: 13px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--section);
+}
+
+.delete-field-preview__label {
+  color: var(--text-main);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.delete-field-preview__key {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.delete-field-preview__value {
+  margin-top: 3px;
+  color: var(--text-muted);
+  font-size: 13px;
+  word-break: break-word;
+}
+
 @media (max-width: 900px) {
   .task-banner {
     align-items: flex-start;

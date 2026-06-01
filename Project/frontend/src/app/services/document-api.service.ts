@@ -132,6 +132,15 @@ export class DocumentApiService {
     );
   }
 
+  deleteExtractionField(
+    extractionId: number,
+    fieldId: number
+  ): Observable<ApiResponse<ExtractionField | null>> {
+    return this.http.delete<ApiResponse<ExtractionField | null>>(
+      `${this.extractionsBaseUrl}/${extractionId}/fields/${fieldId}`
+    );
+  }
+
   confirmExtraction(documentId: number): Observable<ApiResponse<Extraction>> {
     return this.http.post<ApiResponse<Extraction>>(
       `${this.baseUrl}/${documentId}/extraction/confirm`,

@@ -8,6 +8,8 @@ public enum AuditAction {
 
     FIELD_ADDED,
     FIELD_UPDATED,
+    FIELD_CLEARED,
+    FIELD_DELETED,
 
     DOCUMENT_APPROVED,
     DOCUMENT_REJECTED,

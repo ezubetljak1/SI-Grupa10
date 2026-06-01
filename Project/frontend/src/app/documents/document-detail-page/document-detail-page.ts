@@ -142,6 +142,8 @@ export class DocumentDetailPageComponent implements OnInit {
   addFieldValue = '';
   customFieldLabel = '';
   addFieldError: string | null = null;
+  fieldPendingDeletion: ExtractionField | null = null;
+  deletingFieldId: number | null = null;
 
   readonly customFieldOptionValue = CUSTOM_FIELD_OPTION_VALUE;
 
@@ -590,6 +592,122 @@ export class DocumentDetailPageComponent implements OnInit {
   isManualField(field: ExtractionField): boolean {
     return field.manual === true;
   }
+
+    isRequiredCanonicalField(field: ExtractionField): boolean {
+      const requiredFieldsByDocumentType: Record<string, string[]> = {
+        INVOICE: [
+          'invoice_id',
+          'invoice_date',
+          'supplier_name',
+          'total_amount',
+          'currency',
+        ],
+        RECEIPT: [
+          'supplier_name',
+          'total_amount',
+          'currency',
+        ],
+        BANK_STATEMENT: [
+          'account_number',
+        ],
+        FORM: [],
+      };
+
+      const documentType = this.document?.documentType ?? '';
+      const normalizedFieldName = field.fieldName.trim().toLowerCase();
+
+      return (requiredFieldsByDocumentType[documentType] ?? []).includes(
+        normalizedFieldName
+      );
+    }
+
+    openDeleteFieldModal(field: ExtractionField): void {
+      if (
+        !this.canEditExtractionField() ||
+        this.editState !== null ||
+        this.deletingFieldId !== null
+      ) {
+        return;
+      }
+
+      this.fieldPendingDeletion = field;
+    }
+
+    closeDeleteFieldModal(): void {
+      if (this.deletingFieldId !== null) {
+        return;
+      }
+
+      this.fieldPendingDeletion = null;
+    }
+
+    confirmDeleteExtractionField(): void {
+      const field = this.fieldPendingDeletion;
+
+      if (
+        !field ||
+        this.extractionId === null ||
+        this.deletingFieldId !== null
+      ) {
+        return;
+      }
+
+      const fieldId = field.id;
+      const documentId = this.document?.id ?? null;
+
+      this.deletingFieldId = fieldId;
+
+      this.documentApiService
+        .deleteExtractionField(this.extractionId, fieldId)
+        .subscribe({
+          next: (response) => {
+            this.deletingFieldId = null;
+            this.fieldPendingDeletion = null;
+
+            const clearedRequiredField = response.payload ?? null;
+
+            if (clearedRequiredField) {
+              const index = this.extractionFields.findIndex(
+                (existingField) => existingField.id === fieldId
+              );
+
+              if (index !== -1) {
+                this.extractionFields[index] = {
+                  ...this.extractionFields[index],
+                  ...clearedRequiredField,
+                };
+              }
+
+              this.toastr.warning(
+                'Required field value cleared. Enter a replacement before confirming extraction.',
+                'Required field cleared'
+              );
+            } else {
+              this.extractionFields = this.extractionFields.filter(
+                (existingField) => existingField.id !== fieldId
+              );
+
+              this.toastr.success(
+                'Field deleted successfully.',
+                'Success'
+              );
+            }
+
+            if (documentId !== null) {
+              this.loadAuditLogs(documentId);
+            }
+          },
+          error: (err: HttpErrorResponse) => {
+            this.deletingFieldId = null;
+
+            const message =
+              this.extractErrorMessage(err.error) ??
+              'Failed to delete extraction field.';
+
+            this.toastr.error(message, 'Error');
+          },
+        });
+    }
 
   openAddFieldModal(): void {
     this.addFieldError = null;
@@ -1400,6 +1518,8 @@ export class DocumentDetailPageComponent implements OnInit {
 
       FIELD_ADDED: 'Field added',
       FIELD_UPDATED: 'Field updated',
+      FIELD_CLEARED: 'Required field value cleared',
+      FIELD_DELETED: 'Field deleted',
 
       DOCUMENT_APPROVED: 'Document approved',
       DOCUMENT_REJECTED: 'Document rejected',
@@ -1493,6 +1613,12 @@ formatAuditDetails(entry: AuditLog): string {
 
       case 'FIELD_ADDED':
         return `Added field: ${this.resolveAuditFieldLabel(parsed)}.`;
+      
+      case 'FIELD_CLEARED':
+        return `Cleared required field value: ${this.resolveAuditFieldLabel(parsed)}.`;
+
+      case 'FIELD_DELETED':
+        return `Deleted field: ${this.resolveAuditFieldLabel(parsed)}.`;
 
       case 'FIELD_UPDATED':
         return `Updated field: ${this.resolveAuditFieldLabel(parsed)}.`;
@@ -1675,6 +1801,8 @@ private toTitleCase(value: string): string {
     this.showAddFieldModal = false;
     this.addFieldSaving = false;
     this.addFieldError = null;
+    this.fieldPendingDeletion = null;
+    this.deletingFieldId = null;
   }
 
   private syncDefaultAssignee(): void {
