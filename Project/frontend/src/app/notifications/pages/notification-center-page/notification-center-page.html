@@ -1,0 +1,112 @@
+<section class="notification-page">
+  <app-page-header
+    eyebrow="Centar za obavijesti"
+    title="Obavijesti"
+    description="Pregledajte i upravljajte vašim sistemskim obavijestima i podsjetnicima.">
+    <div page-actions class="page-actions">
+      <button type="button" class="btn btn-muted" (click)="loadNotifications()" [disabled]="loading()">
+        {{ loading() ? 'Učitavanje...' : 'Osvježi' }}
+      </button>
+      @if (unreadCount() > 0) {
+        <button type="button" class="btn btn-primary" (click)="markAllAsRead()">
+          Označi sve pročitanim
+        </button>
+      }
+    </div>
+  </app-page-header>
+
+  <div class="tabs-container">
+    <div class="notification-tabs" role="tablist" aria-label="Filter obavijesti">
+      <button
+        type="button"
+        class="notification-tab"
+        [class.notification-tab--active]="filterTab() === 'SVE'"
+        (click)="filterTab.set('SVE')">
+        Sve obavijesti
+      </button>
+      <button
+        type="button"
+        class="notification-tab"
+        [class.notification-tab--active]="filterTab() === 'NEPROCITANE'"
+        (click)="filterTab.set('NEPROCITANE')">
+        Nepročitane
+        <span class="badge" [class.badge--hidden]="unreadCount() === 0">
+          {{ unreadCount() }}
+        </span>
+      </button>
+    </div>
+  </div>
+
+  @if (error()) {
+    <div class="error-card">
+      <div class="error-content">
+        <span class="error-icon">⚠️</span>
+        <div class="error-details">
+          <strong>Greška pri učitavanju obavijesti</strong>
+          <p>{{ error() }}</p>
+        </div>
+      </div>
+      <button type="button" class="btn btn-danger btn-small" (click)="loadNotifications()">
+        Pokušaj ponovo
+      </button>
+    </div>
+  }
+
+  <div class="notification-list-container">
+    @if (loading() && filteredNotifications().length === 0) {
+      <div class="loading-state">
+        <div class="spinner"></div>
+        <span>Učitavanje obavijesti...</span>
+      </div>
+    } @else if (filteredNotifications().length === 0) {
+      <div class="empty-wrapper">
+        <app-empty-state
+          icon="🔔"
+          title="Nema obavijesti"
+          description="Vaš sandučić je prazan. Nova obavještenja će se pojaviti ovdje.">
+        </app-empty-state>
+      </div>
+    } @else {
+      <div class="notifications-list">
+        @for (notif of filteredNotifications(); track notif.id) {
+          <div
+            class="notification-item"
+            [class.notification-item--unread]="!notif.read"
+            (click)="handleNotificationClick(notif)">
+            <div class="notification-type-badge">
+              {{ getIcon(notif.type) }}
+            </div>
+
+            <div class="notification-content-wrapper">
+              <div class="notification-header">
+                <span class="notification-type-label">{{ getLabel(notif.type) }}</span>
+                <span class="notification-time">{{ formatDate(notif.createdAt) }}</span>
+              </div>
+              <h3 class="notification-title">{{ notif.title }}</h3>
+              <p class="notification-text">{{ notif.text }}</p>
+            </div>
+
+            <div class="notification-actions">
+              @if (!notif.read) {
+                <button
+                  type="button"
+                  class="btn btn-muted btn-compact btn-small"
+                  (click)="markAsRead(notif.id, $event)"
+                  title="Označi kao pročitano">
+                  Označi pročitanim
+                </button>
+              } @else {
+                <span class="read-indicator" title="Pročitano">✓</span>
+              }
+            </div>
+          </div>
+        }
+      </div>
+    }
+  </div>
+
+  <div class="info-footer">
+    <span class="info-icon">ℹ</span>
+    <p class="info-text">Sistem automatski šalje email podsjetnik za nepročitane notifikacije starije od 24 sata.</p>
+  </div>
+</section>

@@ -389,18 +389,21 @@ public class TaskServiceImpl implements TaskService {
     }
 
     private void createAssignmentNotification(TaskEntity task, UserEntity assignee) {
-        NotificationEntity notification = new NotificationEntity();
-        notification.setUserId(assignee.getId());
-        notification.setDocument(task.getDocument());
-        notification.setType(NotificationType.DOCUMENT_ASSIGNED);
-        notification.setTitle("New task assigned");
-        notification.setText(
-                "You have been assigned a "
-                        + task.getTaskType().name().toLowerCase()
-                        + " task for document "
-                        + task.getDocument().getName()
-                        + ".");
-        notification.setActionUrl("/tasks/my");
+        NotificationEntity notification = NotificationEntity.builder()
+                .userId(assignee.getId())
+                .documentId(task.getDocument().getId())
+                .type(NotificationType.DOCUMENT_ASSIGNED)
+                .title("New task assigned")
+                .text(
+                        "You have been assigned a "
+                                + task.getTaskType().name().toLowerCase()
+                                + " task for document "
+                                + task.getDocument().getName()
+                                + ".")
+                .actionUrl("/tasks/my")
+                .read(false)
+                .createdAt(java.time.Instant.now())
+                .build();
         notificationDAO.persist(notification);
     }
 
