@@ -4,8 +4,10 @@ import ba.unsa.si.docflow.dao.NotificationDAO;
 import ba.unsa.si.docflow.dao.UserDAO;
 import ba.unsa.si.docflow.entity.NotificationEntity;
 import ba.unsa.si.docflow.entity.UserEntity;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
@@ -90,22 +92,40 @@ public class NotificationReminderScheduler {
         SimpleMailMessage message = new SimpleMailMessage();
         message.setTo(email);
         message.setFrom(mailFromName + " <" + mailFrom + ">");
-        message.setSubject("Docflow - Podsjetnik na nepročitane obavijesti");
+        message.setSubject("Docflow - Pending notifications reminder");
 
         StringBuilder body = new StringBuilder();
-        body.append("Pozdrav ").append(user.getFirstName()).append(",\n\n");
-        body.append("Imate nepročitane obavijesti u Docflow aplikaciji:\n\n");
+
+        body.append("Hello ")
+                .append(user.getFirstName())
+                .append(",\n\n");
+
+        body.append("You have unread notifications in the Docflow application:\n\n");
 
         for (NotificationEntity notification : notifications) {
-            body.append("- ").append(notification.getTitle()).append("\n");
-            body.append("  ").append(notification.getText()).append("\n");
-            if (notification.getActionUrl() != null && !notification.getActionUrl().isBlank()) {
-                body.append("  Link: ").append(frontendBaseUrl).append(notification.getActionUrl()).append("\n");
+            body.append("- ")
+                    .append(notification.getTitle())
+                    .append("\n");
+
+            body.append("  ")
+                    .append(notification.getText())
+                    .append("\n");
+
+            if (notification.getActionUrl() != null
+                    && !notification.getActionUrl().isBlank()) {
+
+                body.append("  Open: ")
+                        .append(frontendBaseUrl)
+                        .append(notification.getActionUrl())
+                        .append("\n");
             }
+
             body.append("\n");
         }
 
-        body.append("Srdačan pozdrav,\n").append(mailFromName);
+        body.append("Kind regards,\n")
+                .append(mailFromName);
+
         message.setText(body.toString());
 
         mailSender.send(message);

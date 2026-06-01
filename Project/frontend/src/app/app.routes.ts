@@ -12,18 +12,13 @@ import { roleGuard } from './auth/services/role.guard';
 import { ProfilePageComponent } from './users/pages/profile-page/profile-page';
 import { MyTasksPageComponent } from './tasks/pages/my-tasks-page/my-tasks-page';
 import { ApprovalPendingPageComponent } from './review/pages/approval-pending-page/approval-pending-page';
-import { NotificationCenterPageComponent } from './notifications/pages/notification-center-page/notification-center-page';
+
 
 export const routes: Routes = [
     {
         path: '',
         redirectTo: 'documents',
         pathMatch: 'full'
-    },
-    {
-        path: 'notifications',
-        component: NotificationCenterPageComponent,
-        canActivate: [authGuard]
     },
     {
         path: 'register-company',

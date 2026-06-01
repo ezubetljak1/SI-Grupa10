@@ -1,14 +1,23 @@
 package ba.unsa.si.docflow.service.notification;
 
 import ba.unsa.si.docflow.dao.NotificationDAO;
+import ba.unsa.si.docflow.dao.TaskDAO;
+import ba.unsa.si.docflow.dao.UserDAO;
 import ba.unsa.si.docflow.dto.notification.NotificationResponse;
 import ba.unsa.si.docflow.dto.notification.UnreadCountResponse;
+import ba.unsa.si.docflow.entity.DocumentEntity;
 import ba.unsa.si.docflow.entity.NotificationEntity;
+import ba.unsa.si.docflow.entity.TaskEntity;
+import ba.unsa.si.docflow.entity.UserEntity;
 import ba.unsa.si.docflow.entity.enums.NotificationType;
+import ba.unsa.si.docflow.entity.enums.RoleName;
+import ba.unsa.si.docflow.entity.enums.TaskType;
 import ba.unsa.si.docflow.exception.ApiNotFoundException;
 import ba.unsa.si.docflow.mapper.NotificationMapper;
 import ba.unsa.si.docflow.security.CurrentUserService;
+
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,6 +32,8 @@ public class NotificationServiceImpl implements NotificationService {
     private final NotificationDAO notificationDAO;
     private final CurrentUserService currentUserService;
     private final NotificationMapper notificationMapper;
+    private final TaskDAO taskDAO;
+    private final UserDAO userDAO;
 
     @Override
     @Transactional(readOnly = true)
@@ -45,7 +56,7 @@ public class NotificationServiceImpl implements NotificationService {
         Long userId = currentUserService.getCurrentUserId();
         NotificationEntity notification = notificationDAO.findByIdAndUserId(id, userId);
         if (notification == null) {
-            throw new ApiNotFoundException("Notifikacija nije pronađena.");
+            throw new ApiNotFoundException("Notification was not found.");
         }
 
         notification.setRead(true);
@@ -70,79 +81,111 @@ public class NotificationServiceImpl implements NotificationService {
             String text,
             String actionUrl) {
 
-        NotificationEntity notification = NotificationEntity.builder()
-                .userId(targetUserId)
-                .documentId(documentId)
-                .commentId(commentId)
-                .type(type)
-                .title(title)
-                .text(text)
-                .actionUrl(actionUrl)
-                .read(false)
-                .createdAt(Instant.now())
-                .build();
+        if (targetUserId == null) {
+            return;
+        }
+
+        NotificationEntity notification =
+                NotificationEntity.builder()
+                        .userId(targetUserId)
+                        .documentId(documentId)
+                        .commentId(commentId)
+                        .type(type)
+                        .title(title)
+                        .text(text)
+                        .actionUrl(actionUrl)
+                        .read(false)
+                        .createdAt(Instant.now())
+                        .build();
 
         notificationDAO.persist(notification);
     }
 
     @Override
     public void notifyDocumentAssigned(Long assigneeUserId, Long documentId, String documentName) {
+
         createNotification(
                 assigneeUserId,
                 documentId,
                 null,
                 NotificationType.DOCUMENT_ASSIGNED,
-                "Novi dokument dodijeljen",
-                "Dodijeljen vam je dokument: " + documentName,
+                "New task assigned",
+                "You have been assigned a task for document: " + documentName,
                 "/documents/" + documentId);
     }
 
     @Override
     public void notifyReadyForApproval(Long approverUserId, Long documentId, String documentName) {
+
         createNotification(
                 approverUserId,
                 documentId,
                 null,
                 NotificationType.DOCUMENT_READY_FOR_APPROVAL,
-                "Dokument spreman za odobrenje",
-                "Dokument " + documentName + " je spreman za vaše odobrenje.",
-                "/review");
+                "Document ready for approval",
+                "Document " + documentName + " is ready for your approval.",
+                "/documents/" + documentId);
     }
 
     @Override
     public void notifyReturnedForCorrection(
             Long operatorUserId, Long documentId, String documentName, Long commentId) {
+
         createNotification(
                 operatorUserId,
                 documentId,
                 commentId,
                 NotificationType.DOCUMENT_RETURNED_FOR_CORRECTION,
-                "Dokument vraćen na ispravku",
-                "Dokument " + documentName + " je vraćen na ispravku.",
+                "Document returned for correction",
+                "Document " + documentName + " has been returned for correction.",
                 "/documents/" + documentId);
     }
 
     @Override
-    public void notifyRejected(Long operatorUserId, Long documentId, String documentName, Long commentId) {
+    public void notifyRejected(
+            Long operatorUserId, Long documentId, String documentName, Long commentId) {
+
         createNotification(
                 operatorUserId,
                 documentId,
                 commentId,
                 NotificationType.DOCUMENT_REJECTED,
-                "Dokument odbijen",
-                "Dokument " + documentName + " je odbijen.",
+                "Document rejected",
+                "Document " + documentName + " has been rejected.",
                 "/documents/" + documentId);
     }
 
     @Override
     public void notifyApproved(Long operatorUserId, Long documentId, String documentName) {
+
         createNotification(
                 operatorUserId,
                 documentId,
                 null,
                 NotificationType.DOCUMENT_APPROVED,
-                "Dokument odobren",
-                "Dokument " + documentName + " je odobren.",
+                "Document approved",
+                "Document " + documentName + " has been approved.",
                 "/documents/" + documentId);
+    }
+
+    @Override
+    public void notifyReadyForApprovalRecipients(DocumentEntity document) {
+        TaskEntity activeApprovalTask =
+                taskDAO.findActiveByDocumentIdAndTaskType(document.getId(), TaskType.APPROVAL);
+
+        if (activeApprovalTask != null) {
+            notifyReadyForApproval(
+                    activeApprovalTask.getAssignedUserId(), document.getId(), document.getName());
+
+            return;
+        }
+
+        List<UserEntity> approvers =
+                userDAO.findActiveByCompanyIdAndRoleName(
+                        document.getCompanyId(), RoleName.APPROVER);
+
+        for (UserEntity approver : approvers) {
+            notifyReadyForApproval(approver.getId(), document.getId(), document.getName());
+        }
     }
 }

@@ -51,8 +51,7 @@ public class UserDAO extends AbstractDAO<UserEntity, Long> {
     }
 
     public UserEntity findByIdAndCompanyId(Long id, Long companyId) {
-        String jpql =
-                "SELECT u FROM UserEntity u WHERE u.id = :id AND u.companyId = :companyId";
+        String jpql = "SELECT u FROM UserEntity u WHERE u.id = :id AND u.companyId = :companyId";
 
         TypedQuery<UserEntity> query = entityManager.createQuery(jpql, UserEntity.class);
         query.setParameter("id", id);
@@ -95,10 +94,7 @@ public class UserDAO extends AbstractDAO<UserEntity, Long> {
     }
 
     private List<Predicate> buildPredicates(
-            UserFilterRequest request,
-            Long companyId,
-            CriteriaBuilder cb,
-            Root<UserEntity> root) {
+            UserFilterRequest request, Long companyId, CriteriaBuilder cb, Root<UserEntity> root) {
 
         List<Predicate> predicates = new ArrayList<>();
 
@@ -119,7 +115,8 @@ public class UserDAO extends AbstractDAO<UserEntity, Long> {
     }
 
     public long countActiveAdminsByCompanyId(Long companyId) {
-        String jpql = """
+        String jpql =
+                """
         SELECT COUNT(u)
         FROM UserEntity u, RoleEntity r
         WHERE u.roleId = r.id
@@ -134,5 +131,26 @@ public class UserDAO extends AbstractDAO<UserEntity, Long> {
                 .setParameter("adminRole", RoleName.ADMIN)
                 .setParameter("inactiveStatus", AccountStatus.INACTIVE)
                 .getSingleResult();
+    }
+
+    public List<UserEntity> findActiveByCompanyIdAndRoleName(Long companyId, RoleName roleName) {
+
+        String jpql =
+                """
+                SELECT u
+                FROM UserEntity u, RoleEntity r
+                WHERE u.roleId = r.id
+                  AND u.companyId = :companyId
+                  AND r.name = :roleName
+                  AND u.accountStatus <> :inactiveStatus
+                ORDER BY u.id
+                """;
+
+        return entityManager
+                .createQuery(jpql, UserEntity.class)
+                .setParameter("companyId", companyId)
+                .setParameter("roleName", roleName)
+                .setParameter("inactiveStatus", AccountStatus.INACTIVE)
+                .getResultList();
     }
 }

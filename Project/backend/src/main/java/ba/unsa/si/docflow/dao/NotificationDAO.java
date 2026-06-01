@@ -1,6 +1,7 @@
 package ba.unsa.si.docflow.dao;
 
 import ba.unsa.si.docflow.entity.NotificationEntity;
+
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
@@ -67,14 +68,19 @@ public class NotificationDAO extends AbstractDAO<NotificationEntity, Long> {
                 UPDATE NotificationEntity n
                 SET n.read = true, n.readAt = :now
                 WHERE n.userId = :userId
-                AND n.read = false
+                  AND n.read = false
                 """;
 
-        return entityManager
-                .createQuery(jpql)
-                .setParameter("now", now)
-                .setParameter("userId", userId)
-                .executeUpdate();
+        int updatedRows =
+                entityManager
+                        .createQuery(jpql)
+                        .setParameter("now", now)
+                        .setParameter("userId", userId)
+                        .executeUpdate();
+
+        entityManager.clear();
+
+        return updatedRows;
     }
 
     public Map<Long, List<NotificationEntity>> findUnreadOlderThanWithNoEmail(Instant threshold) {
@@ -87,10 +93,11 @@ public class NotificationDAO extends AbstractDAO<NotificationEntity, Long> {
                 AND n.createdAt < :threshold
                 """;
 
-        List<NotificationEntity> list = entityManager
-                .createQuery(jpql, NotificationEntity.class)
-                .setParameter("threshold", threshold)
-                .getResultList();
+        List<NotificationEntity> list =
+                entityManager
+                        .createQuery(jpql, NotificationEntity.class)
+                        .setParameter("threshold", threshold)
+                        .getResultList();
 
         return list.stream().collect(Collectors.groupingBy(NotificationEntity::getUserId));
     }

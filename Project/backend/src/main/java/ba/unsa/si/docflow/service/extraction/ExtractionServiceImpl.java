@@ -21,6 +21,7 @@ import ba.unsa.si.docflow.response.ValidationErrors;
 import ba.unsa.si.docflow.security.CurrentUserService;
 import ba.unsa.si.docflow.service.audit.AuditLogService;
 import ba.unsa.si.docflow.service.document.DocumentValidation;
+import ba.unsa.si.docflow.service.notification.NotificationService;
 import ba.unsa.si.docflow.service.ocr.DocumentAiProcessorRouter;
 import ba.unsa.si.docflow.service.ocr.DocumentClassificationService;
 import ba.unsa.si.docflow.service.ocr.OcrProvider;
@@ -111,6 +112,7 @@ public class ExtractionServiceImpl implements ExtractionService {
     private final WorkflowPermissionService workflowPermissionService;
     private final AuditLogService auditLogService;
     private final TaskService taskService;
+    private final NotificationService notificationService;
 
     @Override
     public ApiResponse<ExtractionResponse> process(Long documentId) {
@@ -264,6 +266,8 @@ public class ExtractionServiceImpl implements ExtractionService {
                 currentUserService.getCurrentUserId(),
                 null,
                 "Extraction confirmed and sent for approval.");
+
+        notificationService.notifyReadyForApprovalRecipients(document);
 
         taskService.completeActiveTaskForDocument(
                 document, taskTypeToComplete, currentUserService.getCurrentUserId());

@@ -28,6 +28,7 @@ import ba.unsa.si.docflow.response.PagedResponse;
 import ba.unsa.si.docflow.response.ValidationErrors;
 import ba.unsa.si.docflow.security.CurrentUserService;
 import ba.unsa.si.docflow.service.audit.AuditLogService;
+import ba.unsa.si.docflow.service.notification.NotificationService;
 import ba.unsa.si.docflow.service.security.WorkflowPermissionService;
 import ba.unsa.si.docflow.service.storage.StorageService;
 import ba.unsa.si.docflow.service.storage.StoredFileInfo;
@@ -86,6 +87,8 @@ public class DocumentServiceImpl implements DocumentService {
 
     private final TaskService taskService;
 
+    private final NotificationService notificationService;
+
     @Override
     @Transactional(readOnly = true)
     public PagedResponse<Document> find(DocumentFilterRequest request) {
@@ -132,8 +135,7 @@ public class DocumentServiceImpl implements DocumentService {
     }
 
     @Override
-    public ApiResponse<Document> upload(
-            MultipartFile file, String documentType, String name) {
+    public ApiResponse<Document> upload(MultipartFile file, String documentType, String name) {
         currentUserService.requireAnyRole(RoleName.ADMIN, RoleName.OPERATOR);
         Long companyId = currentUserService.getCurrentCompanyId();
         Long createdByUserId = currentUserService.getCurrentUserId();
@@ -372,44 +374,50 @@ public class DocumentServiceImpl implements DocumentService {
         }
 
         Long currentUserId = currentUserService.getCurrentUserId();
-        // Approve allows optional comment; reject and return require comment (validated in CommentService)
+        Long responsibleOperatorId = findResponsibleOperator(document);
+        // Approve allows optional comment; reject and return require comment (validated in
+        // CommentService)
         CommentEntity comment = null;
         String commentContent = request != null ? request.getContent() : null;
         if (targetStatus == DocumentStatus.APPROVED) {
             if (org.springframework.util.StringUtils.hasText(commentContent)) {
-                comment = commentService.createTypedComment(
-                        document, currentUserId, commentType, commentContent);
+                comment =
+                        commentService.createTypedComment(
+                                document, currentUserId, commentType, commentContent);
             }
         } else {
-            comment = commentService.createTypedComment(
-                    document, currentUserId, commentType, commentContent);
+            comment =
+                    commentService.createTypedComment(
+                            document, currentUserId, commentType, commentContent);
         }
 
         documentStatusTransitionService.changeStatus(
-                document,
-                targetStatus,
-                statusHistoryAction,
-                currentUserId,
-                comment,
-                details);
+                document, targetStatus, statusHistoryAction, currentUserId, comment, details);
 
         auditLogService.log(
                 document,
                 currentUserId,
                 auditAction,
                 String.format(
-                        "{\"documentId\":%d,\"status\":\"%s\"}",
-                        document.getId(), targetStatus));
+                        "{\"documentId\":%d,\"status\":\"%s\"}", document.getId(), targetStatus));
         taskService.completeActiveTaskForDocument(document, TaskType.APPROVAL, currentUserId);
 
-        // If returning for correction, find responsible operator and create correction task
         if (targetStatus == DocumentStatus.NEEDS_CORRECTION) {
-            Long responsibleOperatorId = findResponsibleOperator(document);
             taskService.createCorrectionTask(document, responsibleOperatorId, currentUserId);
+
+            notificationService.notifyReturnedForCorrection(
+                    responsibleOperatorId, document.getId(), document.getName(), comment.getId());
         }
 
-        // Notification hook — actual notification logic implemented by Član 7 (NotificationService)
-        // TODO: call notificationService.notifyApprovalDecision(document, targetStatus, currentUserId)
+        if (targetStatus == DocumentStatus.REJECTED) {
+            notificationService.notifyRejected(
+                    responsibleOperatorId, document.getId(), document.getName(), comment.getId());
+        }
+
+        if (targetStatus == DocumentStatus.APPROVED) {
+            notificationService.notifyApproved(
+                    responsibleOperatorId, document.getId(), document.getName());
+        }
 
         return new ApiResponse<>("OK", documentMapper.entityToDto(document));
     }
@@ -417,13 +425,11 @@ public class DocumentServiceImpl implements DocumentService {
     private Long findResponsibleOperator(DocumentEntity document) {
         StatusHistoryEntity initialConfirmation =
                 statusHistoryDAO.findLatestByDocumentIdAndAction(
-                        document.getId(),
-                        StatusHistoryAction.EXTRACTION_CONFIRMED);
+                        document.getId(), StatusHistoryAction.EXTRACTION_CONFIRMED);
 
         StatusHistoryEntity reconfirmation =
                 statusHistoryDAO.findLatestByDocumentIdAndAction(
-                        document.getId(),
-                        StatusHistoryAction.EXTRACTION_RECONFIRMED);
+                        document.getId(), StatusHistoryAction.EXTRACTION_RECONFIRMED);
 
         StatusHistoryEntity latestConfirmation =
                 resolveLatestConfirmation(initialConfirmation, reconfirmation);
@@ -436,8 +442,7 @@ public class DocumentServiceImpl implements DocumentService {
     }
 
     private StatusHistoryEntity resolveLatestConfirmation(
-            StatusHistoryEntity initialConfirmation,
-            StatusHistoryEntity reconfirmation) {
+            StatusHistoryEntity initialConfirmation, StatusHistoryEntity reconfirmation) {
 
         if (initialConfirmation == null) {
             return reconfirmation;
@@ -458,6 +463,7 @@ public class DocumentServiceImpl implements DocumentService {
 
         return initialConfirmation;
     }
+
     private String resolveDownloadFileName(DocumentEntity entity) {
         String documentName = entity.getName();
         String storageExtension = StringUtils.getFilenameExtension(entity.getStoragePath());

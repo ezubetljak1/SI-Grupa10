@@ -26,12 +26,12 @@ export interface UnreadCountResponse {
 }
 
 export const NOTIFICATION_TYPE_LABELS: Record<NotificationType, string> = {
-  DOCUMENT_ASSIGNED: 'Novi dokument dodijeljen',
-  DOCUMENT_READY_FOR_APPROVAL: 'Spremno za odobrenje',
-  DOCUMENT_RETURNED_FOR_CORRECTION: 'Vraćeno na ispravku',
-  DOCUMENT_REJECTED: 'Dokument odbijen',
-  DOCUMENT_APPROVED: 'Dokument odobren',
-  EMAIL_REMINDER: 'Podsjetnik obavijesti',
+  DOCUMENT_ASSIGNED: 'Task assigned',
+  DOCUMENT_READY_FOR_APPROVAL: 'Ready for approval',
+  DOCUMENT_RETURNED_FOR_CORRECTION: 'Returned for correction',
+  DOCUMENT_REJECTED: 'Document rejected',
+  DOCUMENT_APPROVED: 'Document approved',
+  EMAIL_REMINDER: 'Notification reminder',
 };
 
 export const NOTIFICATION_TYPE_ICONS: Record<NotificationType, string> = {

@@ -45,18 +45,6 @@
           </a>
 
           <a
-            routerLink="/notifications"
-            routerLinkActive="active"
-            class="nav-item"
-          >
-            <span class="nav-icon">🔔</span>
-            <span>Notifications</span>
-            @if (unreadCount() > 0) {
-              <span class="nav-badge">{{ unreadCount() }}</span>
-            }
-          </a>
-
-          <a
             routerLink="/profile"
             routerLinkActive="active"
             class="nav-item"
@@ -125,14 +113,82 @@
 
         <div class="top-actions">
           @if (profile$ | async; as profile) {
-            <a class="user-profile-link" routerLink="/profile" aria-label="Open user profile">
-              <div class="user-summary">
-                <strong>{{ profile.firstName }} {{ profile.lastName }}</strong>
-                <span>{{ profile.role }}</span>
-              </div>
+            <div class="profile-menu">
+              <button
+                type="button"
+                class="user-profile-link user-profile-trigger"
+                (click)="toggleNotificationDropdown($event)"
+                [attr.aria-expanded]="notificationDropdownOpen()"
+                aria-label="Open notifications"
+              >
+                <div class="user-summary">
+                  <strong>{{ profile.firstName }} {{ profile.lastName }}</strong>
+                  <span>{{ profile.role }}</span>
+                </div>
 
-              <div class="avatar">{{ initials(profile.firstName, profile.lastName, profile.email) }}</div>
-            </a>
+                <div class="avatar">
+                  {{ initials(profile.firstName, profile.lastName, profile.email) }}
+                </div>
+
+                @if (unreadCount() > 0) {
+                  <span class="avatar-notification-badge">
+                    {{ unreadCount() }}
+                  </span>
+                }
+              </button>
+
+              @if (notificationDropdownOpen()) {
+                <section
+                  class="profile-dropdown"
+                  (click)="$event.stopPropagation()"
+                >
+                  <div class="profile-dropdown__header">
+                    <div>
+                      <strong>Notifications</strong>
+                      <span>{{ unreadCount() }} unread</span>
+                    </div>
+
+                    @if (unreadCount() > 0) {
+                      <button
+                        type="button"
+                        class="profile-dropdown__text-button"
+                        (click)="markAllNotificationsAsRead($event)"
+                      >
+                        Mark all as read
+                      </button>
+                    }
+                  </div>
+
+                  <div class="profile-dropdown__list">
+                    @if (recentNotifications().length === 0) {
+                      <p class="profile-dropdown__empty">
+                        No notifications yet.
+                      </p>
+                    } @else {
+                      @for (notification of recentNotifications(); track notification.id) {
+                        <button
+                          type="button"
+                          class="profile-dropdown__item"
+                          [class.profile-dropdown__item--unread]="!notification.read"
+                          (click)="openNotification(notification, $event)"
+                        >
+                          <strong>{{ notification.title }}</strong>
+                          <span>{{ notification.text }}</span>
+                        </button>
+                      }
+                    }
+                  </div>
+
+                  <a
+                    class="profile-dropdown__footer"
+                    routerLink="/profile"
+                    (click)="closeNotificationDropdown()"
+                  >
+                    Open profile and all notifications
+                  </a>
+                </section>
+              }
+            </div>
 
             <button type="button" class="btn btn-muted btn-compact" (click)="logout()">
               Logout
