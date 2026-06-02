@@ -338,3 +338,21 @@ Napomena: Ovaj AI Usage Log je živi dokument i ažurira se kroz sprintove.
 | Šta je tim odbacio | Odbačen je pristup da korisnik može klikom na `Complete` završiti task bez stvarnog izvršenja zadatka. Također je odbačen UI prikaz koji adminu odmah nakon prvog assigna prikazuje warning kao da je dokument pogrešno dodijeljen drugom korisniku. |
 | Rizici, problemi ili greške koje su uočene | Uočeno je više rubnih slučajeva tokom ručnog testiranja: `Complete` dugme je moglo lažno završiti task, overdue task nije imao vidljiv UI signal, due date se mogao postaviti u prošlost, operator nije odmah vidio da je dokument dodijeljen drugom korisniku, approval task nije imao jasan završni workflow.  |
 | Ko je koristio alat | Muhamed Hatunić |
+
+---
+## Unos #20
+
+| Polje | Detalji |
+|---|---|
+| Datum | 02.06.2026 |
+| Sprint broj | Sprint 10 |
+| Alat koji je korišten | Cursor (Composer / Codex), ChatGPT |
+| Svrha korištenja | Analiza Sprint 10 plana i postojećeg DocFlow koda, implementacija manual extraction field i operator correction flow funkcionalnosti, backend validacija i API, frontend integracija na document detail stranici, integracioni testovi i priprema feature grane za pull request. |
+| Kratak opis zadatka ili upita | AI alat je korišten za implementaciju ručnog dodavanja extraction polja i korekcionog toka operatora u statusima EXTRACTED i NEEDS_CORRECTION. Obuhvaćeni su: POST /api/extractions/{extractionId}/fields, CreateExtractionFieldRequest, validacija canonical i custom.<key> field imena, postavljanje manual, displayName, corrected i audit FIELD_ADDED, dozvola edit/add/reconfirm u NEEDS_CORRECTION, correction banner sa zadnjim approver komentarom, Add Field modal, readable label mapping i Manual badge na frontendu. |
+| Šta je AI predložio ili generisao | Predložena je struktura rješenja sa centralizovanom validacijom u ExtractionValidation, proširenjem ExtractionFieldEntity odgovora (displayName, manual), novim endpointom za dodavanje polja, audit logom FIELD_ADDED, reconfirm akcijom EXTRACTION_RECONFIRMED iz NEEDS_CORRECTION, te frontend modalom sa dropdown opcijama po documentType i custom poljem (custom.<slug>). Generisani su integracioni testovi za validacije, manual metadata, NEEDS_CORRECTION scenarije i zabranu pristupa approver roli. |
+| Šta je tim prihvatio | Prihvaćen je pristup da se fieldName ne mijenja u bazi (canonical/XML kompatibilnost), da se korisniku prikazuje displayName ili frontend mapping, da manual polja imaju jasan Manual badge, da operator u NEEDS_CORRECTION može korigovati i ponovo potvrditi ekstrakciju, te da se correction razlog prikaže kroz zadnji CORRECTION_REQUEST ili REJECTION komentar na document detail stranici. |
+| Šta je tim izmijenio | Implementacija je prilagođena postojećoj DocFlow arhitekturi: ApiResponse, WorkflowPermissionService, DocumentStatusTransitionService, ExtractionMapper, postojećem document detail UI-u i Angular document-api servisu. Ručno su dodati/usklađeni integracioni testovi u ExtractionIntegrationTest (prazna vrijednost, nevalidan field name, custom field, NEEDS_CORRECTION, reconfirm, 403 za approvera).  |
+| Šta je tim odbacio | Odbačeno preimenovanje canonical fieldName vrijednosti u bazi radi UI čitljivosti. Odbačeno dozvoljavanje proizvoljnih stringova kao fieldName. Odbačeno automatsko pokretanje retry extractiona u NEEDS_CORRECTION bez eksplicitne korisničke potvrde. Odbačeno uvođenje dodatnih audit tabela ili generisanje dokumentacije izvan sprint scope-a. |
+| Rizici, problemi ili greške koje su uočene | Uočena je potreba da frontend i backend ostanu usklađeni oko dozvoljenih statusa (EXTRACTED, NEEDS_CORRECTION), validation error kodova i prikaza komentara za correction banner. Identifikovano je da duplikat fieldName mora biti jasno blokiran prije inserta. Potrebno je paziti da se custom polja ne kreiraju bez displayName i da approver role ne dobije edit/add akcije ni kroz API ni kroz UI. |
+| Ko je koristio alat | Amar Breščić |
+
