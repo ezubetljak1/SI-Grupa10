@@ -2,19 +2,18 @@
 
 ## Product Backlog stavke za Sprint 10
 
-| ID   | Naziv stavke                               | Opis                                                                                                    | Tip | Prioritet | Složenost | Status |
-|------|--------------------------------------------|---------------------------------------------------------------------------------------------------------|-----|-----------|-----------|--------|
-| PB1  | Historija statusa dokumenta                | Prikaz historije statusa dokumenta, uključujući odobrenja, odbijanja i vraćanja na doradu               | F   | P2        | M         | TODO   |
-| PB2  | Obavještenja o dokumentima                 | Obavještenja za odobravanje, odbijanje i vraćanje na doradu                                             | F   | P2        | M         | TODO   |
-| PB3  | Ručno dodavanje ekstraktovanog polja       | Operator može ručno dodati polje koje OCR nije ekstraktovao, sa canonical ključem i prikaznim imenom    | F   | P2        | M         | TODO   |
-| PB4  | Notification centar                        | Korisnik ima pregled svih in-app obavještenja sa unread badge-om, označavanjem pročitanog i navigacijom | F   | P2        | M         | TODO   |
-| PB5  | Email reminder za nepročitana obavještenja | Sistem automatski šalje email digest za stara nepročitana obavještenja putem scheduled job-a            | F   | P3        | S         | TODO   |
-| PB6  | XML mapping                                | Mapiranje validiranih podataka u XML strukturu                                                          | T   | P1        | M         | TODO   | 
-| PB7  | XML generator                              | Generisanje XML fajla iz podataka                                                                       | F   | P1        | M         | TODO   | 
-| PB8  | Pregled XML                                | Prikaz XML sadržaja korisniku                                                                           | F   | P3        | S         | TODO   | 
-| PB9  | Download XML                               | Omogućavanje preuzimanja XML fajla                                                                      | F   | P1        | S         | TODO   | 
-| PB10 | Spremanje XML                              | Čuvanje XML fajla uz dokument                                                                           | T   | P1        | M         | TODO   | 
-| PB11 | Final status                               | Završetak obrade dokumenta                                                                              | F   | P2        | S         | TODO   | 
+| ID   | Naziv stavke                                    | Opis                                                                                                                                       | Tip | Prioritet | Složenost | Status |
+|------|-------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------|-----|-----------|-----------|--------|
+| PB2  | Obavještenja o dokumentima                      | Obavještenja za odobravanje, odbijanje i vraćanje na doradu                                                                                | F   | P2        | M         | Done   |
+| PB3  | Ručno dodavanje i brisanje ekstraktovanog polja | Operator može ručno dodati ili polje koje OCR nije ekstraktovao, sa canonical ključem i prikaznim imenom ili obrisati polje ako je suvišno | F   | P2        | M         | Done   |
+| PB4  | Notification centar                             | Korisnik ima pregled svih in-app obavještenja sa unread badge-om, označavanjem pročitanog i navigacijom                                    | F   | P2        | M         | Done   |
+| PB5  | Email reminder za nepročitana obavještenja      | Sistem automatski šalje email digest za stara nepročitana obavještenja putem scheduled job-a                                               | F   | P3        | S         | Done   |
+| PB6  | XML mapping                                     | Mapiranje validiranih podataka u XML strukturu                                                                                             | T   | P1        | M         | Done   | 
+| PB7  | XML generator                                   | Generisanje XML fajla iz podataka                                                                                                          | F   | P1        | M         | Done   | 
+| PB8  | Pregled XML                                     | Prikaz XML sadržaja korisniku                                                                                                              | F   | P3        | S         | Done   | 
+| PB9  | Download XML                                    | Omogućavanje preuzimanja XML fajla                                                                                                         | F   | P1        | S         | Done   | 
+| PB10 | Spremanje XML                                   | Čuvanje XML fajla uz dokument                                                                                                              | T   | P1        | M         | Done   | 
+| PB11 | Final status                                    | Završetak obrade dokumenta                                                                                                                 | F   | P2        | S         | Done   | 
 
 ---
 
@@ -48,7 +47,38 @@ ponovna ili dodatna obrada.
 
 ---
 
-### US-10.3 - Ručno dodavanje ekstraktovanog polja
+### US-10.3 - Notification centar i unread badge
+
+**Opis** - Kao korisnik sistema, želim imati pregled svih mojih obavještenja na jednom mjestu, kako bih mogao lako
+pratiti šta zahtijeva moju akciju.
+
+**Acceptance Criteria**
+
+- Kada korisnik ima nepročitana obavještenja, tada sistem mora prikazati unread badge u navigacijskoj traci sa brojem
+  nepročitanih obavještenja.
+- Kada korisnik otvori notification centar, tada sistem mora prikazati listu obavještenja.
+- Korisnik mora moći označiti pojedinačno obavještenje kao pročitano ili sve odjednom.
+- Klik na obavještenje mora označiti obavještenje kao pročitano i navigirati korisnika na relevantnu stranicu.
+- Unread badge mora biti ažuriran nakon svakog označavanja pročitanog.
+
+---
+
+### US-10.4 - Email reminder za nepročitana obavještenja
+
+**Opis** - Kao korisnik sistema, želim dobiti email podsjetnik kada imam dugo nepročitana obavještenja, kako bih bio
+obaviješten čak i kada nisam aktivan u sistemu.
+
+**Acceptance Criteria**
+
+- Kada postoje obavještenja koja su starija od konfigurabilnog praga (npr. 24 sata) i nisu pročitana te email još
+  nije poslan, tada sistem mora automatski poslati email digest korisniku.
+- Sistem mora grupirati sva nepročitana obavještenja u jedan email po korisniku kako bi se izbjegao spam.
+- SMTP kredencijali moraju biti konfigurisani isključivo putem environment varijabli i ne smiju biti vidljivi u
+  kodu, logovima niti frontend dijelu aplikacije.
+
+---
+
+### US-10.5 - Ručno dodavanje ekstraktovanog polja
 
 **Opis** - Kao operator, želim ručno dodati polje koje OCR nije ekstraktovao, kako bi dokument imao kompletne podatke
 za odobravanje.
@@ -66,38 +96,20 @@ za odobravanje.
 
 ---
 
-### US-10.4 - Notification centar i unread badge
+### US-10.6 - Ručno brisanje suvišnog ekstraktovanog polja
 
-**Opis** - Kao korisnik sistema, želim imati pregled svih mojih obavještenja na jednom mjestu, kako bih mogao lako
-pratiti šta zahtijeva moju akciju.
-
-**Acceptance Criteria**
-
-- Kada korisnik ima nepročitana obavještenja, tada sistem mora prikazati unread badge u navigacijskoj traci sa brojem
-  nepročitanih obavještenja.
-- Kada korisnik otvori notification centar, tada sistem mora prikazati listu obavještenja.
-- Korisnik mora moći označiti pojedinačno obavještenje kao pročitano ili sve odjednom.
-- Klik na obavještenje mora označiti obavještenje kao pročitano i navigirati korisnika na relevantnu stranicu.
-- Unread badge mora biti ažuriran nakon svakog označavanja pročitanog.
-
----
-
-### US-10.5 - Email reminder za nepročitana obavještenja
-
-**Opis** - Kao korisnik sistema, želim dobiti email podsjetnik kada imam dugo nepročitana obavještenja, kako bih bio
-obaviješten čak i kada nisam aktivan u sistemu.
+**Opis** - Kao operator, želim ručno obrisati polje koje je OCR ekstraktovao, ali je suvišno za dalju obradu, kako bi
+dokument bio čist i relevantan.
 
 **Acceptance Criteria**
 
-- Kada postoje obavještenja koja su starija od konfigurabilnog praga (npr. 24 sata) i nisu pročitana te email još
-  nije poslan, tada sistem mora automatski poslati email digest korisniku.
-- Sistem mora grupirati sva nepročitana obavještenja u jedan email po korisniku kako bi se izbjegao spam.
-- SMTP kredencijali moraju biti konfigurisani isključivo putem environment varijabli i ne smiju biti vidljivi u
-  kodu, logovima niti frontend dijelu aplikacije.
+- Kada operator odabere opciju brisanja pored ekstraktovanog polja, tada sistem mora prikazati potvrdu prije brisanja.
+- Nakon potvrde, sistem mora ukloniti polje iz prikaza
+- Sistem ne smije dozvoliti brisanje obaveznih polja
 
 ---
 
-### US-10.6 - Generisanje XML izlaza
+### US-10.7 - Generisanje XML izlaza
 
 **Opis** - Kao menadžer, želim da sistem generiše XML iz validiranih i odobrenih podataka, kako bi dokument bio spreman
 za dalju upotrebu.
@@ -113,7 +125,7 @@ za dalju upotrebu.
 
 ---
 
-### US-10.7 - Pregled i preuzimanje XML-a
+### US-10.8 - Pregled i preuzimanje XML-a
 
 **Opis** - Kao menadžer, želim pregledati i preuzeti generisani XML, kako bih provjerio njegov sadržaj i koristio ga
 izvan sistema.
@@ -126,7 +138,7 @@ izvan sistema.
 
 ---
 
-### US-10.8 — Pohrana XML-a i završetak obrade dokumenta
+### US-10.9 — Pohrana XML-a i završetak obrade dokumenta
 
 **Opis** - Kao menadžer, želim da generisani XML bude sačuvan uz dokument i da dokument dobije završni status, kako bi
 bio spreman za knjiženje ili dalju poslovnu upotrebu.
@@ -137,7 +149,9 @@ bio spreman za knjiženje ili dalju poslovnu upotrebu.
 - Kada korisnik potvrdi završetak obrade, sistem mora promijeniti status dokumenta u finalno stanje.
 - Sistem ne smije dozvoliti finalizaciju dokumenta bez uspješnog XML izlaza.
 
-### US-10.9 — Pretraga i filtriranje dokumenata
+---
+
+### US-10.10 — Pretraga i filtriranje dokumenata
 
 **Opis** - Kao menadžer, želim pretražiti i filtrirati dokumente po osnovnim kriterijima, kako bih brže pronašao
 traženi dokument i lakše radio sa većim brojem zapisa.
