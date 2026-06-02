@@ -10,14 +10,10 @@ import { PageHeaderComponent, UiCardComponent } from '../../../shared/components
 import { formatApiDateTime } from '../../../shared/utils/datetime.utils';
 import { UserResponse } from '../../models/user.models';
 import { UserApiService } from '../../services/user-api.service';
+import { Router } from '@angular/router';
+import { Notification } from '../../../notifications/models/notification.models';
+import { NotificationStoreService } from '../../../notifications/services/notification-store.service';
 
-type NotificationPreview = {
-  title: string;
-  audience: string;
-  status: 'Planned' | 'Upcoming';
-  description: string;
-  signal: string;
-};
 
 @Component({
   selector: 'app-profile-page',
@@ -35,35 +31,16 @@ export class ProfilePageComponent implements OnInit {
   loading = false;
   passwordActionInProgress = false;
 
-  readonly notificationPreview: NotificationPreview[] = [
-    {
-      title: 'Document waiting for approval',
-      audience: 'Approvers',
-      status: 'Planned',
-      description:
-        'Will notify approvers when a document enters the READY_FOR_APPROVAL stage.',
-      signal: 'Approval queue',
-    },
-    {
-      title: 'Rejected or returned document',
-      audience: 'Operators',
-      status: 'Planned',
-      description:
-        'Will notify the responsible operator when a document is rejected or returned for correction.',
-      signal: 'Correction needed',
-    },
-    {
-      title: 'Status history activity',
-      audience: 'Managers and approvers',
-      status: 'Upcoming',
-      description:
-        'Will highlight important approval workflow events once status history is fully connected.',
-      signal: 'Workflow timeline',
-    },
-  ];
+  private readonly router = inject(Router);
+  private readonly notificationStore = inject(NotificationStoreService);
+
+  readonly notifications = this.notificationStore.notifications;
+  readonly notificationLoading = this.notificationStore.loading;
+  readonly unreadCount = this.notificationStore.unreadCount;
 
   ngOnInit(): void {
     this.loadProfile();
+    this.notificationStore.loadNotifications();
   }
 
   loadProfile(): void {
@@ -156,5 +133,25 @@ export class ProfilePageComponent implements OnInit {
     }
 
     return 'Request failed.';
+  }
+
+  markNotificationAsRead(
+    notificationId: number,
+    event: MouseEvent
+  ): void {
+    event.stopPropagation();
+    this.notificationStore.markAsRead(notificationId);
+  }
+
+  markAllNotificationsAsRead(): void {
+    this.notificationStore.markAllAsRead();
+  }
+
+  openNotification(notification: Notification): void {
+    this.notificationStore.markAsRead(notification.id);
+
+    if (notification.actionUrl) {
+      void this.router.navigateByUrl(notification.actionUrl);
+    }
   }
 }

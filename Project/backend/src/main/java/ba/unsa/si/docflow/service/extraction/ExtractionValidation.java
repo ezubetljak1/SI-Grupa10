@@ -1,7 +1,9 @@
 package ba.unsa.si.docflow.service.extraction;
 
+import ba.unsa.si.docflow.entity.DocumentEntity;
 import ba.unsa.si.docflow.entity.ExtractionEntity;
 import ba.unsa.si.docflow.entity.ExtractionFieldEntity;
+import ba.unsa.si.docflow.entity.enums.DocumentStatus;
 import ba.unsa.si.docflow.entity.enums.DocumentType;
 import ba.unsa.si.docflow.exception.ApiValidationException;
 import ba.unsa.si.docflow.response.ValidationErrors;
@@ -15,10 +17,12 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.time.format.ResolverStyle;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Service
@@ -120,6 +124,15 @@ public class ExtractionValidation {
                     DateTimeFormatter.ofPattern("dd/MM/uuuu")
                             .withResolverStyle(ResolverStyle.STRICT));
 
+    private static final Set<DocumentStatus> FIELD_EDIT_ALLOWED_STATUSES =
+            Set.of(DocumentStatus.EXTRACTED, DocumentStatus.NEEDS_CORRECTION);
+
+    private static final Pattern CUSTOM_FIELD_NAME_PATTERN =
+            Pattern.compile("^custom\\.[a-z][a-z0-9_]*$");
+
+    private static final Set<String> ALLOWED_CANONICAL_FIELD_NAMES =
+            buildAllowedCanonicalFieldNames();
+
     public void validateRequiredFields(ExtractionEntity extraction) {
         ValidationErrors errors = new ValidationErrors();
 
@@ -142,6 +155,105 @@ public class ExtractionValidation {
         if (errors.hasErrors()) {
             throw new ApiValidationException(errors);
         }
+    }
+
+    public void validateFieldEditAllowed(DocumentEntity document) {
+        ValidationErrors errors = new ValidationErrors();
+        validateFieldEditStatus(document.getDocumentStatus(), errors);
+
+        if (errors.hasErrors()) {
+            throw new ApiValidationException(errors);
+        }
+    }
+
+    public void validateManualFieldRequest(
+            DocumentEntity document, String fieldName, String displayName, String value) {
+        ValidationErrors errors = new ValidationErrors();
+
+        validateFieldEditStatus(document.getDocumentStatus(), errors);
+
+        String normalizedFieldName = normalizeFieldName(fieldName);
+
+        if (!StringUtils.hasText(normalizedFieldName)) {
+            errors.add(
+                    "EXTRACTION_FIELD_NAME_INVALID",
+                    "Field name must be a known canonical key or use the format custom.<safe_key>.");
+        } else if (!isAllowedManualFieldName(normalizedFieldName, document.getDocumentType())) {
+            errors.add(
+                    "EXTRACTION_FIELD_NAME_INVALID",
+                    "Field name must be a known canonical key or use the format custom.<safe_key>.");
+        }
+
+        if (normalizedFieldName.startsWith("custom.")
+                && !StringUtils.hasText(displayName)) {
+            errors.add(
+                    "EXTRACTION_FIELD_DISPLAY_NAME_REQUIRED",
+                    "Display name is required for custom fields.");
+        }
+
+        if (!StringUtils.hasText(value) || !StringUtils.hasText(value.trim())) {
+            errors.add("EXTRACTION_FIELD_EMPTY", "Field value cannot be empty.");
+        } else {
+            validateFieldFormat(normalizedFieldName, value.trim(), errors);
+        }
+
+        if (errors.hasErrors()) {
+            throw new ApiValidationException(errors);
+        }
+    }
+
+    public boolean isAllowedManualFieldName(String normalizedFieldName, DocumentType documentType) {
+        if (CUSTOM_FIELD_NAME_PATTERN.matcher(normalizedFieldName).matches()) {
+            return true;
+        }
+
+        return ALLOWED_CANONICAL_FIELD_NAMES.contains(normalizedFieldName);
+    }
+
+    public Set<String> getAllowedManualFieldNames(DocumentType documentType) {
+        Set<String> allowed = new HashSet<>(getRequiredFields(documentType));
+        allowed.addAll(ALLOWED_CANONICAL_FIELD_NAMES);
+
+        if (documentType == DocumentType.INVOICE) {
+            allowed.addAll(REQUIRED_INVOICE_FIELDS);
+        } else if (documentType == DocumentType.RECEIPT) {
+            allowed.addAll(REQUIRED_RECEIPT_FIELDS);
+            allowed.addAll(RECEIPT_DATE_FIELD_ALIASES);
+        } else if (documentType == DocumentType.BANK_STATEMENT) {
+            allowed.addAll(REQUIRED_BANK_STATEMENT_FIELDS);
+            allowed.addAll(BANK_STATEMENT_IDENTITY_FIELDS);
+            allowed.addAll(BANK_STATEMENT_ACTIVITY_FIELDS);
+        }
+
+        return allowed.stream().sorted().collect(Collectors.toUnmodifiableSet());
+    }
+
+    private void validateFieldEditStatus(DocumentStatus status, ValidationErrors errors) {
+        if (status == null || !FIELD_EDIT_ALLOWED_STATUSES.contains(status)) {
+            errors.add(
+                    "DOCUMENT_STATUS_INVALID",
+                    "Extraction fields can only be changed while the document is extracted or"
+                            + " awaiting correction.");
+        }
+    }
+
+    private static Set<String> buildAllowedCanonicalFieldNames() {
+        Set<String> names = new HashSet<>();
+        names.addAll(REQUIRED_INVOICE_FIELDS);
+        names.addAll(REQUIRED_RECEIPT_FIELDS);
+        names.addAll(RECEIPT_DATE_FIELD_ALIASES);
+        names.addAll(REQUIRED_BANK_STATEMENT_FIELDS);
+        names.addAll(BANK_STATEMENT_IDENTITY_FIELDS);
+        names.addAll(BANK_STATEMENT_ACTIVITY_FIELDS);
+        names.addAll(DATE_FIELDS);
+        names.addAll(NUMERIC_FIELDS);
+        names.add("line_item");
+        names.add("description");
+        names.add("approved");
+        names.add("applicant");
+        names.add("reference");
+        names.add("payment_reference");
+        return Set.copyOf(names);
     }
 
     private void validateExtractionFields(ExtractionEntity extraction, ValidationErrors errors) {

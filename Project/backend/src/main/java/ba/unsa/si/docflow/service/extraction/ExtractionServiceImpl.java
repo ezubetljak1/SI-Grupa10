@@ -3,6 +3,7 @@ package ba.unsa.si.docflow.service.extraction;
 import ba.unsa.si.docflow.dao.DocumentDAO;
 import ba.unsa.si.docflow.dao.ExtractionDAO;
 import ba.unsa.si.docflow.dao.ExtractionFieldDAO;
+import ba.unsa.si.docflow.dto.extraction.CreateExtractionFieldRequest;
 import ba.unsa.si.docflow.dto.extraction.ExtractionFieldResponse;
 import ba.unsa.si.docflow.dto.extraction.ExtractionResponse;
 import ba.unsa.si.docflow.dto.extraction.UpdateExtractionFieldRequest;
@@ -20,6 +21,7 @@ import ba.unsa.si.docflow.response.ValidationErrors;
 import ba.unsa.si.docflow.security.CurrentUserService;
 import ba.unsa.si.docflow.service.audit.AuditLogService;
 import ba.unsa.si.docflow.service.document.DocumentValidation;
+import ba.unsa.si.docflow.service.notification.NotificationService;
 import ba.unsa.si.docflow.service.ocr.DocumentAiProcessorRouter;
 import ba.unsa.si.docflow.service.ocr.DocumentClassificationService;
 import ba.unsa.si.docflow.service.ocr.OcrProvider;
@@ -110,6 +112,7 @@ public class ExtractionServiceImpl implements ExtractionService {
     private final WorkflowPermissionService workflowPermissionService;
     private final AuditLogService auditLogService;
     private final TaskService taskService;
+    private final NotificationService notificationService;
 
     @Override
     public ApiResponse<ExtractionResponse> process(Long documentId) {
@@ -247,7 +250,7 @@ public class ExtractionServiceImpl implements ExtractionService {
 
         TaskType taskTypeToComplete =
                 currentStatus == DocumentStatus.EXTRACTED
-                        || currentStatus == DocumentStatus.NEEDS_CORRECTION
+                                || currentStatus == DocumentStatus.NEEDS_CORRECTION
                         ? TaskType.CORRECTION
                         : TaskType.EXTRACTION;
 
@@ -263,6 +266,8 @@ public class ExtractionServiceImpl implements ExtractionService {
                 currentUserService.getCurrentUserId(),
                 null,
                 "Extraction confirmed and sent for approval.");
+
+        notificationService.notifyReadyForApprovalRecipients(document);
 
         taskService.completeActiveTaskForDocument(
                 document, taskTypeToComplete, currentUserService.getCurrentUserId());
@@ -288,6 +293,7 @@ public class ExtractionServiceImpl implements ExtractionService {
 
         DocumentEntity document = field.getExtraction().getDocument();
         workflowPermissionService.requireCanEditExtraction(document);
+        extractionValidation.validateFieldEditAllowed(document);
         validateUpdatedFieldValue(field, request.getValue());
         field.setValue(request.getValue());
         field.setCorrected(true);
@@ -299,10 +305,125 @@ public class ExtractionServiceImpl implements ExtractionService {
                 document,
                 currentUserService.getCurrentUserId(),
                 AuditAction.FIELD_UPDATED,
-                "{\"fieldId\":" + fieldId + ",\"fieldName\":\"" + field.getFieldName() + "\"}"
-        );
+                "{\"fieldId\":" + fieldId + ",\"fieldName\":\"" + field.getFieldName() + "\"}");
 
         return new ApiResponse<>("OK", extractionMapper.fieldToDto(updatedField));
+    }
+
+    @Override
+    public ApiResponse<ExtractionFieldResponse> addField(
+            Long extractionId, CreateExtractionFieldRequest request) {
+        currentUserService.requireAnyRole(RoleName.ADMIN, RoleName.OPERATOR);
+        ExtractionEntity extraction = requireExtractionInCurrentCompany(extractionId);
+        DocumentEntity document = extraction.getDocument();
+
+        workflowPermissionService.requireCanEditExtraction(document);
+        extractionValidation.validateManualFieldRequest(
+                document, request.getFieldName(), request.getDisplayName(), request.getValue());
+
+        String normalizedFieldName = normalizeFieldName(request.getFieldName());
+
+        if (extractionFieldDAO.existsByExtractionIdAndFieldName(
+                extractionId, normalizedFieldName)) {
+            ValidationErrors errors = new ValidationErrors();
+            errors.add(
+                    "EXTRACTION_FIELD_DUPLICATE",
+                    "A field with the same name already exists for this extraction.");
+            throw new ApiValidationException(errors);
+        }
+
+        ExtractionFieldEntity field = new ExtractionFieldEntity();
+        field.setExtraction(extraction);
+        field.setFieldName(normalizedFieldName);
+        field.setDisplayName(resolveDisplayName(request, normalizedFieldName));
+        field.setValue(request.getValue().trim());
+        field.setConfidence(null);
+        field.setCorrected(true);
+        field.setManual(true);
+        field.setPlaceholder(false);
+
+        ExtractionFieldEntity savedField = extractionFieldDAO.persist(field);
+
+        auditLogService.log(
+                document,
+                currentUserService.getCurrentUserId(),
+                AuditAction.FIELD_ADDED,
+                """
+                {"fieldId":%d,"fieldName":"%s","displayName":"%s"}
+                """
+                        .formatted(field.getId(), field.getFieldName(), field.getDisplayName()));
+
+        return new ApiResponse<>("OK", extractionMapper.fieldToDto(savedField));
+    }
+
+    @Override
+    public ApiResponse<ExtractionFieldResponse> deleteField(Long extractionId, Long fieldId) {
+        currentUserService.requireAnyRole(RoleName.ADMIN, RoleName.OPERATOR);
+        requireExtractionInCurrentCompany(extractionId);
+
+        ExtractionFieldEntity field =
+                extractionFieldDAO
+                        .findByIdAndExtractionId(fieldId, extractionId)
+                        .orElseThrow(
+                                () ->
+                                        new ApiNotFoundException(
+                                                "Extraction field was not found for extraction with id: "
+                                                        + extractionId
+                                                        + " and field id: "
+                                                        + fieldId));
+
+        DocumentEntity document = field.getExtraction().getDocument();
+
+        workflowPermissionService.requireCanEditExtraction(document);
+        extractionValidation.validateFieldEditAllowed(document);
+
+        String normalizedFieldName = normalizeFieldName(field.getFieldName());
+
+        boolean requiredCanonicalField =
+                extractionValidation
+                        .getRequiredFields(document.getDocumentType())
+                        .contains(normalizedFieldName);
+
+        if (requiredCanonicalField) {
+            field.setValue(null);
+            field.setConfidence(BigDecimal.ZERO.setScale(6, RoundingMode.HALF_UP));
+            field.setCorrected(false);
+            field.setPlaceholder(true);
+            field.setManual(false);
+
+            ExtractionFieldEntity clearedField = extractionFieldDAO.merge(field);
+
+            auditLogService.log(
+                    document,
+                    currentUserService.getCurrentUserId(),
+                    AuditAction.FIELD_CLEARED,
+                    "{\"fieldId\":" + fieldId + ",\"fieldName\":\"" + normalizedFieldName + "\"}");
+
+            return new ApiResponse<>("OK", extractionMapper.fieldToDto(clearedField));
+        }
+
+        extractionFieldDAO.remove(field);
+
+        auditLogService.log(
+                document,
+                currentUserService.getCurrentUserId(),
+                AuditAction.FIELD_DELETED,
+                "{\"fieldId\":" + fieldId + ",\"fieldName\":\"" + normalizedFieldName + "\"}");
+
+        return new ApiResponse<>("OK", null);
+    }
+
+    private String resolveDisplayName(
+            CreateExtractionFieldRequest request, String normalizedFieldName) {
+        if (StringUtils.hasText(request.getDisplayName())) {
+            return request.getDisplayName().trim();
+        }
+
+        if (normalizedFieldName.startsWith("custom.")) {
+            return null;
+        }
+
+        return null;
     }
 
     private DocumentType resolveDocumentTypeForProcessing(

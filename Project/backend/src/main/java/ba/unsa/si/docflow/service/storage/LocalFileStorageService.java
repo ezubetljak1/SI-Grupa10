@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -91,6 +92,71 @@ public class LocalFileStorageService implements StorageService {
                     extension);
         } catch (IOException exception) {
             throw new StorageException("Could not store document file.", exception);
+        }
+    }
+
+    @Override
+    public StoredFileInfo store(
+            byte[] content, String originalFileName, String contentType, Long companyId) {
+
+        if (content == null) {
+            throw new StorageException("Generated file content is required.");
+        }
+
+        String cleanOriginalFileName =
+                StringUtils.cleanPath(
+                        Objects.requireNonNull(originalFileName, "File name is required."));
+
+        String extension = StringUtils.getFilenameExtension(cleanOriginalFileName);
+
+        if (extension == null) {
+            throw new StorageException("Generated file extension is missing.");
+        }
+
+        extension = extension.toLowerCase();
+
+        String storedFileName = UUID.randomUUID() + "." + extension;
+
+        LocalDate now = LocalDate.now();
+
+        Path targetDirectory =
+                rootLocation
+                        .resolve("company-" + companyId)
+                        .resolve(String.valueOf(now.getYear()))
+                        .resolve(String.format("%02d", now.getMonthValue()))
+                        .normalize();
+
+        if (!targetDirectory.startsWith(rootLocation)) {
+            throw new StorageException("Invalid storage path.");
+        }
+
+        try {
+            Files.createDirectories(targetDirectory);
+
+            Path targetFile = targetDirectory.resolve(storedFileName).normalize();
+
+            if (!targetFile.startsWith(targetDirectory)) {
+                throw new StorageException("Invalid storage path.");
+            }
+
+            try (ByteArrayInputStream inputStream = new ByteArrayInputStream(content)) {
+
+                Files.copy(inputStream, targetFile, StandardCopyOption.REPLACE_EXISTING);
+            }
+
+            String relativePath =
+                    rootLocation.relativize(targetFile).toString().replace(File.separatorChar, '/');
+
+            return new StoredFileInfo(
+                    cleanOriginalFileName,
+                    storedFileName,
+                    relativePath,
+                    (long) content.length,
+                    contentType,
+                    extension);
+
+        } catch (IOException exception) {
+            throw new StorageException("Could not store generated file.", exception);
         }
     }
 

@@ -5,6 +5,14 @@ export interface ExtractionField {
   confidence: number | null;
   corrected: boolean;
   placeholder: boolean;
+  displayName?: string | null;
+  manual?: boolean;
+}
+
+export interface CreateExtractionFieldRequest {
+  fieldName: string;
+  displayName?: string;
+  value: string;
 }
 
 export interface Extraction {

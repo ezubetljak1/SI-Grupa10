@@ -54,6 +54,8 @@ public class ExtractionMapper {
         response.setConfidence(entity.getConfidence());
         response.setCorrected(entity.getCorrected());
         response.setPlaceholder(entity.getPlaceholder());
+        response.setDisplayName(entity.getDisplayName());
+        response.setManual(entity.getManual());
 
         return response;
     }

@@ -1,0 +1,122 @@
+.approval-page {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.page-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.message-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 16px;
+  background: var(--surface);
+}
+
+.message-card--error {
+  border-color: var(--error-border);
+  background: var(--error-soft);
+  color: var(--error);
+}
+
+.loading-wrapper,
+.empty-wrapper {
+  padding: 18px;
+}
+
+.loading-text {
+  color: var(--text-muted);
+  font-size: 14px;
+  text-align: center;
+}
+
+.table-wrapper {
+  overflow-x: auto;
+}
+
+.approval-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+}
+
+.approval-table th,
+.approval-table td {
+  padding: 16px 14px;
+  border-top: 1px solid var(--border);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.approval-table th {
+  border-top: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.approval-table th:first-child,
+.approval-table td:first-child {
+  padding-left: 26px;
+  width: 32%;
+}
+
+.approval-table th:nth-child(2),
+.approval-table td:nth-child(2) {
+  width: 16%;
+}
+
+.approval-table th:nth-child(3),
+.approval-table td:nth-child(3) {
+  width: 22%;
+}
+
+.approval-table th:nth-child(4),
+.approval-table td:nth-child(4) {
+  width: 12%;
+}
+
+.approval-table th:last-child,
+.approval-table td:last-child {
+  padding-right: 26px;
+  width: 18%;
+  text-align: right;
+}
+
+.doc-name-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.doc-name-cell strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.doc-type,
+.doc-date,
+.doc-size {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.actions-column,
+.actions-cell {
+  text-align: right;
+}
+
+.btn-small {
+  min-height: 34px;
+  padding: 0 14px;
+  font-size: 13px;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+}

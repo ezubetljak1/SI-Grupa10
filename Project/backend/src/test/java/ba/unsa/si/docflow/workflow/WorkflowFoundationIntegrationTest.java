@@ -145,8 +145,8 @@ class WorkflowFoundationIntegrationTest {
 
         NotificationEntity notification = new NotificationEntity();
         notification.setUserId(10L);
-        notification.setDocument(document);
-        notification.setComment(comment);
+        notification.setDocumentId(document.getId());
+        notification.setCommentId(comment.getId());
         notification.setType(NotificationType.DOCUMENT_ASSIGNED);
         notification.setTitle("Document assigned");
         notification.setText("A document has been assigned to you.");

@@ -1,19 +1,16 @@
 package ba.unsa.si.docflow.service.task;
 
-import ba.unsa.si.docflow.dao.NotificationDAO;
 import ba.unsa.si.docflow.dao.TaskDAO;
 import ba.unsa.si.docflow.dao.UserDAO;
 import ba.unsa.si.docflow.dto.task.AssignTaskRequest;
 import ba.unsa.si.docflow.dto.task.TaskResponse;
 import ba.unsa.si.docflow.entity.DocumentEntity;
-import ba.unsa.si.docflow.entity.NotificationEntity;
 import ba.unsa.si.docflow.entity.RoleEntity;
 import ba.unsa.si.docflow.entity.TaskEntity;
 import ba.unsa.si.docflow.entity.UserEntity;
 import ba.unsa.si.docflow.entity.enums.AccountStatus;
 import ba.unsa.si.docflow.entity.enums.AuditAction;
 import ba.unsa.si.docflow.entity.enums.DocumentStatus;
-import ba.unsa.si.docflow.entity.enums.NotificationType;
 import ba.unsa.si.docflow.entity.enums.RoleName;
 import ba.unsa.si.docflow.entity.enums.TaskStatus;
 import ba.unsa.si.docflow.entity.enums.TaskType;
@@ -25,11 +22,13 @@ import ba.unsa.si.docflow.security.CurrentUser;
 import ba.unsa.si.docflow.security.CurrentUserService;
 import ba.unsa.si.docflow.service.audit.AuditLogService;
 import ba.unsa.si.docflow.service.document.DocumentValidation;
+import ba.unsa.si.docflow.service.notification.NotificationService;
 import ba.unsa.si.docflow.service.role.RoleService;
 import ba.unsa.si.docflow.service.security.WorkflowPermissionService;
 import ba.unsa.si.docflow.service.user.UserValidation;
 
 import lombok.AllArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -39,6 +38,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
+@Slf4j
 @Service
 @Transactional
 @AllArgsConstructor
@@ -46,7 +46,7 @@ public class TaskServiceImpl implements TaskService {
 
     private final TaskDAO taskDAO;
     private final UserDAO userDAO;
-    private final NotificationDAO notificationDAO;
+    private final NotificationService notificationService;
     private final DocumentValidation documentValidation;
     private final UserValidation userValidation;
     private final RoleService roleService;
@@ -80,7 +80,9 @@ public class TaskServiceImpl implements TaskService {
         task.setDueDate(request.getDueDate());
 
         TaskEntity saved = taskDAO.persist(task);
-        createAssignmentNotification(saved, assignee);
+        notificationService.notifyDocumentAssigned(
+                assignee.getId(), document.getId(), document.getName());
+
         String assignedUserName = resolveUserName(assignee.getId());
 
         auditLogService.log(
@@ -386,22 +388,6 @@ public class TaskServiceImpl implements TaskService {
         }
     }
 
-    private void createAssignmentNotification(TaskEntity task, UserEntity assignee) {
-        NotificationEntity notification = new NotificationEntity();
-        notification.setUserId(assignee.getId());
-        notification.setDocument(task.getDocument());
-        notification.setType(NotificationType.DOCUMENT_ASSIGNED);
-        notification.setTitle("New task assigned");
-        notification.setText(
-                "You have been assigned a "
-                        + task.getTaskType().name().toLowerCase()
-                        + " task for document "
-                        + task.getDocument().getName()
-                        + ".");
-        notification.setActionUrl("/tasks/my");
-        notificationDAO.persist(notification);
-    }
-
     private TaskResponse toResponse(TaskEntity task) {
         return taskMapper.entityToDto(task, this::resolveUserName);
     }
@@ -430,5 +416,42 @@ public class TaskServiceImpl implements TaskService {
                 .replace("\"", "\\\"")
                 .replace("\n", " ")
                 .replace("\r", " ");
+    }
+
+    @Override
+    @Transactional
+    public void createCorrectionTask(
+            DocumentEntity document, Long assignedToUserId, Long assignedByUserId) {
+        if (assignedToUserId == null) {
+            log.warn(
+                    "Cannot create correction task for document {} - no responsible operator found.",
+                    document.getId());
+            return;
+        }
+
+        // Cancel any existing active CORRECTION task for this document
+        TaskEntity existing =
+                taskDAO.findActiveByDocumentIdAndTaskType(document.getId(), TaskType.CORRECTION);
+        if (existing != null) {
+            existing.setStatus(TaskStatus.CANCELLED);
+            taskDAO.persist(existing);
+        }
+
+        TaskEntity task = new TaskEntity();
+        task.setDocument(document);
+        task.setAssignedUserId(assignedToUserId);
+        task.setAssignedByUserId(assignedByUserId);
+        task.setTaskType(TaskType.CORRECTION);
+        task.setStatus(TaskStatus.OPEN);
+
+        taskDAO.persist(task);
+
+        auditLogService.log(
+                document,
+                assignedByUserId,
+                AuditAction.DOCUMENT_ASSIGNED,
+                String.format(
+                        "{\"documentId\":%d,\"taskType\":\"CORRECTION\",\"assignedTo\":%d}",
+                        document.getId(), assignedToUserId));
     }
 }

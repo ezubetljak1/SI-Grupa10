@@ -3,8 +3,8 @@ package ba.unsa.si.docflow.controller;
 import ba.unsa.si.docflow.dto.document.*;
 import ba.unsa.si.docflow.dto.task.AssignTaskRequest;
 import ba.unsa.si.docflow.dto.task.TaskResponse;
-import ba.unsa.si.docflow.dto.workflow.CreateCommentRequest;
 import ba.unsa.si.docflow.dto.workflow.CommentResponse;
+import ba.unsa.si.docflow.dto.workflow.CreateCommentRequest;
 import ba.unsa.si.docflow.dto.workflow.StatusHistoryResponse;
 import ba.unsa.si.docflow.response.ApiResponse;
 import ba.unsa.si.docflow.response.PagedResponse;
@@ -103,7 +103,7 @@ public class DocumentController {
 
     @PostMapping("/{id}/approval/approve")
     public ApiResponse<Document> approveDocument(
-            @PathVariable Long id, @Valid @RequestBody CreateCommentRequest request) {
+            @PathVariable Long id, @RequestBody CreateCommentRequest request) {
         return documentService.approveDocument(id, request);
     }
 

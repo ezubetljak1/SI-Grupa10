@@ -1,0 +1,82 @@
+<section class="approval-page">
+  <app-page-header
+    eyebrow="Workflow"
+    title="Completed documents"
+    description="Documents that have completed the workflow. Review each record to verify the final outcome.">
+    <div page-actions class="page-actions">
+      <button type="button" class="btn btn-muted" (click)="loadPending()" [disabled]="loading">
+        {{ loading ? 'Loading...' : 'Refresh' }}
+      </button>
+    </div>
+  </app-page-header>
+
+  @if (error) {
+    <div class="message-card message-card--error">{{ error }}</div>
+  }
+
+  <app-ui-card
+    title="Completed records"
+    subtitle="Sorted by upload date, oldest first."
+    [badgeText]="documents.length.toString()"
+    badgeVariant="info"
+    [noPadding]="true">
+
+    @if (loading) {
+      <div class="loading-wrapper">
+        <p class="loading-text">Loading completed documents...</p>
+      </div>
+    } @else if (documents.length === 0) {
+      <div class="empty-wrapper">
+        <app-empty-state
+          icon="✓"
+          title="No completed documents"
+          description="Completed documents will appear here after the workflow finishes.">
+        </app-empty-state>
+      </div>
+    } @else {
+      <div class="table-wrapper">
+        <table class="approval-table">
+          <thead>
+          <tr>
+            <th>Document</th>
+            <th>Type</th>
+            <th>Uploaded</th>
+            <th>Size</th>
+            <th class="actions-column">Actions</th>
+          </tr>
+          </thead>
+
+          <tbody>
+            @for (doc of documents; track doc.id) {
+              <tr>
+                <td>
+                  <div class="doc-name-cell">
+                    <strong>{{ doc.name }}</strong>
+                    <app-status-badge [status]="doc.documentStatus"/>
+                  </div>
+                </td>
+                <td>
+                  <span class="doc-type">{{ formatDocumentType(doc.documentType) }}</span>
+                </td>
+                <td>
+                  <span class="doc-date">{{ formatDate(doc.uploadDate) }}</span>
+                </td>
+                <td>
+                  <span class="doc-size">{{ formatFileSize(doc.fileSize) }}</span>
+                </td>
+                <td class="actions-cell">
+                  <a
+                    class="btn btn-primary btn-small"
+                    [routerLink]="['/documents', doc.id]"
+                    title="Open document">
+                    Open
+                  </a>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </app-ui-card>
+</section>

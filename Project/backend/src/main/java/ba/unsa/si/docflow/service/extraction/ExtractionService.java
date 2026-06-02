@@ -1,5 +1,6 @@
 package ba.unsa.si.docflow.service.extraction;
 
+import ba.unsa.si.docflow.dto.extraction.CreateExtractionFieldRequest;
 import ba.unsa.si.docflow.dto.extraction.ExtractionFieldResponse;
 import ba.unsa.si.docflow.dto.extraction.ExtractionResponse;
 import ba.unsa.si.docflow.dto.extraction.UpdateExtractionFieldRequest;
@@ -21,6 +22,11 @@ public interface ExtractionService {
 
     ApiResponse<ExtractionFieldResponse> updateField(
             Long extractionId, Long fieldId, UpdateExtractionFieldRequest request);
+
+    ApiResponse<ExtractionFieldResponse> addField(
+            Long extractionId, CreateExtractionFieldRequest request);
+
+    ApiResponse<ExtractionFieldResponse> deleteField(Long extractionId, Long fieldId);
 
     ApiResponse<ExtractionResponse> confirmExtraction(Long documentId);
 }

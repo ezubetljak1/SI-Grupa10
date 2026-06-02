@@ -12,12 +12,17 @@ import {
   DocumentUploadRequest,
   ManualClassificationDocumentType,
 } from '../documents/models/document.models';
-import { Extraction, ExtractionField } from '../documents/models/extraction.models';
+import {
+  CreateExtractionFieldRequest,
+  Extraction,
+  ExtractionField,
+} from '../documents/models/extraction.models';
 import {
   CreateCommentRequest,
   DocumentComment,
   StatusHistoryEntry,
 } from '../documents/models/workflow.models';
+import { XmlOutputResponse } from '../documents/models/xml-output.models';
 
 @Injectable({
   providedIn: 'root',
@@ -118,9 +123,61 @@ export class DocumentApiService {
     );
   }
 
+  addExtractionField(
+    extractionId: number,
+    payload: CreateExtractionFieldRequest
+  ): Observable<ApiResponse<ExtractionField>> {
+    return this.http.post<ApiResponse<ExtractionField>>(
+      `${this.extractionsBaseUrl}/${extractionId}/fields`,
+      payload
+    );
+  }
+
+  deleteExtractionField(
+    extractionId: number,
+    fieldId: number
+  ): Observable<ApiResponse<ExtractionField | null>> {
+    return this.http.delete<ApiResponse<ExtractionField | null>>(
+      `${this.extractionsBaseUrl}/${extractionId}/fields/${fieldId}`
+    );
+  }
+
   confirmExtraction(documentId: number): Observable<ApiResponse<Extraction>> {
     return this.http.post<ApiResponse<Extraction>>(
       `${this.baseUrl}/${documentId}/extraction/confirm`,
+      {}
+    );
+  }
+
+    generateXmlOutput(
+    documentId: number
+  ): Observable<ApiResponse<XmlOutputResponse>> {
+    return this.http.post<ApiResponse<XmlOutputResponse>>(
+      `${this.baseUrl}/${documentId}/xml-output`,
+      {}
+    );
+  }
+
+  getXmlOutput(
+    documentId: number
+  ): Observable<ApiResponse<XmlOutputResponse>> {
+    return this.http.get<ApiResponse<XmlOutputResponse>>(
+      `${this.baseUrl}/${documentId}/xml-output`
+    );
+  }
+
+  downloadXmlOutput(documentId: number): Observable<Blob> {
+    return this.http.get(
+      `${this.baseUrl}/${documentId}/xml-output/file`,
+      { responseType: 'blob' }
+    );
+  }
+
+  completeXmlOutput(
+    documentId: number
+  ): Observable<ApiResponse<XmlOutputResponse>> {
+    return this.http.post<ApiResponse<XmlOutputResponse>>(
+      `${this.baseUrl}/${documentId}/xml-output/complete`,
       {}
     );
   }

@@ -20,6 +20,13 @@ import {
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { ToastrService } from 'ngx-toastr';
 import { Extraction, ExtractionField } from '../models/extraction.models';
+import {
+  buildCustomFieldName,
+  CUSTOM_FIELD_OPTION_VALUE,
+  formatFieldLabel,
+  getManualFieldOptions,
+  ManualFieldOption,
+} from '../models/extraction-field-options';
 import { DocumentComment, StatusHistoryEntry } from '../models/workflow.models';
 import { AuthService } from '../../auth/services/auth.service';
 import { UserApiService } from '../../users/services/user-api.service';
@@ -33,6 +40,7 @@ import {
   parseEuropeanDateTimeInput,
   toDatetimeLocalValue,
 } from '../../shared/utils/datetime.utils';
+import { XmlOutputResponse } from '../models/xml-output.models';
 
 interface EditState {
   fieldId: number;
@@ -91,6 +99,14 @@ export class DocumentDetailPageComponent implements OnInit {
   editState: EditState | null = null;
   confirmingExtraction = false;
 
+  xmlOutput: XmlOutputResponse | null = null;
+  xmlOutputLoading = false;
+  xmlOutputGenerating = false;
+  xmlOutputDownloading = false;
+  xmlCompletionSubmitting = false;
+  xmlOutputError: string | null = null;
+  showCompleteProcessingModal = false;
+
   readonly documentTypeOptions = DOCUMENT_TYPE_OPTIONS;
   readonly manualClassificationTypeOptions = MANUAL_CLASSIFICATION_DOCUMENT_TYPES;
 
@@ -129,6 +145,17 @@ export class DocumentDetailPageComponent implements OnInit {
     { value: 'APPROVAL', label: 'Approval' },
   ];
 
+  showAddFieldModal = false;
+  addFieldSaving = false;
+  selectedFieldOption = '';
+  addFieldValue = '';
+  customFieldLabel = '';
+  addFieldError: string | null = null;
+  fieldPendingDeletion: ExtractionField | null = null;
+  deletingFieldId: number | null = null;
+
+  readonly customFieldOptionValue = CUSTOM_FIELD_OPTION_VALUE;
+
   get canManageExtraction(): boolean {
     return this.authService.hasRole(['ADMIN', 'OPERATOR']);
   }
@@ -137,12 +164,75 @@ export class DocumentDetailPageComponent implements OnInit {
     return this.authService.hasRole(['ADMIN', 'APPROVER']);
   }
 
+  get canEditExtractionWorkflow(): boolean {
+    const status = this.document?.documentStatus;
+    return status === 'EXTRACTED' || status === 'NEEDS_CORRECTION';
+  }
+
+  get correctionFeedback(): DocumentComment | null {
+    const relevant = this.documentComments
+      .filter((comment) => comment.type === 'CORRECTION_REQUEST' || comment.type === 'REJECTION')
+      .sort(
+        (left, right) =>
+          new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime()
+      );
+
+    return relevant[0] ?? null;
+  }
+
+  get manualFieldOptions(): ManualFieldOption[] {
+    const existing = new Set(
+      this.extractionFields.map((field) => field.fieldName.trim().toLowerCase())
+    );
+
+    return getManualFieldOptions(this.document?.documentType).filter(
+      (option) => !existing.has(option.fieldName.toLowerCase())
+    );
+  }
+
   get canViewAudit(): boolean {
     return this.authService.hasRole(['ADMIN', 'MANAGER']);
   }
 
   get canAssignTasks(): boolean {
     return this.authService.hasRole(['ADMIN', 'MANAGER']);
+  }
+
+  get isCompletedDocument(): boolean {
+    return this.document?.documentStatus === 'COMPLETED';
+  }
+
+    get canManageXmlOutput(): boolean {
+    return this.authService.hasRole(['ADMIN', 'MANAGER']);
+  }
+
+  get canShowXmlOutputSection(): boolean {
+    const status = this.document?.documentStatus;
+
+    return (
+      this.canManageXmlOutput &&
+      (status === 'APPROVED' || status === 'COMPLETED')
+    );
+  }
+
+  get canGenerateXmlOutput(): boolean {
+    return (
+      this.canManageXmlOutput &&
+      this.document?.documentStatus === 'APPROVED'
+    );
+  }
+
+  get canCompleteDocumentProcessing(): boolean {
+    return this.canGenerateXmlOutput && this.xmlOutput !== null;
+  }
+
+  get xmlOutputBusy(): boolean {
+    return (
+      this.xmlOutputLoading ||
+      this.xmlOutputGenerating ||
+      this.xmlOutputDownloading ||
+      this.xmlCompletionSubmitting
+    );
   }
 
   Tasks(): TaskResponse[] {
@@ -294,30 +384,40 @@ export class DocumentDetailPageComponent implements OnInit {
         this.document = response.payload;
         this.syncAssignmentDefaultsForCurrentStatus();
         this.selectedManualDocumentType = this.resolveDefaultManualDocumentType(this.document);
-        // Fetch preview as a blob so Authorization header is included by interceptor
-        // then create an object URL for the iframe/img src. This avoids 401 on iframe
-        // navigations and X-Frame-Options issues.
         this.isPdf = this.document.fileType === 'application/pdf';
         this.isImage = this.document.fileType?.startsWith('image/');
 
-        // revoke previously created object URL if present
-        if (this.previewObjectUrl) {
-          try {
-            window.URL.revokeObjectURL(this.previewObjectUrl);
-          } catch {}
-          this.previewObjectUrl = undefined;
-        }
+        if (!this.isCompletedDocument) {
+          // Fetch preview as a blob so Authorization header is included by interceptor
+          // then create an object URL for the iframe/img src. This avoids 401 on iframe
+          // navigations and X-Frame-Options issues.
+          if (this.previewObjectUrl) {
+            try {
+              window.URL.revokeObjectURL(this.previewObjectUrl);
+            } catch {}
+            this.previewObjectUrl = undefined;
+          }
 
-        this.documentApiService.getPreview(this.document.id).subscribe({
-          next: (blob) => {
-            this.previewObjectUrl = window.URL.createObjectURL(blob);
-            this.fileUrl = this.sanitizer.bypassSecurityTrustResourceUrl(this.previewObjectUrl);
-          },
-          error: () => {
-            this.fileUrl = null;
-            this.toastr.error('Failed to load document preview.', 'Error');
-          },
-        });
+          this.documentApiService.getPreview(this.document.id).subscribe({
+            next: (blob) => {
+              this.previewObjectUrl = window.URL.createObjectURL(blob);
+              this.fileUrl = this.sanitizer.bypassSecurityTrustResourceUrl(this.previewObjectUrl);
+            },
+            error: () => {
+              this.fileUrl = null;
+              this.toastr.error('Failed to load document preview.', 'Error');
+            },
+          });
+        } else {
+          if (this.previewObjectUrl) {
+            try {
+              window.URL.revokeObjectURL(this.previewObjectUrl);
+            } catch {}
+            this.previewObjectUrl = undefined;
+          }
+
+          this.fileUrl = null;
+        }
         this.extractionError = null;
         this.extractionFields = [];
         if (this.shouldLoadExtractionForStatus(this.document.documentStatus)) {
@@ -325,6 +425,13 @@ export class DocumentDetailPageComponent implements OnInit {
         }
 
         this.loadWorkflowData(this.document.id);
+
+        if (this.canShowXmlOutputSection) {
+          this.loadXmlOutput();
+        } else {
+          this.resetXmlOutputState();
+        }
+
       },
       error: (err: HttpErrorResponse) => {
         this.loading = false;
@@ -429,6 +536,16 @@ export class DocumentDetailPageComponent implements OnInit {
 
   retryExtraction(): void {
     if (!this.document) return;
+
+    if (
+      this.document.documentStatus === 'NEEDS_CORRECTION' &&
+      !window.confirm(
+        'Retrying extraction may replace existing extracted fields. Continue only if you want to run OCR again.'
+      )
+    ) {
+      return;
+    }
+
     const documentId = this.document.id;
     this.extractionRunning = true;
     this.extractionError = null;
@@ -529,6 +646,201 @@ export class DocumentDetailPageComponent implements OnInit {
 
   isClassificationReviewRequired(): boolean {
     return this.document?.documentStatus === 'NEEDS_CLASSIFICATION_REVIEW';
+  }
+
+  formatFieldLabel(field: ExtractionField): string {
+    return formatFieldLabel(field.fieldName, field.displayName);
+  }
+
+  isManualField(field: ExtractionField): boolean {
+    return field.manual === true;
+  }
+
+    isRequiredCanonicalField(field: ExtractionField): boolean {
+      const requiredFieldsByDocumentType: Record<string, string[]> = {
+        INVOICE: [
+          'invoice_id',
+          'invoice_date',
+          'supplier_name',
+          'total_amount',
+          'currency',
+        ],
+        RECEIPT: [
+          'supplier_name',
+          'total_amount',
+          'currency',
+        ],
+        BANK_STATEMENT: [
+          'account_number',
+        ],
+        FORM: [],
+      };
+
+      const documentType = this.document?.documentType ?? '';
+      const normalizedFieldName = field.fieldName.trim().toLowerCase();
+
+      return (requiredFieldsByDocumentType[documentType] ?? []).includes(
+        normalizedFieldName
+      );
+    }
+
+    openDeleteFieldModal(field: ExtractionField): void {
+      if (
+        !this.canEditExtractionField() ||
+        this.editState !== null ||
+        this.deletingFieldId !== null
+      ) {
+        return;
+      }
+
+      this.fieldPendingDeletion = field;
+    }
+
+    closeDeleteFieldModal(): void {
+      if (this.deletingFieldId !== null) {
+        return;
+      }
+
+      this.fieldPendingDeletion = null;
+    }
+
+    confirmDeleteExtractionField(): void {
+      const field = this.fieldPendingDeletion;
+
+      if (
+        !field ||
+        this.extractionId === null ||
+        this.deletingFieldId !== null
+      ) {
+        return;
+      }
+
+      const fieldId = field.id;
+      const documentId = this.document?.id ?? null;
+
+      this.deletingFieldId = fieldId;
+
+      this.documentApiService
+        .deleteExtractionField(this.extractionId, fieldId)
+        .subscribe({
+          next: (response) => {
+            this.deletingFieldId = null;
+            this.fieldPendingDeletion = null;
+
+            const clearedRequiredField = response.payload ?? null;
+
+            if (clearedRequiredField) {
+              const index = this.extractionFields.findIndex(
+                (existingField) => existingField.id === fieldId
+              );
+
+              if (index !== -1) {
+                this.extractionFields[index] = {
+                  ...this.extractionFields[index],
+                  ...clearedRequiredField,
+                };
+              }
+
+              this.toastr.warning(
+                'Required field value cleared. Enter a replacement before confirming extraction.',
+                'Required field cleared'
+              );
+            } else {
+              this.extractionFields = this.extractionFields.filter(
+                (existingField) => existingField.id !== fieldId
+              );
+
+              this.toastr.success(
+                'Field deleted successfully.',
+                'Success'
+              );
+            }
+
+            if (documentId !== null) {
+              this.loadAuditLogs(documentId);
+            }
+          },
+          error: (err: HttpErrorResponse) => {
+            this.deletingFieldId = null;
+
+            const message =
+              this.extractErrorMessage(err.error) ??
+              'Failed to delete extraction field.';
+
+            this.toastr.error(message, 'Error');
+          },
+        });
+    }
+
+  openAddFieldModal(): void {
+    this.addFieldError = null;
+    this.addFieldValue = '';
+    this.customFieldLabel = '';
+    this.selectedFieldOption =
+      this.manualFieldOptions[0]?.fieldName ?? CUSTOM_FIELD_OPTION_VALUE;
+    this.showAddFieldModal = true;
+  }
+
+  closeAddFieldModal(): void {
+    if (this.addFieldSaving) {
+      return;
+    }
+
+    this.showAddFieldModal = false;
+    this.addFieldError = null;
+  }
+
+  submitAddField(): void {
+    if (!this.document || this.extractionId === null) {
+      return;
+    }
+
+    const trimmedValue = this.addFieldValue.trim();
+    if (!trimmedValue) {
+      this.addFieldError = 'Field value cannot be empty.';
+      return;
+    }
+
+    const isCustom = this.selectedFieldOption === CUSTOM_FIELD_OPTION_VALUE;
+    const customLabel = this.customFieldLabel.trim();
+
+    if (isCustom && !customLabel) {
+      this.addFieldError = 'Display label is required for custom fields.';
+      return;
+    }
+
+    const fieldName = isCustom
+      ? buildCustomFieldName(customLabel)
+      : this.selectedFieldOption;
+
+    if (!fieldName) {
+      this.addFieldError = 'Select a field to add.';
+      return;
+    }
+
+    this.addFieldSaving = true;
+    this.addFieldError = null;
+
+    this.documentApiService
+      .addExtractionField(this.extractionId, {
+        fieldName,
+        displayName: isCustom ? customLabel : undefined,
+        value: trimmedValue,
+      })
+      .subscribe({
+        next: () => {
+          this.addFieldSaving = false;
+          this.showAddFieldModal = false;
+          this.toastr.success('Field added successfully.', 'Success');
+          this.loadExtractionFields();
+        },
+        error: (err: HttpErrorResponse) => {
+          this.addFieldSaving = false;
+          this.addFieldError =
+            this.extractErrorMessage(err.error) ?? 'Failed to add extraction field.';
+          this.toastr.error(this.addFieldError, 'Error');
+        },
+      });
   }
 
   formatDocumentTypeLabel(documentType: string | null | undefined): string {
@@ -709,6 +1021,175 @@ export class DocumentDetailPageComponent implements OnInit {
     });
   }
 
+    loadXmlOutput(): void {
+    if (!this.document || !this.canShowXmlOutputSection) {
+      return;
+    }
+
+    const documentId = this.document.id;
+
+    this.xmlOutputLoading = true;
+    this.xmlOutputError = null;
+
+    this.documentApiService.getXmlOutput(documentId).subscribe({
+      next: (response) => {
+        if (this.document?.id !== documentId) {
+          return;
+        }
+
+        this.xmlOutputLoading = false;
+        this.xmlOutput = response.payload;
+      },
+      error: (err: HttpErrorResponse) => {
+        if (this.document?.id !== documentId) {
+          return;
+        }
+
+        this.xmlOutputLoading = false;
+        this.xmlOutput = null;
+
+        /*
+         * APPROVED dokument legitimno može još uvijek biti bez XML izlaza.
+         * To nije greška koju treba prikazivati korisniku.
+         */
+        if (err.status === 404) {
+          this.xmlOutputError = null;
+          return;
+        }
+
+        this.xmlOutputError =
+          this.extractErrorMessage(err.error) ??
+          'Failed to load XML output.';
+      },
+    });
+  }
+
+    openCompleteProcessingModal(): void {
+    if (!this.canCompleteDocumentProcessing || this.xmlOutputBusy) {
+      return;
+    }
+
+    this.showCompleteProcessingModal = true;
+  }
+
+  closeCompleteProcessingModal(): void {
+    if (this.xmlCompletionSubmitting) {
+      return;
+    }
+
+    this.showCompleteProcessingModal = false;
+  }
+
+  generateXmlOutput(): void {
+    if (!this.document || !this.canGenerateXmlOutput) {
+      return;
+    }
+
+    const documentId = this.document.id;
+
+    this.xmlOutputGenerating = true;
+    this.xmlOutputError = null;
+
+    this.documentApiService.generateXmlOutput(documentId).subscribe({
+      next: (response) => {
+        this.xmlOutputGenerating = false;
+        this.xmlOutput = response.payload;
+
+        this.toastr.success(
+          'XML output generated successfully.',
+          'Success'
+        );
+
+        this.loadAuditLogs(documentId);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.xmlOutputGenerating = false;
+
+        const message =
+          this.extractErrorMessage(err.error) ??
+          'Failed to generate XML output.';
+
+        this.xmlOutputError = message;
+        this.toastr.error(message, 'Error');
+      },
+    });
+  }
+
+  downloadXmlOutput(): void {
+    if (!this.document || !this.xmlOutput) {
+      return;
+    }
+
+    this.xmlOutputDownloading = true;
+
+    this.documentApiService
+      .downloadXmlOutput(this.document.id)
+      .subscribe({
+        next: (blob) => {
+          this.xmlOutputDownloading = false;
+
+          const objectUrl = window.URL.createObjectURL(blob);
+          const anchor = document.createElement('a');
+
+          anchor.href = objectUrl;
+          anchor.download = this.xmlOutput?.fileName ?? 'document.xml';
+          anchor.click();
+
+          window.URL.revokeObjectURL(objectUrl);
+        },
+        error: (err: HttpErrorResponse) => {
+          this.xmlOutputDownloading = false;
+
+          const message =
+            this.extractErrorMessage(err.error) ??
+            'Failed to download XML output.';
+
+          this.toastr.error(message, 'Error');
+        },
+      });
+  }
+
+  completeDocumentProcessing(): void {
+    if (
+      !this.document ||
+      !this.xmlOutput ||
+      !this.canCompleteDocumentProcessing
+    ) {
+      return;
+    }
+    const documentId = this.document.id;
+
+    this.xmlCompletionSubmitting = true;
+    this.xmlOutputError = null;
+
+    this.documentApiService
+      .completeXmlOutput(documentId)
+      .subscribe({
+        next: (response) => {
+          this.xmlCompletionSubmitting = false;
+          this.showCompleteProcessingModal = false;
+          this.xmlOutput = response.payload;
+
+          this.toastr.success(
+            'Document processing completed successfully.',
+            'Completed'
+          );
+
+          this.loadDocument(documentId);
+        },
+        error: (err: HttpErrorResponse) => {
+          this.xmlCompletionSubmitting = false;
+
+          const message =
+            this.extractErrorMessage(err.error) ??
+            'Failed to complete document processing.';
+
+          this.xmlOutputError = message;
+          this.toastr.error(message, 'Error');
+        },
+      });
+  }
+
   confirmExtraction(): void {
     if (!this.document) return;
 
@@ -777,8 +1258,14 @@ export class DocumentDetailPageComponent implements OnInit {
     this.loadStatusHistory(documentId);
     this.loadComments(documentId);
     this.loadAuditLogs(documentId);
-    this.loadTasks(documentId);
-    this.loadAssignableUsers();
+
+    if (!this.isCompletedDocument) {
+      this.loadTasks(documentId);
+      this.loadAssignableUsers();
+    } else {
+      this.tasks = [];
+      this.assignableUsers = [];
+    }
   }
 
   loadStatusHistory(documentId: number): void {
@@ -1011,8 +1498,8 @@ export class DocumentDetailPageComponent implements OnInit {
     }
 
     const content = this.approvalComment.trim();
-    if (!content) {
-      this.toastr.warning('Enter an approval comment before submitting.', 'Comment required');
+    if (!content && decision !== 'approve') {
+      this.toastr.warning('Enter a comment before submitting.', 'Comment required');
       return;
     }
 
@@ -1059,6 +1546,7 @@ export class DocumentDetailPageComponent implements OnInit {
       DOCUMENT_APPROVED: 'Document approved',
       DOCUMENT_REJECTED: 'Document rejected',
       DOCUMENT_RETURNED_FOR_CORRECTION: 'Returned for correction',
+      DOCUMENT_COMPLETED: 'Document processing completed',
       SYSTEM_STATUS_CHANGE: 'Status updated',
     };
 
@@ -1269,6 +1757,8 @@ export class DocumentDetailPageComponent implements OnInit {
 
       FIELD_ADDED: 'Field added',
       FIELD_UPDATED: 'Field updated',
+      FIELD_CLEARED: 'Required field value cleared',
+      FIELD_DELETED: 'Field deleted',
 
       DOCUMENT_APPROVED: 'Document approved',
       DOCUMENT_REJECTED: 'Document rejected',
@@ -1281,6 +1771,8 @@ export class DocumentDetailPageComponent implements OnInit {
       EMAIL_REMINDER_SENT: 'Email reminder sent',
       PERMISSION_DENIED: 'Permission denied',
       SYSTEM_ACTION: 'System action',
+      XML_GENERATED: 'XML output generated',
+      DOCUMENT_COMPLETED: 'Document processing completed',
     };
 
     return labels[action] ?? this.toReadableText(action);
@@ -1307,6 +1799,7 @@ formatStatusTransition(entry: StatusHistoryEntry): string {
 }
 
 getStatusHistoryIcon(action: string): string {
+  if (action.includes('COMPLETED')) return '✓';
   if (action.includes('UPLOADED')) return '↑';
   if (action.includes('EXTRACTION')) return '✎';
   if (action.includes('APPROVED')) return '✓';
@@ -1318,6 +1811,7 @@ getStatusHistoryIcon(action: string): string {
 }
 
 getStatusHistoryClass(action: string): string {
+  if (action.includes('COMPLETED')) return 'workflow-event--success';
   if (action.includes('APPROVED')) return 'workflow-event--success';
   if (action.includes('REJECTED')) return 'workflow-event--danger';
   if (action.includes('RETURNED')) return 'workflow-event--warning';
@@ -1335,12 +1829,16 @@ formatAuditDetails(entry: AuditLog): string {
 
   try {
     const parsed = JSON.parse(details);
-    const taskType = parsed.taskType ? this.toTitleCase(this.formatTaskType(parsed.taskType)) : 'workflow';
+
+    const taskType = parsed.taskType
+      ? this.toTitleCase(this.formatTaskType(parsed.taskType))
+      : 'workflow';
 
     switch (entry.action) {
       case 'DOCUMENT_ASSIGNED': {
-  const assignedUserName =
-          parsed.assignedUserName || this.resolveAuditAssignedUserName(parsed.assignedUserId);
+        const assignedUserName =
+          parsed.assignedUserName ||
+          this.resolveAuditAssignedUserName(parsed.assignedUserId);
 
         return `Assigned ${taskType} task to ${assignedUserName}.`;
       }
@@ -1356,10 +1854,17 @@ formatAuditDetails(entry: AuditLog): string {
       case 'TASK_CANCELLED':
         return `${taskType} task was cancelled.`;
 
+      case 'FIELD_ADDED':
+        return `Added field: ${this.resolveAuditFieldLabel(parsed)}.`;
+      
+      case 'FIELD_CLEARED':
+        return `Cleared required field value: ${this.resolveAuditFieldLabel(parsed)}.`;
+
+      case 'FIELD_DELETED':
+        return `Deleted field: ${this.resolveAuditFieldLabel(parsed)}.`;
+
       case 'FIELD_UPDATED':
-        return parsed.fieldName
-          ? `Updated extracted field: ${this.formatFieldName(parsed.fieldName)}.`
-          : 'An extracted field was updated.';
+        return `Updated field: ${this.resolveAuditFieldLabel(parsed)}.`;
 
       case 'DOCUMENT_APPROVED':
         return 'Document was moved to Approved.';
@@ -1370,8 +1875,15 @@ formatAuditDetails(entry: AuditLog): string {
       case 'DOCUMENT_RETURNED_FOR_CORRECTION':
         return 'Document was returned to the operator for correction.';
 
+      case 'XML_GENERATED':
+        return `Generated XML output #${parsed.xmlOutputId ?? '—'}.`;
+
+      case 'DOCUMENT_COMPLETED':
+        return 'Document processing was completed after XML output confirmation.';
+
       default:
         return Object.entries(parsed)
+          .filter(([key]) => !['fieldId', 'taskId'].includes(key))
           .map(([key, value]) => `${this.formatFieldName(key)}: ${value}`)
           .join(' · ');
     }
@@ -1384,6 +1896,44 @@ formatAuditDetails(entry: AuditLog): string {
       .replaceAll('}', '')
       .replaceAll('"', '');
   }
+}
+
+  formatXmlGeneratedBy(userId: number | null | undefined): string {
+    if (userId === null || userId === undefined) {
+      return '—';
+    }
+
+    const user = this.assignableUsers.find(
+      (candidate) => candidate.id === userId
+    );
+
+    if (!user) {
+      return 'Unknown user';
+    }
+
+    const fullName = `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim();
+
+    return fullName || 'Unknown user';
+  }
+
+private resolveAuditFieldLabel(parsed: Record<string, unknown>): string {
+  const displayName =
+    typeof parsed['displayName'] === 'string'
+      ? parsed['displayName'].trim()
+      : '';
+
+  if (displayName) {
+    return displayName;
+  }
+
+  const fieldName =
+    typeof parsed['fieldName'] === 'string'
+      ? parsed['fieldName']
+      : '';
+
+  return fieldName
+    ? this.formatFieldName(fieldName)
+    : 'Unknown field';
 }
 
 private toTitleCase(value: string): string {
@@ -1410,6 +1960,9 @@ private toTitleCase(value: string): string {
     if (action.includes('RETURNED')) return '↩';
     if (action.includes('ASSIGNED') || action.includes('TASK')) return '→';
     if (action.includes('NOTIFICATION')) return '🔔';
+    if (action.includes('XML')) return '<>';
+    if (action.includes('COMPLETED')) return '✓';
+
     return '•';
   }
 
@@ -1418,6 +1971,9 @@ private toTitleCase(value: string): string {
     if (action.includes('REJECTED') || action.includes('DENIED')) return 'audit-danger';
     if (action.includes('RETURNED')) return 'audit-warning';
     if (action.includes('FIELD')) return 'audit-info';
+    if (action.includes('COMPLETED')) return 'audit-success';
+    if (action.includes('XML')) return 'audit-info';
+
     return 'audit-neutral';
   }
 
@@ -1515,6 +2071,22 @@ private toTitleCase(value: string): string {
     this.assignTaskType = 'CORRECTION';
     this.assignTaskDueDate = '';
     this.assigningTask = false;
+    this.showAddFieldModal = false;
+    this.addFieldSaving = false;
+    this.addFieldError = null;
+    this.fieldPendingDeletion = null;
+    this.deletingFieldId = null;
+    this.resetXmlOutputState();
+  }
+
+    private resetXmlOutputState(): void {
+    this.xmlOutput = null;
+    this.xmlOutputLoading = false;
+    this.xmlOutputGenerating = false;
+    this.xmlOutputDownloading = false;
+    this.xmlCompletionSubmitting = false;
+    this.xmlOutputError = null;
+        this.showCompleteProcessingModal = false;
   }
 
   private syncDefaultAssignee(): void {
@@ -1569,6 +2141,10 @@ private toTitleCase(value: string): string {
   }
 
   private shouldLoadExtractionForStatus(status: string | null | undefined): boolean {
+    if (status === 'COMPLETED') {
+      return false;
+    }
+
     return [
       'EXTRACTED',
       'READY_FOR_APPROVAL',
@@ -1580,6 +2156,10 @@ private toTitleCase(value: string): string {
 
 
   shouldShowExtractionFields(): boolean {
+    if (this.isCompletedDocument) {
+      return false;
+    }
+
     return [
       'EXTRACTED',
       'READY_FOR_APPROVAL',
