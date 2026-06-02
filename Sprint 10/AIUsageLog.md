@@ -381,6 +381,24 @@ Napomena: Ovaj AI Usage Log je živi dokument i ažurira se kroz sprintove.
 
 | Polje | Detalji |
 |---|---|
+| Datum | 31.05.2026 |
+| Sprint broj | Sprint 10 |
+| Alat koji je korišten | Claude Sonnet 4.6 |
+| Svrha korištenja | Pomoć pri planiranju i implementaciji in-app notification centra i email reminder funkcionalnosti za nepročitana obavještenja. |
+| Kratak opis zadatka ili upita | AI alat je korišten za analizu postojećeg workflow sistema i razradu notification toka vezanog za dokumente i task assignment. Zadatak je obuhvatio kreiranje trajnih user-scoped notifikacija, prikaz unread badge-a, notification centra, označavanje pojedinačnih i svih notifikacija kao pročitanih, navigaciju na relevantnu stranicu te periodično slanje email reminder digest poruka za nepročitane notifikacije. |
+| Šta je AI predložio ili generisao | AI je predložio model notifikacija sa vezom prema korisniku i opciono dokumentu, read statusom, vremenom kreiranja, action URL-om i metadata poljem za evidentiranje slanja emaila. Predloženi su endpointi za dohvat korisničkih notifikacija, unread count, označavanje pojedinačne notifikacije kao pročitane i označavanje svih notifikacija kao pročitanih. Za email reminder dio predložen je scheduled job koji grupiše nepročitane notifikacije u jedan digest email po korisniku i sprečava ponovno slanje istih notifikacija. |
+| Šta je tim prihvatio | Prihvaćen je pristup sa trajnim in-app notifikacijama u bazi, unread badge-om u navigaciji, notification centrom i action URL navigacijom. Prihvaćeno je i grupisanje više nepročitanih notifikacija u jedan email digest, uz evidentiranje vremena uspješnog slanja kako bi se izbjeglo ponovno slanje istih obavještenja. |
+| Šta je tim izmijenio | Implementacija je ručno prilagođena postojećoj DocFlow arhitekturi, workflow akcijama, `ApiResponse` formatu, Angular shell komponenti i postojećem dizajnu aplikacije. SMTP konfiguracija je izdvojena u environment varijable, a za deployment server prilagođen je SMTP port radi kompatibilnosti sa hosting okruženjem. |
+| Šta je tim odbacio | Odbačeno je slanje zasebnog emaila odmah nakon svake kreirane notifikacije, jer bi takav pristup mogao dovesti do nepotrebnog broja poruka. Odbačeno je čuvanje notification stanja samo na frontendu, jer korisnik mora moći pregledati notifikacije i nakon ponovne prijave u sistem. Nije uveden poseban notification mikroservis jer nije potreban za trenutni obim projekta. |
+| Rizici, problemi ili greške koje su uočene | Uočeno je da frontend i backend moraju ostati usklađeni oko unread count osvježavanja i read statusa notifikacija. Posebnu pažnju je bilo potrebno posvetiti zaštiti od ponovnog slanja istih email reminder poruka. Tokom deployment provjere uočeno je da standardni SMTP port nije dostupan iz hosting okruženja, pa je konfiguracija prilagođena korištenjem alternativnog SMTP porta. SMTP credentials moraju ostati isključivo u environment varijablama i ne smiju biti commitani u repozitorij. |
+| Ko je koristio alat | Azra Kovač |
+
+---
+
+## Unos #23
+
+| Polje | Detalji |
+|---|---|
 | Datum | 01.06.2026 |
 | Sprint broj | Sprint 10 |
 | Alat koji je korišten | ChatGPT GPT-5.5 Thinking |
@@ -393,19 +411,3 @@ Napomena: Ovaj AI Usage Log je živi dokument i ažurira se kroz sprintove.
 | Rizici, problemi ili greške koje su uočene | Uočeno je da Hibernate `ddl-auto=update` može kreirati novu `xml_output` tabelu, ali ne ažurira uvijek postojeće PostgreSQL check constraintove za nove audit i status history akcije, pa je potrebna ručna SQL migracija na postojećim bazama. Potrebno je osigurati da se pri brisanju dokumenta uklone i povezani XML metadata zapis i fizički XML fajl. Dodatno je potrebno paziti da završni XML ne uključuje prazna placeholder polja niti prethodno obrisana nerelevantna OCR polja. |
 | Ko je koristio alat | Emina Zubetljak | 
 
----
-## Unos #23
-
-| Polje | Detalji |
-|---|---|
-| Datum | 31.05.2026 |
-| Sprint broj | Sprint 10 |
-| Alat koji je korišten | Claude Sonnet 4.6 |
-| Svrha korištenja | Pomoć pri planiranju i implementaciji in-app notification centra i email reminder funkcionalnosti za nepročitana obavještenja. |
-| Kratak opis zadatka ili upita | AI alat je korišten za analizu postojećeg workflow sistema i razradu notification toka vezanog za dokumente i task assignment. Zadatak je obuhvatio kreiranje trajnih user-scoped notifikacija, prikaz unread badge-a, notification centra, označavanje pojedinačnih i svih notifikacija kao pročitanih, navigaciju na relevantnu stranicu te periodično slanje email reminder digest poruka za nepročitane notifikacije. |
-| Šta je AI predložio ili generisao | AI je predložio model notifikacija sa vezom prema korisniku i opciono dokumentu, read statusom, vremenom kreiranja, action URL-om i metadata poljem za evidentiranje slanja emaila. Predloženi su endpointi za dohvat korisničkih notifikacija, unread count, označavanje pojedinačne notifikacije kao pročitane i označavanje svih notifikacija kao pročitanih. Za email reminder dio predložen je scheduled job koji grupiše nepročitane notifikacije u jedan digest email po korisniku i sprečava ponovno slanje istih notifikacija. |
-| Šta je tim prihvatio | Prihvaćen je pristup sa trajnim in-app notifikacijama u bazi, unread badge-om u navigaciji, notification centrom i action URL navigacijom. Prihvaćeno je i grupisanje više nepročitanih notifikacija u jedan email digest, uz evidentiranje vremena uspješnog slanja kako bi se izbjeglo ponovno slanje istih obavještenja. |
-| Šta je tim izmijenio | Implementacija je ručno prilagođena postojećoj DocFlow arhitekturi, workflow akcijama, `ApiResponse` formatu, Angular shell komponenti i postojećem dizajnu aplikacije. SMTP konfiguracija je izdvojena u environment varijable, a za deployment server prilagođen je SMTP port radi kompatibilnosti sa hosting okruženjem. |
-| Šta je tim odbacio | Odbačeno je slanje zasebnog emaila odmah nakon svake kreirane notifikacije, jer bi takav pristup mogao dovesti do nepotrebnog broja poruka. Odbačeno je čuvanje notification stanja samo na frontendu, jer korisnik mora moći pregledati notifikacije i nakon ponovne prijave u sistem. Nije uveden poseban notification mikroservis jer nije potreban za trenutni obim projekta. |
-| Rizici, problemi ili greške koje su uočene | Uočeno je da frontend i backend moraju ostati usklađeni oko unread count osvježavanja i read statusa notifikacija. Posebnu pažnju je bilo potrebno posvetiti zaštiti od ponovnog slanja istih email reminder poruka. Tokom deployment provjere uočeno je da standardni SMTP port nije dostupan iz hosting okruženja, pa je konfiguracija prilagođena korištenjem alternativnog SMTP porta. SMTP credentials moraju ostati isključivo u environment varijablama i ne smiju biti commitani u repozitorij. |
-| Ko je koristio alat | Azra Kovač |
