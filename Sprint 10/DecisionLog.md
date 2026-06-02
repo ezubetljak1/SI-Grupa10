@@ -1285,3 +1285,326 @@ Ovo omogućava firmi fleksibilan rad. Kompanija može striktno dodijeliti dokume
 - Frontend treba prikazati informaciju ako je dokument već assigned drugom korisniku, da korisnik ne sazna tek nakon backend greške.
 
 **Status:** Aktivna
+
+---
+
+### DL-042 – Ručno dodavanje extraction polja i razlikovanje canonical i custom polja
+
+**Datum:** 02.06.2026  
+**Opis problema:**  
+OCR/AI servis ne vraća uvijek sva korisna polja dokumenta. Pored obaveznih polja, korisniku može biti potrebno da ručno
+doda dodatni podatak koji OCR nije prepoznao, npr. payment reference, due date ili interni project code. Bilo je potrebno
+odlučiti kako omogućiti dodavanje polja bez ograničavanja sistema samo na unaprijed definisani skup vrijednosti.
+
+**Razmatrane opcije:**
+
+1. Ne dozvoliti ručno dodavanje polja i osloniti se isključivo na OCR rezultat.
+2. Dozvoliti dodavanje samo unaprijed definisanih canonical polja.
+3. Dozvoliti dodavanje canonical polja i fleksibilnih custom polja.
+4. Čuvati sva dodatna polja samo unutar komentara dokumenta.
+
+**Odabrana opcija:**  
+Dozvoljeno je ručno dodavanje canonical i custom extraction polja.
+
+Canonical polja koriste unaprijed definisani ključ, npr. `payment_reference` ili `due_date`. Custom polja koriste prefiks
+`custom.` i zahtijevaju dodatni čitljivi `displayName`, npr. `custom.project_code` sa labelom `Project code`.
+
+**Razlog izbora:**  
+Dokumenti mogu sadržavati korisne podatke koji nisu unaprijed poznati niti ih OCR procesor uvijek vraća. Fleksibilni
+model `extraction_field` već podržava različite nazive polja, pa je prirodno proširiti isti model i za ručne unose.
+Razlikovanje canonical i custom polja omogućava da sistem zadrži stabilne ključeve za poznate podatke, ali i da ostane
+prilagodljiv za dodatne potrebe korisnika.
+
+**Posljedice odluke:**
+
+- U `extraction_field` se čuvaju dodatni metadata podaci `display_name` i `is_manual`.
+- Ručno dodana polja dobijaju `is_manual = true`, `is_corrected = true` i `is_placeholder = false`.
+- Custom ključevi moraju koristiti dozvoljeni format i prefiks `custom.`.
+- Custom polje mora imati čitljivi `displayName`.
+- Sistem odbija duplikatno polje čak i ako je naziv poslan sa drugačijim case-om.
+- Dodavanje polja je dozvoljeno samo dok je dokument u fazi extraction review-a ili korekcije.
+- Dodavanje polja evidentira se kroz audit akciju `FIELD_ADDED`.
+- Frontend na document detail stranici dobija modal `Add extraction field`.
+
+**Status:** Aktivna
+
+---
+
+### DL-043 – Strategija brisanja extraction polja uz zaštitu obaveznih vrijednosti
+
+**Datum:** 02.06.2026  
+**Opis problema:**  
+OCR/AI servis povremeno vraća nerelevantna ili besmislena polja koja korisnik ne želi zadržati u potvrđenoj ekstrakciji
+i završnom XML izlazu. Istovremeno, fizičko brisanje obaveznog polja moglo bi otežati korisniku da razumije šta nedostaje
+i da ponovo unese potrebnu vrijednost.
+
+**Razmatrane opcije:**
+
+1. Ne dozvoliti brisanje extraction polja.
+2. Fizički obrisati svako polje, uključujući required polja.
+3. Zabraniti brisanje required polja i dozvoliti brisanje samo opcionih polja.
+4. Fizički brisati opciona polja, a required poljima samo očistiti vrijednost i zadržati placeholder red.
+
+**Odabrana opcija:**  
+Opciono extraction polje se fizički briše, dok se required canonical polje ne uklanja iz baze. Njegova vrijednost se
+čisti, a red ostaje vidljiv kao placeholder koji korisnik mora ponovo popuniti prije confirma.
+
+**Razlog izbora:**  
+Opciono OCR polje koje nema poslovnu vrijednost ne treba ostati u potvrđenoj ekstrakciji niti u XML izlazu. Sa druge
+strane, required polje mora ostati vidljivo korisniku kako bi bilo jasno da extraction review nije završen. Placeholder
+strategija je usklađena sa postojećim ponašanjem sistema za required polja koja OCR uopće nije prepoznao.
+
+**Posljedice odluke:**
+
+- Uveden je DELETE endpoint za pojedinačno extraction polje.
+- Opciono OCR ili manual polje se fizički uklanja iz `extraction_field`.
+- Required canonical polje ostaje u tabeli sa praznom vrijednošću i `is_placeholder = true`.
+- Confirm extraction flow ostaje blokiran dok required placeholder nije ponovo popunjen.
+- Nakon unosa nove vrijednosti placeholder status se uklanja, a polje dobija `is_corrected = true`.
+- Brisanje opcionog polja evidentira se audit akcijom `FIELD_DELETED`.
+- Čišćenje required polja evidentira se audit akcijom `FIELD_CLEARED`.
+- Frontend prikazuje različite confirmation modal poruke za fizičko brisanje opcionog polja i čišćenje required
+  vrijednosti.
+
+**Status:** Aktivna
+
+---
+
+### DL-044 – In-app notifikacije kao trajni i user-scoped zapisi
+
+**Datum:** 02.06.2026  
+**Opis problema:**  
+Nakon uvođenja workflow taskova, korisniku je potrebno jasno javiti da mu je dodijeljen novi zadatak ili da se desila
+druga relevantna workflow akcija. Bilo je potrebno odlučiti da li notifikacije prikazivati samo privremeno na frontendu,
+slati isključivo emailom ili ih trajno čuvati u aplikaciji.
+
+**Razmatrane opcije:**
+
+1. Prikazivati samo privremene frontend toastr poruke.
+2. Slati samo email poruke bez in-app notification centra.
+3. Čuvati notifikacije u bazi i prikazivati ih kroz in-app notification centar.
+4. Koristiti eksterni notification servis.
+
+**Odabrana opcija:**  
+Notifikacije se čuvaju kao trajni zapisi u bazi i prikazuju prijavljenom korisniku kroz in-app notification centar.
+
+**Razlog izbora:**  
+Toastr poruka je kratkotrajna i korisnik je može propustiti ako nije trenutno prijavljen. Email nije dovoljan kao jedini
+kanal jer korisnik unutar aplikacije treba moći vidjeti listu relevantnih događaja i njihov read status. Trajni
+notification zapis omogućava pregled historije notifikacija i stabilan unread count.
+
+**Posljedice odluke:**
+
+- Uvedena je tabela `notification`.
+- Svaka notifikacija je vezana za konkretnog korisnika i opcionalno za dokument.
+- Notifikacija sadrži naslov, tekst, tip, read status, vrijeme kreiranja i opcioni action URL.
+- Korisnik može dohvatiti samo vlastite notifikacije.
+- Uvedeni su endpointi za dohvat notifikacija, unread count, označavanje pojedinačne notifikacije kao pročitane i
+  označavanje svih notifikacija kao pročitanih.
+- Frontend shell periodično osvježava unread count i prikazuje badge.
+- Notification centar omogućava pregled svih i samo nepročitanih notifikacija.
+- Kreiranje i čitanje notifikacija može se evidentirati kroz audit akcije `NOTIFICATION_CREATED`, `NOTIFICATION_READ` i
+  `NOTIFICATIONS_READ_ALL`.
+
+**Status:** Aktivna
+
+---
+
+### DL-045 – Email reminder poruke kao periodični digest nepročitanih notifikacija
+
+**Datum:** 02.06.2026  
+**Opis problema:**  
+In-app notifikacije nisu dovoljne ako korisnik ne otvara aplikaciju redovno. Bilo je potrebno odlučiti kada i kako slati
+email podsjetnike, a da se pritom izbjegne slanje prevelikog broja pojedinačnih email poruka.
+
+**Razmatrane opcije:**
+
+1. Poslati email odmah za svaku kreiranu notifikaciju.
+2. Ne slati email podsjetnike i osloniti se samo na in-app notifikacije.
+3. Periodično slati jedan digest email sa svim relevantnim nepročitanim notifikacijama korisnika.
+4. Koristiti eksterni queue i poseban notification mikroservis.
+
+**Odabrana opcija:**  
+Backend scheduler periodično pronalazi nepročitane notifikacije za koje email još nije poslan i grupiše ih u jedan digest
+email po korisniku.
+
+**Razlog izbora:**  
+Digest pristup smanjuje broj email poruka i izbjegava spam kada korisnik u kratkom periodu dobije više notifikacija.
+Istovremeno, email podsjetnik osigurava da korisnik vidi dodijeljeni zadatak čak i kada nije prijavljen u aplikaciju.
+Za trenutni obim projekta nije potreban poseban queue ili notification mikroservis.
+
+**Posljedice odluke:**
+
+- Notifikacija čuva `email_sent_at` vrijednost nakon uspješnog slanja.
+- Scheduler šalje email samo za nepročitane notifikacije bez prethodno evidentiranog slanja.
+- Ista notifikacija se ne šalje ponovo u svakom scheduler ciklusu.
+- SMTP i scheduler konfiguracija se postavljaju kroz environment varijable.
+- Konfigurišu se SMTP host, port, username, SMTP key, sender adresa, sender naziv, frontend base URL, enabled flag,
+  vremenski prag i cron izraz.
+- Lokalno i demo okruženje mogu koristiti prag `0` sati i provjeru svake minute radi jednostavne demonstracije.
+- Produkcijsko okruženje može kasnije koristiti duži vremenski prag i rjeđe pokretanje schedulera.
+- Na serveru se koristi Brevo SMTP relay preko porta `2525`, jer je alternativni SMTP port pogodan kada hosting
+  okruženje ograničava standardni port `587`.
+- Link u email poruci vodi na konfigurabilni frontend URL, npr. `https://docflow.page`.
+- Uspješno slanje može se evidentirati audit akcijom `EMAIL_REMINDER_SENT`.
+
+**Status:** Aktivna
+
+---
+
+### DL-046 – Generički XML izlaz kao mašinski čitljiv završni rezultat obrade dokumenta
+
+**Datum:** 02.06.2026  
+**Opis problema:**  
+Nakon extraction review-a i odobravanja dokumenta potrebno je generisati završni strukturirani izlaz koji se može
+preuzeti, arhivirati ili kasnije proslijediti eksternom sistemu. Sistem podržava različite tipove dokumenata, pa je bilo
+potrebno odlučiti da li koristiti poseban XML format za svaki tip ili jedan fleksibilni format.
+
+**Razmatrane opcije:**
+
+1. Generisati samo PDF i ne uvoditi strukturirani izlaz.
+2. Koristiti raw JSON extraction rezultat kao završni izlaz.
+3. Definisati poseban XML format i XSD šemu za svaki tip dokumenta.
+4. Koristiti jedan generički XML format sa metadata sekcijom i listom potvrđenih extraction polja.
+
+**Odabrana opcija:**  
+Koristi se generički XML format koji sadrži metadata podatke dokumenta i listu potvrđenih extraction polja.
+
+**Razlog izbora:**  
+Sistem podržava `INVOICE`, `RECEIPT`, `BANK_STATEMENT` i `FORM` dokumente, kao i ručno dodana custom polja. Generički XML
+format omogućava da isti generator radi za sve tipove dokumenata bez dupliciranja logike. XML predstavlja mašinski
+čitljiv završni rezultat koji se kasnije može koristiti za arhiviranje ili integraciju sa eksternim sistemima, npr.
+računovodstvenim ili ERP sistemom.
+
+**Posljedice odluke:**
+
+- XML sadrži root element dokumenta, metadata sekciju i kolekciju extraction polja.
+- Svako polje sadrži stabilni naziv i vrijednost, a po potrebi i metadata informacije `manual`, `corrected` i
+  `confidence`.
+- Ručno dodana polja ulaze u XML izlaz.
+- Fizički obrisana opciona polja ne ulaze u XML izlaz.
+- Prazni placeholder redovi ne ulaze u završni XML.
+- XML generator koristi standardni XML API kako bi specijalni znakovi bili pravilno escapovani.
+- XML se generiše samo za dokument koji ima status `APPROVED`.
+- Prije generisanja se ponovo izvršava backend validacija extraction polja.
+- XSD validacija se ne uvodi u trenutnoj iteraciji jer ne postoji konkretan eksterni sistem sa unaprijed propisanom
+  šemom. Može se dodati kasnije ako integracija bude zahtijevala strogi format.
+
+**Status:** Aktivna
+
+---
+
+### DL-047 – Pohrana jednog aktivnog XML izlaza po dokumentu i strategija regenerisanja
+
+**Datum:** 02.06.2026  
+**Opis problema:**  
+Nakon uvođenja XML generisanja bilo je potrebno odlučiti da li XML izlaz generisati samo privremeno prilikom download-a,
+čuvati sve historijske verzije ili trajno čuvati samo trenutno važeću verziju.
+
+**Razmatrane opcije:**
+
+1. Generisati XML privremeno pri svakom download zahtjevu bez spremanja u bazu.
+2. Čuvati sve historijske XML verzije.
+3. Čuvati jedan aktivni XML izlaz po dokumentu i zamijeniti ga pri regenerisanju.
+4. Čuvati XML sadržaj direktno kao veliku tekstualnu kolonu u tabeli dokumenta.
+
+**Odabrana opcija:**  
+Za svaki dokument čuva se jedan aktivni XML izlaz. Regenerate akcija zamjenjuje prethodni XML fajl i ažurira postojeći
+`xml_output` zapis.
+
+**Razlog izbora:**  
+Za trenutni MVP nije potrebna historija svih generisanih XML verzija. Korisniku je potreban trenutno važeći izlaz koji
+odgovara potvrđenim extraction podacima. Čuvanje XML fajla na filesystemu usklađeno je sa postojećom strategijom pohrane
+originalnih dokumenata.
+
+**Posljedice odluke:**
+
+- Uvedena je tabela `xml_output`.
+- Dokument i XML izlaz imaju vezu jedan-na-jedan.
+- `xml_output` čuva `document_id`, `storage_path`, `file_name`, `generated_at` i `generated_by`.
+- XML fajl se sprema na backend filesystem storage.
+- Regenerate akcija ne kreira duplikatni zapis za isti dokument.
+- Prethodni fizički XML fajl se uklanja nakon uspješnog regenerisanja.
+- XML preview i download koriste spremljeni aktivni XML izlaz.
+- Brisanje dokumenta mora ukloniti i povezani `xml_output` zapis i fizički XML fajl kako ne bi ostali orphan podaci.
+- Generisanje XML izlaza evidentira se audit akcijom `XML_GENERATED`.
+
+**Status:** Aktivna
+
+---
+
+### DL-048 – Eksplicitna finalizacija dokumenta nakon generisanja XML izlaza
+
+**Datum:** 02.06.2026  
+**Opis problema:**  
+Status `APPROVED` označava da je approver prihvatio dokument, ali ne mora nužno značiti da je završen kompletan tok
+obrade. Nakon uvođenja XML izlaza bilo je potrebno odlučiti kada dokument treba dobiti završni status i da li se
+finalizacija izvršava automatski.
+
+**Razmatrane opcije:**
+
+1. Dokument automatski označiti završenim odmah nakon approval akcije.
+2. Dokument automatski označiti završenim nakon prvog XML generisanja.
+3. Zadržati status `APPROVED` bez posebnog završnog statusa.
+4. Uvesti eksplicitnu `Complete processing` akciju dostupnu nakon generisanja XML izlaza.
+
+**Odabrana opcija:**  
+Dokument ostaje u statusu `APPROVED` dok ovlašteni korisnik ne generiše XML izlaz i eksplicitno potvrdi akciju
+`Complete processing`. Nakon toga dokument prelazi u status `COMPLETED`.
+
+**Razlog izbora:**  
+Approval i završetak tehničke obrade nisu ista poslovna radnja. Nakon odobravanja korisnik treba imati mogućnost da
+pregleda, preuzme ili ponovo generiše XML prije nego što dokument označi finalno obrađenim. Eksplicitna akcija daje
+korisniku kontrolu i jasno razdvaja dva koraka.
+
+**Posljedice odluke:**
+
+- `DocumentStatus` koristi završni status `COMPLETED`.
+- XML se može generisati i regenerisati dok dokument ima status `APPROVED`.
+- Complete akcija je dozvoljena samo ako XML izlaz postoji.
+- Nakon finalizacije dokument prelazi iz `APPROVED` u `COMPLETED`.
+- `COMPLETED` dokument ima read-only prikaz XML preview-a i download akciju.
+- Nakon finalizacije više nisu dostupne regenerate i complete akcije.
+- Finalizacija kreira status history zapis sa akcijom `DOCUMENT_COMPLETED`.
+- Finalizacija kreira audit zapis sa akcijom `DOCUMENT_COMPLETED`.
+- Frontend koristi stilizovani confirmation modal prije finalizacije dokumenta.
+
+**Status:** Aktivna
+
+---
+
+### DL-049 – Server-side pretraga i kombinovanje filtera za listu dokumenata
+
+**Datum:** 02.06.2026  
+**Opis problema:**  
+Sa rastom broja dokumenata osnovna lista postaje nedovoljno pregledna. Bilo je potrebno odlučiti da li pretragu i
+filtriranje raditi samo nad trenutno prikazanim frontend podacima ili ih implementirati na backend strani.
+
+**Razmatrane opcije:**
+
+1. Filtrirati samo dokumente koji su već učitani na frontendu.
+2. Dodati odvojeni endpoint za svaki pojedinačni filter.
+3. Proširiti postojeći list endpoint opcionalnim parametrima koji se mogu kombinovati.
+4. Uvesti eksterni search engine.
+
+**Odabrana opcija:**  
+Postojeći backend list endpoint proširen je opcionalnim parametrima za pretragu i filtere koji se mogu međusobno
+kombinovati.
+
+**Razlog izbora:**  
+Frontend filtriranje samo učitane stranice ne bi dalo pouzdane rezultate kada broj dokumenata poraste ili se koristi
+paginacija. Jedan prošireni backend endpoint zadržava jednostavan API i omogućava preciznu pretragu bez uvođenja
+nepotrebnih dodatnih endpointa ili eksternog search servisa.
+
+**Posljedice odluke:**
+
+- Dokumenti se mogu pretraživati po dijelu naziva i numeričkom ID-u.
+- Lista se može filtrirati po tipu dokumenta.
+- Lista se može filtrirati po statusu dokumenta.
+- Lista se može ograničiti početnim i završnim datumom.
+- Admin i Manager mogu filtrirati dokumente po korisniku kojem je dodijeljen aktivni task.
+- Više kriterija može se koristiti istovremeno.
+- Backend i dalje primjenjuje company scoping, pa korisnik ne može dobiti dokumente druge firme kroz pretragu.
+- Frontend document list stranica dobija pregledni filter panel i reset akciju.
+
+**Status:** Aktivna
