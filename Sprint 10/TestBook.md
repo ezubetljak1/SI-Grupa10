@@ -839,4 +839,277 @@ Zaključak:
 - Testirani su frontend prikazi za status history, komentare, audit log, task assignment, My Tasks, overdue oznake i banner za dokument dodijeljen drugom korisniku.
 - Izvršeno je regresiono testiranje upload, extraction, edit, confirm i classification review tokova nakon uvođenja workflow sloja.
 - Dodan je i provjeren basic CI koji na PR-ovima pokreće backend build/testove i frontend build.
-- Svi evidentirani testovi za Sprint 9 imaju status `Pass`.
+- Svi evidentirani testovi za Sprint 9 imaju status `Pass`. 
+
+---
+
+# Sprint 10 – Testiranje proširenog extraction flow-a, notifikacija, XML izlaza i pretrage dokumenata
+
+## 10.1 Funkcionalnosti koje se testiraju
+
+U Sprintu 10 fokus testiranja je na proširenju toka obrade dokumenata dodatnim extraction akcijama, sistemom notifikacija i email reminder poruka, generisanjem XML izlaza nakon odobravanja dokumenta, završetkom obrade dokumenta i unapređenjem pretrage i filtriranja liste dokumenata.
+
+Testirane funkcionalnosti uključuju:
+
+- ručno dodavanje canonical i custom extraction polja,
+- validaciju ručno dodanih extraction polja,
+- sprečavanje kreiranja duplikatnih extraction polja,
+- brisanje opcionih i nerelevantnih OCR polja,
+- čišćenje vrijednosti obaveznih canonical polja uz zadržavanje placeholder reda,
+- blokiranje potvrde ekstrakcije dok obavezna polja nisu ponovo popunjena,
+- audit log zapise za dodavanje, brisanje i čišćenje extraction polja,
+- in-app notifikacije,
+- dohvat notifikacija prijavljenog korisnika,
+- unread count prikaz,
+- označavanje jedne ili svih notifikacija kao pročitanih,
+- izolaciju notifikacija po korisniku,
+- email reminder scheduler,
+- grupisanje više nepročitanih notifikacija u jedan email digest,
+- sprečavanje duplog slanja reminder emaila,
+- generisanje XML izlaza za odobren dokument,
+- ponovnu validaciju extraction polja prije XML generisanja,
+- pohranu XML metapodataka u bazu i XML fajla na storage,
+- preview i download XML izlaza,
+- regenerisanje XML izlaza i zamjenu prethodnog fajla,
+- escaping specijalnih znakova u XML sadržaju,
+- završetak obrade dokumenta kroz status `COMPLETED`,
+- audit log i status history zapise za XML generisanje i finalizaciju,
+- brisanje XML zapisa i XML fajla pri brisanju dokumenta,
+- pretragu dokumenata po nazivu i ID-u,
+- filtriranje dokumenata po tipu, statusu, datumu i dodijeljenom korisniku,
+- kombinovanje više filtera,
+- multi-tenant ograničenje rezultata pretrage,
+- frontend prikaz notification centra, XML kartice i filter panela,
+- SMTP konfiguraciju i deployment smoke provjeru email reminder funkcionalnosti,
+- regresionu provjeru funkcionalnosti implementiranih u prethodnim sprintovima.
+
+---
+
+## 10.2 Backend/API i integracijsko testiranje
+
+| ID testa | Vrsta testiranja | Funkcionalnost | Ulaz / koraci | Očekivani ishod | Stvarni ishod | Status |
+|---|---|---|---|---|---|---|
+| S10-BE-001 | Integration testiranje | Dodavanje canonical extraction polja | Za dokument sa ekstrakcijom pozvati `POST /api/extractions/{extractionId}/fields` sa canonical ključem, npr. `payment_reference` | Backend kreira novo extraction polje i označava ga kao ručno dodano i korigovano | Canonical polje je uspješno kreirano sa `manual = true`, `corrected = true` i `placeholder = false` | Pass |
+| S10-BE-002 | Integration testiranje | Dodavanje custom extraction polja | Poslati zahtjev sa `fieldName = custom.project_code`, čitljivim `displayName` i validnom vrijednošću | Backend sprema custom polje, display labelu i manual metadata | Custom polje je spremljeno sa ispravnim ključem, labelom i manual metadata vrijednostima | Pass |
+| S10-BE-003 | Integration testiranje | Audit zapis za dodavanje polja | Dodati novo manual extraction polje i provjeriti `audit_log` | Kreira se audit zapis `FIELD_ADDED` vezan za dokument | Audit zapis `FIELD_ADDED` je uspješno kreiran | Pass |
+| S10-BE-004 | Validaciono testiranje | Odbijanje prazne vrijednosti manual polja | Poslati add-field request sa praznom ili whitespace vrijednošću | Backend vraća `400 Bad Request` i ne kreira polje | Prazna vrijednost je odbijena i polje nije spremljeno | Pass |
+| S10-BE-005 | Validaciono testiranje | Odbijanje nevalidnog naziva polja | Poslati naziv sa nedozvoljenim znakovima ili razmacima, npr. `Not A Valid Key` | Backend vraća validacionu grešku | Nevalidan canonical ključ je odbijen | Pass |
+| S10-BE-006 | Validaciono testiranje | Custom polje bez display labele | Poslati `fieldName = custom.project_code` bez `displayName` | Backend vraća `EXTRACTION_FIELD_DISPLAY_NAME_REQUIRED` | Custom polje bez čitljive labele je odbijeno | Pass |
+| S10-BE-007 | Validaciono testiranje | Duplikatno manual polje sa različitim case-om | Postojećem polju `currency` pokušati dodati duplikat `CURRENCY` | Backend normalizuje naziv i vraća `EXTRACTION_FIELD_DUPLICATE` | Duplikatno polje nije kreirano | Pass |
+| S10-BE-008 | Backend/API testiranje | Dodavanje polja dok dokument čeka korekciju | Dokument postaviti u `NEEDS_CORRECTION`, zatim dodati validno polje | Dodavanje polja je dozvoljeno u correction flow-u | Polje je uspješno dodano dok je dokument čekao korekciju | Pass |
+| S10-BE-009 | Validaciono testiranje | Dodavanje polja nakon potvrde ekstrakcije | Dokument prebaciti u `READY_FOR_APPROVAL`, zatim pokušati dodati polje | Backend vraća `DOCUMENT_STATUS_INVALID` | Dodavanje polja nakon završetka review-a je blokirano | Pass |
+| S10-BE-010 | Backend/API testiranje | Role-based zaštita dodavanja polja | Approver pokuša dodati extraction polje | Backend vraća `403 Forbidden` | Approveru nije dozvoljeno dodavanje extraction polja | Pass |
+| S10-BE-011 | Integration testiranje | Dodavanje polja i reconfirm nakon correction flow-a | Dodati polje dokumentu u `NEEDS_CORRECTION`, zatim pozvati reconfirm | Dokument prelazi u `READY_FOR_APPROVAL`, a status history evidentira reconfirm | Dokument je uspješno reconfirmovan i status history je ažuriran | Pass |
+| S10-BE-012 | Integration testiranje | Brisanje opcionog OCR polja | Pozvati `DELETE /api/extractions/{extractionId}/fields/{fieldId}` za opciono OCR polje | Polje se fizički uklanja iz baze | Opciono OCR polje je uspješno obrisano | Pass |
+| S10-BE-013 | Integration testiranje | Brisanje opcionog manual polja | Dodati ručno opciono polje, zatim pozvati DELETE endpoint | Polje se fizički uklanja iz ekstrakcije | Ručno dodano opciono polje je uspješno obrisano | Pass |
+| S10-BE-014 | Integration testiranje | Audit zapis za brisanje opcionog polja | Obrisati opciono extraction polje i provjeriti `audit_log` | Kreira se audit zapis `FIELD_DELETED` | Audit zapis `FIELD_DELETED` je uspješno kreiran | Pass |
+| S10-BE-015 | Integration testiranje | Čišćenje vrijednosti required canonical polja | Pozvati DELETE endpoint za required polje, npr. `total_amount` ili `currency` | Polje se ne briše fizički nego ostaje kao prazan placeholder | Required polje je ostalo u tabeli sa `placeholder = true`, praznom vrijednošću i `corrected = false` | Pass |
+| S10-BE-016 | Integration testiranje | Audit zapis za čišćenje required polja | Očistiti required canonical polje i provjeriti `audit_log` | Kreira se audit zapis `FIELD_CLEARED` | Audit zapis `FIELD_CLEARED` je uspješno kreiran | Pass |
+| S10-BE-017 | Validaciono testiranje | Blokiranje confirma nakon čišćenja required polja | Očistiti required polje, zatim pozvati confirm extraction endpoint | Backend vraća `EXTRACTION_REQUIRED_FIELD_MISSING`, dokument ostaje `EXTRACTED` | Confirm je blokiran dok required vrijednost nije ponovo unesena | Pass |
+| S10-BE-018 | Integration testiranje | Popunjavanje očišćenog required polja i uspješan confirm | Očistiti required polje, ponovo unijeti validnu vrijednost i potvrditi extraction | Placeholder oznaka se uklanja, polje postaje korigovano, dokument prelazi u `READY_FOR_APPROVAL` | Required polje je popunjeno i confirm je uspješno izvršen | Pass |
+| S10-BE-019 | Validaciono testiranje | Brisanje polja sa pogrešnim extraction ID-em | Poslati field ID iz jedne ekstrakcije uz extraction ID druge ekstrakcije | Backend vraća `404 NOT_FOUND`, originalno polje ostaje nepromijenjeno | Pogrešna kombinacija ID-eva je odbijena bez izmjene podataka | Pass |
+| S10-BE-020 | Validaciono testiranje | Brisanje extraction polja nakon potvrde | Dokument prebaciti u `READY_FOR_APPROVAL`, zatim pokušati obrisati polje | Backend vraća `DOCUMENT_STATUS_INVALID` | Brisanje polja nakon potvrde ekstrakcije je blokirano | Pass |
+| S10-BE-021 | Backend/API testiranje | Role-based zaštita brisanja polja | Approver pokuša obrisati extraction polje | Backend vraća `403 Forbidden` | Approveru nije dozvoljeno brisanje extraction polja | Pass |
+| S10-BE-022 | Integration testiranje | Kreiranje i dohvat notifikacije | Kreirati notifikaciju korisniku, zatim pozvati dohvat njegovih notifikacija | Vraća se kreirana nepročitana notifikacija i unread count se povećava | Notifikacija je uspješno kreirana i vraćena prijavljenom korisniku | Pass |
+| S10-BE-023 | Integration testiranje | Označavanje jedne notifikacije kao pročitane | Pozvati `PATCH /api/notifications/{id}/read` | Notifikacija dobija `read = true`, popunjava se `readAt`, unread count se smanjuje | Notifikacija je uspješno označena kao pročitana | Pass |
+| S10-BE-024 | Integration testiranje | Označavanje svih notifikacija kao pročitanih | Kreirati više nepročitanih notifikacija, zatim pozvati `PATCH /api/notifications/read-all` | Sve notifikacije prijavljenog korisnika postaju pročitane | Sve notifikacije prijavljenog korisnika su označene kao pročitane | Pass |
+| S10-BE-025 | Validaciono testiranje | Označavanje nepostojeće notifikacije kao pročitane | Pozvati mark-read endpoint sa nepostojećim ID-em | Backend vraća kontrolisanu `NOT_FOUND` grešku | Nepostojeća notifikacija je pravilno odbijena | Pass |
+| S10-BE-026 | Integration testiranje | Izolacija notifikacija po korisniku | Kreirati notifikacije za dva različita korisnika i dohvatiti notifikacije prvog korisnika | Korisnik vidi samo vlastite notifikacije | Vraćene su isključivo notifikacije prijavljenog korisnika | Pass |
+| S10-BE-027 | Integration testiranje | Zabrana čitanja tuđe notifikacije | Korisnik pokuša označiti notifikaciju drugog korisnika kao pročitanu | Backend vraća `NOT_FOUND`, a tuđa notifikacija ostaje nepročitana | Pristup tuđoj notifikaciji je blokiran | Pass |
+| S10-BE-028 | Integration testiranje | `read-all` utiče samo na trenutnog korisnika | Kreirati nepročitane notifikacije za dva korisnika, zatim pozvati `read-all` kao prvi korisnik | Mijenjaju se samo notifikacije trenutnog korisnika | Notifikacije drugog korisnika nisu promijenjene | Pass |
+| S10-BE-029 | Integration testiranje | Email reminder digest | Kreirati više starih nepročitanih notifikacija bez ranije poslanog emaila i pokrenuti scheduler | Scheduler šalje jedan email digest korisniku | Kreiran je i poslan jedan digest email sa više notifikacija | Pass |
+| S10-BE-030 | Integration testiranje | Sprečavanje duplog reminder emaila | Nakon uspješnog digest slanja ponovo pokrenuti scheduler | Scheduler ne šalje drugi email za iste notifikacije jer je postavljen `emailSentAt` | Duplikatni reminder email nije poslan | Pass |
+| S10-BE-031 | Integration testiranje | Pretraga dokumenata po dijelu naziva | Pozvati list endpoint sa `search` parametrom koji odgovara dijelu naziva dokumenta | Vraćaju se samo dokumenti čiji naziv odgovara pretrazi | Pretraga po nazivu je vratila odgovarajuće dokumente | Pass |
+| S10-BE-032 | Integration testiranje | Pretraga dokumenta po numeričkom ID-u | Pozvati list endpoint sa numeričkim `search` parametrom | Vraća se dokument sa odgovarajućim ID-em ako pripada istoj firmi | Dokument je uspješno pronađen po ID-u | Pass |
+| S10-BE-033 | Integration testiranje | Filtriranje po tipu dokumenta | Pozvati list endpoint sa `documentType = INVOICE`, `RECEIPT`, `BANK_STATEMENT` ili `FORM` | Vraćaju se samo dokumenti odgovarajućeg tipa | Rezultati su ispravno filtrirani po tipu dokumenta | Pass |
+| S10-BE-034 | Integration testiranje | Filtriranje po statusu dokumenta | Pozvati list endpoint sa `documentStatus` parametrom | Vraćaju se samo dokumenti odabranog statusa | Rezultati su ispravno filtrirani po statusu | Pass |
+| S10-BE-035 | Integration testiranje | Filtriranje po datumu od | Pozvati list endpoint sa `createdFrom` datumom | Vraćaju se dokumenti uploadani od navedenog datuma nadalje | Rezultati su ispravno ograničeni početnim datumom | Pass |
+| S10-BE-036 | Integration testiranje | Filtriranje po datumu do | Pozvati list endpoint sa `createdTo` datumom | Vraćaju se dokumenti uploadani najkasnije do kraja navedenog datuma | Rezultati su ispravno ograničeni završnim datumom | Pass |
+| S10-BE-037 | Integration testiranje | Filtriranje po dodijeljenom korisniku | Pozvati list endpoint sa `assignedUserId` za korisnika koji ima aktivan `OPEN` ili `IN_PROGRESS` task | Vraćaju se dokumenti sa aktivnim taskom dodijeljenim odabranom korisniku | Rezultati su ispravno filtrirani po assignee korisniku | Pass |
+| S10-BE-038 | Integration testiranje | Kombinovanje filtera | Poslati istovremeno search, tip, status, datum i assignee filter | Vraćaju se samo dokumenti koji zadovoljavaju sve kriterije | Kombinovani filteri su ispravno primijenjeni | Pass |
+| S10-BE-039 | Integration testiranje | Multi-tenant izolacija rezultata pretrage | Korisnik firme A pretražuje dokumente dok u bazi postoje dokumenti firme B sa sličnim nazivima | Rezultati sadrže samo dokumente firme prijavljenog korisnika | Dokumenti druge firme nisu vraćeni u rezultatima | Pass |
+| S10-BE-040 | Integration testiranje | Generisanje XML izlaza za odobren dokument | Dokument ima status `APPROVED` i validnu ekstrakciju; pozvati `POST /api/documents/{documentId}/xml-output` | Kreira se `xml_output` zapis, XML fajl se sprema na storage i response sadrži XML sadržaj | XML izlaz je uspješno generisan i pohranjen | Pass |
+| S10-BE-041 | Validaciono testiranje | Zabrana XML generisanja prije odobravanja | Pokušati generisati XML za dokument u statusu `EXTRACTED` ili `READY_FOR_APPROVAL` | Backend vraća `DOCUMENT_STATUS_INVALID` | XML generisanje je dozvoljeno samo za `APPROVED` dokument | Pass |
+| S10-BE-042 | Validaciono testiranje | Zabrana generisanja XML-a sa nevalidnom ekstrakcijom | Dokument postaviti u `APPROVED`, ali ostaviti missing required polje | Backend ponovo pokreće extraction validaciju i vraća `EXTRACTION_REQUIRED_FIELD_MISSING` | Neispravan XML izlaz nije kreiran | Pass |
+| S10-BE-043 | Backend/API testiranje | Dohvat XML preview sadržaja | Nakon generisanja pozvati `GET /api/documents/{documentId}/xml-output` | Backend vraća XML metadata i sadržaj | XML preview sadržaj je uspješno vraćen | Pass |
+| S10-BE-044 | Backend/API testiranje | Download XML fajla | Nakon generisanja pozvati `GET /api/documents/{documentId}/xml-output/file` | Backend vraća `application/xml` fajl sa odgovarajućim nazivom | XML fajl je uspješno vraćen za download | Pass |
+| S10-BE-045 | Validaciono testiranje | Dohvat XML-a prije generisanja | Pozvati XML preview endpoint prije kreiranja izlaza | Backend vraća `404 NOT_FOUND` | Kontrolisano je vraćena greška za nepostojeći XML izlaz | Pass |
+| S10-BE-046 | Integration testiranje | Regenerisanje XML izlaza | Dvaput generisati XML za isti dokument | U bazi ostaje jedan `xml_output` zapis, stari XML fajl se briše, novi fajl se sprema | Regenerisanje je zamijenilo prethodni XML izlaz bez duplikatnog DB zapisa | Pass |
+| S10-BE-047 | Integration testiranje | Escaping specijalnih znakova u XML-u | Generisati XML za polje koje sadrži znakove `&`, `<` ili `>` | XML generator pravilno escapuje specijalne znakove | Specijalni znakovi su pravilno zapisani u XML formatu | Pass |
+| S10-BE-048 | Integration testiranje | Audit zapis za XML generisanje | Generisati XML i provjeriti `audit_log` | Kreira se `XML_GENERATED` audit zapis | Audit log uspješno sadrži `XML_GENERATED` događaj | Pass |
+| S10-BE-049 | Integration testiranje | Završetak obrade dokumenta | Dokument ima status `APPROVED` i generisan XML; pozvati `POST /api/documents/{documentId}/xml-output/complete` | Dokument prelazi u `COMPLETED`, status history i audit log se ažuriraju | Dokument je uspješno finalizovan i označen statusom `COMPLETED` | Pass |
+| S10-BE-050 | Validaciono testiranje | Zabrana finalizacije bez XML izlaza | Pozvati complete endpoint za `APPROVED` dokument koji nema generisan XML | Backend vraća `404 NOT_FOUND`, dokument ostaje `APPROVED` | Finalizacija bez XML izlaza je blokirana | Pass |
+| S10-BE-051 | Validaciono testiranje | Zabrana ponovne finalizacije | Finalizovati dokument, zatim ponovo pozvati complete endpoint | Backend vraća `DOCUMENT_STATUS_INVALID` | Ponovna finalizacija već završenog dokumenta je blokirana | Pass |
+| S10-BE-052 | Backend/API testiranje | Role-based zaštita XML generisanja | Operator pokuša generisati XML | Backend vraća `403 Forbidden` | XML generisanje je dostupno samo Admin i Manager korisnicima | Pass |
+| S10-BE-053 | Integration testiranje | Brisanje dokumenta sa XML izlazom | Generisati XML, zatim obrisati dokument | Brišu se dokument, `xml_output` zapis, originalni fajl i XML fajl | Dokument i oba storage fajla su uspješno uklonjeni bez orphan zapisa | Pass |
+
+---
+
+## 10.3 Frontend/UI testiranje
+
+| ID testa | Vrsta testiranja | Funkcionalnost | Koraci testiranja | Očekivani ishod | Stvarni ishod | Status |
+|---|---|---|---|---|---|---|
+| S10-UI-001 | Frontend/UI testiranje | Prikaz dugmeta `Add field` | Otvoriti detalje dokumenta u statusu `EXTRACTED` kao Admin ili Operator | U extraction sekciji se prikazuje dugme za dodavanje polja | Dugme `Add field` je prikazano dozvoljenom korisniku | Pass |
+| S10-UI-002 | Frontend/UI testiranje | Modal za dodavanje extraction polja | Kliknuti `Add field` | Prikazuje se modal sa izborom polja, custom opcijom i unosom vrijednosti | Modal je pravilno prikazan i upotrebljiv | Pass |
+| S10-UI-003 | Frontend/UI testiranje | Dodavanje canonical polja kroz UI | Odabrati canonical polje, unijeti vrijednost i potvrditi | Polje se prikazuje u extraction tabeli i označava kao manual | Canonical polje je uspješno dodano i prikazano | Pass |
+| S10-UI-004 | Frontend/UI testiranje | Dodavanje custom polja kroz UI | Odabrati custom opciju, unijeti labelu i vrijednost | Novo custom polje se prikazuje sa čitljivom labelom | Custom extraction polje je uspješno dodano | Pass |
+| S10-UI-005 | Frontend/UI testiranje | Validacija custom polja bez labele | Pokušati dodati custom polje bez display labele | UI prikazuje validacionu poruku i ne šalje nevalidan zahtjev | Custom polje bez labele nije kreirano | Pass |
+| S10-UI-006 | Frontend/UI testiranje | Ikonica kantice za extraction polje | Otvoriti ekstrakciju koja se može uređivati | Pored edit akcije prikazuje se ikonica za brisanje polja | Ikonica kantice je prikazana u actions koloni | Pass |
+| S10-UI-007 | Frontend/UI testiranje | Modal za brisanje opcionog polja | Kliknuti kanticu pored opcionog polja | Prikazuje se potvrda da će polje biti trajno uklonjeno | Confirmation modal je prikazan sa odgovarajućim tekstom | Pass |
+| S10-UI-008 | Frontend/UI testiranje | Brisanje opcionog polja kroz UI | Potvrditi brisanje opcionog polja | Polje nestaje iz extraction tabele i prikazuje se success toastr | Opciono polje je uklonjeno i prikazana je success poruka | Pass |
+| S10-UI-009 | Frontend/UI testiranje | Modal za čišćenje required polja | Kliknuti kanticu pored required canonical polja | Modal upozorava da će red ostati kao placeholder i da se vrijednost mora ponovo unijeti | Korisniku je prikazano jasno upozorenje | Pass |
+| S10-UI-010 | Frontend/UI testiranje | Placeholder nakon čišćenja required polja | Potvrditi čišćenje required polja | Red ostaje u tabeli kao `Required` / missing placeholder | Required red je ostao vidljiv i označen kao nepopunjen | Pass |
+| S10-UI-011 | Frontend/UI testiranje | Blokiranje confirma nakon čišćenja required polja | Pokušati confirm prije ponovnog unosa vrijednosti | UI prikazuje validacionu grešku, dokument ostaje `EXTRACTED` | Confirm je blokiran i korisnik je dobio razumljivu poruku | Pass |
+| S10-UI-012 | Frontend/UI testiranje | Ponovni unos required vrijednosti | Editovati očišćeno polje i sačuvati validnu vrijednost | Placeholder oznaka nestaje, a polje postaje reviewed/corrected | Required polje je uspješno ponovo popunjeno | Pass |
+| S10-UI-013 | Frontend/UI testiranje | Notification badge u shell-u | Prijaviti korisnika koji ima nepročitane notifikacije | U navigaciji se prikazuje unread count badge | Badge prikazuje ispravan broj nepročitanih notifikacija | Pass |
+| S10-UI-014 | Frontend/UI testiranje | Periodično osvježavanje unread count-a | Ostaviti aplikaciju otvorenu i kreirati novu notifikaciju | Badge se osvježava bez ručnog refresha stranice | Unread count je automatski osvježen | Pass |
+| S10-UI-015 | Frontend/UI testiranje | Otvaranje notification centra | Kliknuti notification ikonicu ili odgovarajuću navigacijsku stavku | Otvara se notification center stranica | Notification centar se uspješno učitao | Pass |
+| S10-UI-016 | Frontend/UI testiranje | Prikaz svih i nepročitanih notifikacija | Prebacivati tabove `Sve` i `Nepročitane` | Lista se filtrira prema odabranom tabu | Tabovi pravilno filtriraju notifikacije | Pass |
+| S10-UI-017 | Frontend/UI testiranje | Označavanje jedne notifikacije kao pročitane | Kliknuti pojedinačnu mark-read akciju | Notifikacija dobija read stanje i unread count se smanjuje | Notifikacija je uspješno označena kao pročitana | Pass |
+| S10-UI-018 | Frontend/UI testiranje | Označavanje svih notifikacija kao pročitanih | Kliknuti `Mark all as read` | Sve notifikacije postaju pročitane i badge se postavlja na 0 | Sve notifikacije su označene kao pročitane | Pass |
+| S10-UI-019 | Frontend/UI testiranje | Navigacija preko notification akcije | Kliknuti notifikaciju koja ima action URL | Korisnik se preusmjerava na odgovarajući dokument ili workflow stranicu | Navigacija preko notifikacije radi očekivano | Pass |
+| S10-UI-020 | Frontend/UI testiranje | Filter panel na listi dokumenata | Otvoriti listu dokumenata kao Admin ili Manager | Prikazuju se search, status, tip, raspon datuma i assignee filter | Filter panel je prikazan sa svim predviđenim opcijama | Pass |
+| S10-UI-021 | Frontend/UI testiranje | Pretraga dokumenata po nazivu | Unijeti dio naziva dokumenta i primijeniti filtere | Lista prikazuje odgovarajuće dokumente | Pretraga po nazivu radi očekivano | Pass |
+| S10-UI-022 | Frontend/UI testiranje | Filtriranje po statusu i tipu | Odabrati status i tip dokumenta, zatim primijeniti filtere | Lista prikazuje samo dokumente koji odgovaraju oba kriterija | Kombinovani status i type filter rade očekivano | Pass |
+| S10-UI-023 | Frontend/UI testiranje | Filtriranje po datumu | Odabrati `createdFrom` i `createdTo` vrijednosti | Lista prikazuje dokumente iz odabranog perioda | Date-range filter radi očekivano | Pass |
+| S10-UI-024 | Frontend/UI testiranje | Filtriranje po dodijeljenom korisniku | Odabrati assignee korisnika | Lista prikazuje dokumente sa aktivnim taskovima dodijeljenim tom korisniku | Assignee filter radi očekivano | Pass |
+| S10-UI-025 | Frontend/UI testiranje | Reset filtera | Aktivirati više filtera, zatim kliknuti reset | Svi filteri se brišu i vraća se osnovna lista dokumenata | Filteri su uspješno resetovani | Pass |
+| S10-UI-026 | Frontend/UI testiranje | Prikaz XML kartice za odobren dokument | Otvoriti `APPROVED` dokument kao Admin ili Manager | Prikazuje se `XML output` kartica sa `Generate XML` akcijom | XML kartica je prikazana odgovarajućoj roli | Pass |
+| S10-UI-027 | Frontend/UI testiranje | Generisanje XML-a kroz UI | Kliknuti `Generate XML` | Prikazuju se success toastr, XML metadata, preview i dodatne akcije | XML izlaz je uspješno generisan i prikazan | Pass |
+| S10-UI-028 | Frontend/UI testiranje | XML preview | Nakon generisanja pregledati XML karticu | XML sadržaj je prikazan kao tekst i ne interpretira se kao HTML | XML preview je sigurno i pregledno prikazan | Pass |
+| S10-UI-029 | Frontend/UI testiranje | Download XML fajla kroz UI | Kliknuti `Download XML` | Browser preuzima `.xml` fajl | XML fajl je uspješno preuzet | Pass |
+| S10-UI-030 | Frontend/UI testiranje | Regenerisanje XML izlaza kroz UI | Kliknuti `Regenerate XML` | XML izlaz se osvježava i prikazuje se success poruka | XML izlaz je uspješno regenerisan | Pass |
+| S10-UI-031 | Frontend/UI testiranje | Modal za završetak obrade | Kliknuti `Complete processing` | Prikazuje se stilizovani confirmation modal | Confirmation modal je prikazan u skladu sa dizajnom aplikacije | Pass |
+| S10-UI-032 | Frontend/UI testiranje | Završetak obrade kroz UI | Potvrditi complete akciju | Dokument prelazi u `COMPLETED`, preview i download ostaju dostupni | Dokument je uspješno finalizovan | Pass |
+| S10-UI-033 | Frontend/UI testiranje | Read-only prikaz XML izlaza nakon finalizacije | Otvoriti `COMPLETED` dokument | XML preview i download su dostupni, regenerate i complete akcije više nisu prikazane | Završen dokument ima ispravan read-only XML prikaz | Pass |
+| S10-UI-034 | Frontend/UI testiranje | Role-based prikaz XML kartice | Otvoriti `APPROVED` dokument kao Operator ili Approver | XML management akcije nisu prikazane | XML management je sakriven nedozvoljenim rolama | Pass |
+| S10-UI-035 | Frontend/UI testiranje | Profile stranica i notification centar | Otvoriti profile stranicu i provjeriti notification sekciju i dostupne akcije | Profil i notification podaci se učitavaju bez greške | Profile stranica i notification sekcija rade očekivano | Pass |
+| S10-UI-036 | Frontend/UI testiranje | Responsivnost novih sekcija | Otvoriti notification centar, filter panel i XML karticu na manjoj širini ekrana | UI ostaje čitljiv i upotrebljiv | Nove sekcije su ostale pregledne na manjim ekranima | Pass |
+
+---
+
+## 10.4 Manualno API testiranje kroz Swagger/Postman
+
+| ID testa | Vrsta testiranja | Alat | Endpoint / funkcionalnost | Koraci | Očekivani rezultat | Stvarni rezultat | Status |
+|---|---|---|---|---|---|---|---|
+| S10-API-001 | Backend/API testiranje | Swagger/Postman | Dodavanje canonical extraction polja | Pozvati `POST /api/extractions/{extractionId}/fields` sa canonical ključem i vrijednošću | API vraća kreirano manual polje | Canonical manual polje je uspješno kreirano | Pass |
+| S10-API-002 | Backend/API testiranje | Swagger/Postman | Dodavanje custom extraction polja | Poslati custom key, display labelu i vrijednost | API vraća kreirano custom polje | Custom polje je uspješno kreirano | Pass |
+| S10-API-003 | Validaciono testiranje | Swagger/Postman | Duplikatno extraction polje | Pokušati dodati postojeći canonical ključ | API vraća validacionu grešku | Duplikatno polje je odbijeno | Pass |
+| S10-API-004 | Backend/API testiranje | Swagger/Postman | Brisanje opcionog extraction polja | Pozvati `DELETE /api/extractions/{extractionId}/fields/{fieldId}` za opciono polje | API vraća `200 OK`, polje nestaje iz ekstrakcije | Opciono polje je uspješno obrisano | Pass |
+| S10-API-005 | Backend/API testiranje | Swagger/Postman | Čišćenje required extraction polja | Pozvati DELETE endpoint za required canonical polje | API vraća ažurirani placeholder red | Required vrijednost je očišćena, a placeholder je zadržan | Pass |
+| S10-API-006 | Validaciono testiranje | Swagger/Postman | Confirm nakon čišćenja required polja | Očistiti required polje, zatim pozvati confirm endpoint | API vraća `EXTRACTION_REQUIRED_FIELD_MISSING` | Confirm je blokiran do ponovnog unosa vrijednosti | Pass |
+| S10-API-007 | Backend/API testiranje | Swagger/Postman | Dohvat notifikacija korisnika | Pozvati `GET /api/notifications/my` | API vraća notifikacije prijavljenog korisnika | Korisničke notifikacije su uspješno vraćene | Pass |
+| S10-API-008 | Backend/API testiranje | Swagger/Postman | Dohvat unread count-a | Pozvati `GET /api/notifications/my/unread-count` | API vraća broj nepročitanih notifikacija | Unread count je uspješno vraćen | Pass |
+| S10-API-009 | Backend/API testiranje | Swagger/Postman | Označavanje jedne notifikacije kao pročitane | Pozvati `PATCH /api/notifications/{id}/read` | API vraća ažuriranu pročitanu notifikaciju | Notifikacija je uspješno označena pročitanom | Pass |
+| S10-API-010 | Backend/API testiranje | Swagger/Postman | Označavanje svih notifikacija kao pročitanih | Pozvati `PATCH /api/notifications/read-all` | API uspješno završava akciju | Sve notifikacije prijavljenog korisnika su označene pročitanim | Pass |
+| S10-API-011 | Backend/API testiranje | Swagger/Postman | Pretraga dokumenata | Pozvati list endpoint sa `search` parametrom | API vraća odgovarajuće dokumente | Dokumenti su uspješno filtrirani prema search parametru | Pass |
+| S10-API-012 | Backend/API testiranje | Swagger/Postman | Filter dokumenata po tipu i statusu | Pozvati list endpoint sa `documentType` i `documentStatus` parametrima | API vraća dokumente koji zadovoljavaju oba filtera | Kombinovani filter je uspješno primijenjen | Pass |
+| S10-API-013 | Backend/API testiranje | Swagger/Postman | Filter dokumenata po rasponu datuma | Poslati `createdFrom` i `createdTo` parametre | API vraća dokumente iz odabranog perioda | Date-range filter je uspješno primijenjen | Pass |
+| S10-API-014 | Backend/API testiranje | Swagger/Postman | Filter dokumenata po assignee korisniku | Poslati `assignedUserId` | API vraća dokumente sa aktivnim taskom odabranog korisnika | Assignee filter je uspješno primijenjen | Pass |
+| S10-API-015 | Backend/API testiranje | Swagger/Postman | Generisanje XML izlaza | Pozvati `POST /api/documents/{documentId}/xml-output` za odobren dokument | API vraća XML metadata i XML sadržaj | XML izlaz je uspješno generisan | Pass |
+| S10-API-016 | Validaciono testiranje | Swagger/Postman | XML generisanje za dokument pogrešnog statusa | Pozvati XML generate endpoint za dokument koji nije `APPROVED` | API vraća `DOCUMENT_STATUS_INVALID` | Generisanje je pravilno blokirano | Pass |
+| S10-API-017 | Backend/API testiranje | Swagger/Postman | XML preview | Pozvati `GET /api/documents/{documentId}/xml-output` | API vraća XML sadržaj | XML preview je uspješno vraćen | Pass |
+| S10-API-018 | Backend/API testiranje | Swagger/Postman | XML download | Pozvati `GET /api/documents/{documentId}/xml-output/file` | API vraća `application/xml` fajl | XML fajl je uspješno preuzet | Pass |
+| S10-API-019 | Backend/API testiranje | Swagger/Postman | Finalizacija dokumenta | Pozvati `POST /api/documents/{documentId}/xml-output/complete` | Dokument prelazi u `COMPLETED` | Dokument je uspješno finalizovan | Pass |
+| S10-API-020 | Validaciono testiranje | Swagger/Postman | Finalizacija bez XML-a | Pozvati complete endpoint prije generisanja XML-a | API vraća `404 NOT_FOUND` | Finalizacija bez XML izlaza je blokirana | Pass |
+
+---
+
+## 10.5 End-to-end i regresiono testiranje
+
+| ID testa | Vrsta testiranja | Scenario | Koraci | Očekivani ishod | Stvarni ishod | Status |
+|---|---|---|---|---|---|---|
+| S10-E2E-001 | End-to-end testiranje | Extraction → add field → confirm | Pokrenuti ekstrakciju, dodati manual canonical polje i potvrditi extraction | Manual polje ostaje spremljeno, a dokument prelazi u `READY_FOR_APPROVAL` | Flow je uspješno izvršen bez gubitka manual polja | Pass |
+| S10-E2E-002 | End-to-end testiranje | Extraction → add custom field → reconfirm correction | Dokument vratiti na korekciju, dodati custom polje i reconfirmati extraction | Dokument prelazi nazad u `READY_FOR_APPROVAL`, custom polje ostaje spremljeno | Correction flow sa custom poljem radi očekivano | Pass |
+| S10-E2E-003 | End-to-end testiranje | Extraction → delete optional field | Pokrenuti ekstrakciju, obrisati nerelevantno OCR polje i potvrditi extraction | Nerelevantno polje ne ulazi u potvrđenu ekstrakciju | Opciono OCR polje je uspješno uklonjeno iz toka | Pass |
+| S10-E2E-004 | End-to-end testiranje | Extraction → clear required field → refill → confirm | Očistiti required polje, provjeriti blokirani confirm, ponovo unijeti vrijednost i confirmati | Sistem blokira nepotpunu ekstrakciju, zatim dozvoljava confirm nakon ispravke | Required-field zaštita radi očekivano | Pass |
+| S10-E2E-005 | End-to-end testiranje | Task assignment → in-app notification | Admin ili Manager dodijeli task korisniku | Assigned korisnik dobija novu in-app notifikaciju i badge se povećava | In-app notifikacija je uspješno kreirana i prikazana | Pass |
+| S10-E2E-006 | End-to-end testiranje | Task assignment → email reminder | Dodijeliti task korisniku, ostaviti notifikaciju nepročitanu i sačekati scheduler | Korisnik dobija reminder email sa linkom prema aplikaciji | Reminder email je uspješno poslan i sadrži ispravan link | Pass |
+| S10-E2E-007 | End-to-end testiranje | Više nepročitanih notifikacija → jedan digest email | Kreirati više nepročitanih notifikacija istom korisniku prije scheduler provjere | Korisnik dobija jedan digest email sa svim notifikacijama | Više notifikacija je objedinjeno u jedan email digest | Pass |
+| S10-E2E-008 | End-to-end testiranje | Otvaranje notifikacije i navigacija | Kliknuti notification item sa action URL-om | Notifikacija postaje pročitana i korisnik se preusmjerava na odgovarajuću stranicu | Notification navigation flow radi očekivano | Pass |
+| S10-E2E-009 | End-to-end testiranje | Filterisanje dokumenata u većem skupu podataka | Kreirati dokumente različitih tipova, statusa, datuma i assignee korisnika, zatim primijeniti filtere | Lista prikazuje samo relevantne dokumente | Search i filter panel rade očekivano | Pass |
+| S10-E2E-010 | End-to-end testiranje | Kompletan XML flow | Uploadati dokument, pokrenuti extraction, confirmati, odobriti dokument, generisati XML, pregledati preview, preuzeti fajl i završiti obradu | Dokument završava u `COMPLETED`, XML ostaje dostupan za pregled i download | Kompletan XML tok je uspješno izvršen | Pass |
+| S10-E2E-011 | End-to-end testiranje | XML regenerisanje | Generisati XML, zatim ponovo pokrenuti regenerate akciju | Novi XML zamjenjuje prethodni izlaz bez duplikatnog zapisa | XML regenerisanje radi očekivano | Pass |
+| S10-E2E-012 | End-to-end testiranje | Delete dokumenta nakon XML generisanja | Generisati XML i zatim obrisati dokument | Dokument, XML metadata i storage fajlovi se brišu bez FK greške | Delete flow radi bez orphan zapisa i FK grešaka | Pass |
+| S10-E2E-013 | Regresiono testiranje | Upload/extraction/edit/confirm nakon Sprint 10 izmjena | Ponoviti osnovni tok iz prethodnih sprintova bez korištenja novih akcija | Prethodni flow ostaje stabilan | Upload, extraction, edit i confirm rade bez regresije | Pass |
+| S10-E2E-014 | Regresiono testiranje | Classification review flow nakon Sprint 10 izmjena | Uploadati `OTHER` dokument, izazvati classification review, ručno potvrditi tip i pokrenuti extraction | Classification review tok ostaje funkcionalan | Auto-classification i manual review rade bez regresije | Pass |
+| S10-E2E-015 | Regresiono testiranje | Workflow task flow nakon dodavanja notifikacija | Dodijeliti, startati, kompletirati i cancelovati taskove | Task management i My Tasks funkcionalnosti ostaju stabilne | Task flow radi bez regresije | Pass |
+| S10-E2E-016 | Regresiono testiranje | Approval flow nakon dodavanja XML finalizacije | Confirmati extraction, odobriti dokument, vratiti dokument na korekciju i odbiti dokument kroz različite scenarije | Approval akcije ostaju funkcionalne | Approve, reject i return-for-correction flow rade bez regresije | Pass |
+| S10-E2E-017 | Regresiono testiranje | Audit log i status history nakon novih akcija | Izvršiti add, delete, clear, XML generate i complete akcije | Timeline i audit log prikazuju nove događaje bez narušavanja ranijih zapisa | Novi i postojeći audit/status događaji su pravilno prikazani | Pass |
+| S10-E2E-018 | Regresiono testiranje | Role-based UI i backend zaštita | Provjeriti Admin, Manager, Operator i Approver naloge | Svaka rola vidi i koristi samo dozvoljene akcije | Role-based zaštita radi očekivano | Pass |
+
+---
+
+## 10.6 CI i automatizovano build testiranje
+
+| ID testa | Vrsta testiranja | Okruženje | Funkcionalnost | Koraci | Očekivani ishod | Stvarni ishod | Status |
+|---|---|---|---|---|---|---|---|
+| S10-CI-001 | Automatizovano smoke testiranje | Lokalno razvojno okruženje | Backend test suite | Pokrenuti `mvn test` u backend folderu | Backend se kompajlira i svi integration testovi prolaze | Backend test suite je uspješno završio bez grešaka | Pass |
+| S10-CI-002 | Automatizovano smoke testiranje | Lokalno razvojno okruženje | Extraction integration testovi | Pokrenuti `mvn test -Dtest=ExtractionIntegrationTest` | Add/delete extraction field i postojeći extraction scenariji prolaze | Extraction integration testovi su uspješno prošli | Pass |
+| S10-CI-003 | Automatizovano smoke testiranje | Lokalno razvojno okruženje | Notification integration testovi | Pokrenuti `mvn test -Dtest=NotificationIntegrationTest` | In-app notification i email digest testovi prolaze | Notification integration testovi su uspješno prošli | Pass |
+| S10-CI-004 | Automatizovano smoke testiranje | Lokalno razvojno okruženje | XML integration testovi | Pokrenuti `mvn test -Dtest=XmlOutputIntegrationTest` | XML generate, preview, download, regenerate, complete i delete scenariji prolaze | XML integration testovi su uspješno prošli | Pass |
+| S10-CI-005 | Automatizovano smoke testiranje | Lokalno razvojno okruženje | Frontend build | Pokrenuti `npm run build` u frontend folderu | Angular aplikacija se kompajlira bez greške | Frontend build je uspješno završen | Pass |
+| S10-CI-006 | Automatizovano smoke testiranje | GitHub Actions | Backend CI check na PR-u | Otvoriti PR prema zaštićenoj grani | CI pokreće backend build i testove | Backend CI check je uspješno prošao | Pass |
+| S10-CI-007 | Automatizovano smoke testiranje | GitHub Actions | Frontend CI check na PR-u | Otvoriti PR prema zaštićenoj grani | CI pokreće Angular build | Frontend CI check je uspješno prošao | Pass |
+| S10-CI-008 | Regresiono testiranje | GitHub Actions | Required status checks | Pokušati merge tek nakon zelenih backend i frontend provjera | Merge je dozvoljen tek nakon uspješnih checkova | Required status checks su uspješno izvršeni | Pass |
+
+---
+
+## 10.7 Deployment smoke testiranje
+
+| ID testa | Vrsta testiranja | Okruženje | Funkcionalnost | Koraci | Očekivani ishod | Stvarni ishod | Status |
+|---|---|---|---|---|---|---|---|
+| S10-DEP-001 | Deployment smoke testiranje | Lokalno/Server | Pokretanje Docker stacka nakon Sprint 10 izmjena | Pokrenuti `docker compose down`, zatim `docker compose up -d --build` | Baza, backend, frontend i Keycloak servisi se podižu bez greške | Docker stack je uspješno pokrenut | Pass |
+| S10-DEP-002 | Deployment smoke testiranje | Server | Kreiranje novih tabela kroz Hibernate update | Pokrenuti novu verziju backenda sa `ddl-auto=update` | Hibernate kreira nove tabele, uključujući `notification` i `xml_output` | Nove tabele su uspješno kreirane | Pass |
+| S10-DEP-003 | Deployment smoke testiranje | Server | Sprint 10 SQL migracija audit akcija | Pokrenuti SQL migraciju koja proširuje `audit_log_action_check` | Baza prihvata `FIELD_CLEARED`, `FIELD_DELETED`, `XML_GENERATED` i `DOCUMENT_COMPLETED` | Audit log constraint je uspješno ažuriran | Pass |
+| S10-DEP-004 | Deployment smoke testiranje | Server | Sprint 10 SQL migracija status history akcija | Pokrenuti SQL migraciju koja proširuje `status_history_action_check` | Baza prihvata `DOCUMENT_COMPLETED` status-history akciju | Status history constraint je uspješno ažuriran | Pass |
+| S10-DEP-005 | Deployment smoke testiranje | Server | Pokretanje backenda nakon DB migracije | Pregledati backend log nakon podizanja containera | Backend se pokreće bez application exceptiona | Backend container se uspješno pokrenuo | Pass |
+| S10-DEP-006 | Deployment smoke testiranje | Server | FE-BE komunikacija za extraction add/delete | Otvoriti document detail, dodati polje, obrisati opciono polje i očistiti required polje | UI uspješno komunicira sa backendom i prikazuje očekivane rezultate | Add/delete extraction field flow radi na deployanom serveru | Pass |
+| S10-DEP-007 | Deployment smoke testiranje | Server | FE-BE komunikacija za notification badge | Dodijeliti task korisniku i provjeriti notification ikonicu | Badge se osvježava i prikazuje novu nepročitanu notifikaciju | Notification badge radi na deployanom serveru | Pass |
+| S10-DEP-008 | Deployment smoke testiranje | Server | Notification centar | Otvoriti notification centar, označiti jednu i sve notifikacije kao pročitane | Read akcije rade, a unread count se ažurira | Notification centar radi očekivano | Pass |
+| S10-DEP-009 | Deployment smoke testiranje | Server | SMTP konfiguracija za Brevo | Postaviti SMTP host, port `2525`, username, SMTP key, sender adresu i sender naziv u `.env` | Backend se uspješno povezuje na Brevo SMTP relay | SMTP konfiguracija je uspješno primijenjena | Pass |
+| S10-DEP-010 | Deployment smoke testiranje | Server | Demo email reminder scheduler | Postaviti `DOCFLOW_EMAIL_REMINDER_ENABLED=true`, `DOCFLOW_EMAIL_REMINDER_AFTER_HOURS=0` i cron provjeru svake minute | Nepročitana notifikacija postaje kandidat za reminder bez čekanja 24 sata | Demo scheduler je uspješno pokrenut | Pass |
+| S10-DEP-011 | Deployment smoke testiranje | Server | Slanje reminder emaila | Dodijeliti task korisniku, ne otvoriti notifikaciju i sačekati scheduler | Email reminder stiže u inbox korisnika i sadrži link prema `https://docflow.page` | Reminder email je uspješno primljen sa ispravnim linkom | Pass |
+| S10-DEP-012 | Deployment smoke testiranje | Server | Sprečavanje ponovnog slanja istog reminder emaila | Sačekati naredni scheduler ciklus nakon uspješnog slanja | Ista notifikacija se ne šalje ponovo jer ima `email_sent_at` vrijednost | Duplikatni reminder email nije poslan | Pass |
+| S10-DEP-013 | Deployment smoke testiranje | Server | FE-BE komunikacija za XML generisanje | Odobriti dokument i kliknuti `Generate XML` | XML kartica prikazuje generisani sadržaj | XML generisanje radi na deployanom serveru | Pass |
+| S10-DEP-014 | Deployment smoke testiranje | Server | XML download i finalizacija | Preuzeti XML fajl i potvrditi `Complete processing` | XML fajl se preuzima, a dokument prelazi u `COMPLETED` | XML download i finalizacija rade očekivano | Pass |
+| S10-DEP-015 | Deployment smoke testiranje | Server | XML storage | Nakon XML generisanja provjeriti `xml_output` zapis i storage lokaciju | XML metadata postoje u bazi, a `.xml` fajl postoji na storage-u | XML zapis i XML storage fajl su uspješno kreirani | Pass |
+| S10-DEP-016 | Deployment smoke testiranje | Server | Search i filter panel | Primijeniti search, status, tip, datum i assignee filter kroz UI | Lista dokumenata prikazuje samo relevantne rezultate | Search i filteri rade na deployanom serveru | Pass |
+| S10-DEP-017 | Deployment smoke testiranje | Server | Regresiona provjera kompletnog workflow-a | Izvršiti upload → extraction → review → confirm → approve → XML generate → download → complete | Kompletan dokument-processing tok završava bez greške | Kompletan workflow je uspješno izvršen na deployanom okruženju | Pass |
+| S10-DEP-018 | Deployment smoke testiranje | Server | Provjera backend loga nakon smoke testa | Pregledati `docker logs --tail=200 docflow-backend` | Nema neočekivanih stack traceova ili neobrađenih grešaka | Backend log nije sadržavao neočekivane greške nakon smoke testa | Pass |
+
+---
+
+## Zaključak testiranja
+
+Tokom Sprinta 10 testirane su funkcionalnosti vezane za ručno dodavanje i uklanjanje extraction polja, sistem in-app notifikacija i email reminder poruka, generisanje i upravljanje XML izlazom, završetak obrade dokumenta te unaprijeđena pretraga i filtriranje liste dokumenata.
+
+Zaključak:
+
+- Testirano je dodavanje canonical i custom manual extraction polja.
+- Testirane su validacije za prazne vrijednosti, nevalidne ključeve, missing display labele i duplikatna polja.
+- Testirano je dodavanje polja u correction flow-u i blokiranje dodavanja nakon završetka review faze.
+- Testirano je fizičko brisanje opcionih extraction polja.
+- Testirano je čišćenje vrijednosti required canonical polja uz zadržavanje placeholder reda.
+- Testirano je blokiranje confirma dok očišćena required polja nisu ponovo popunjena.
+- Testirani su audit zapisi `FIELD_ADDED`, `FIELD_DELETED` i `FIELD_CLEARED`.
+- Testirano je kreiranje, dohvat, čitanje i unread count ponašanje in-app notifikacija.
+- Testirana je izolacija notifikacija po korisniku.
+- Testirano je označavanje jedne i svih notifikacija kao pročitanih.
+- Testiran je email reminder scheduler, digest slanje i zaštita od duplog slanja istih notifikacija.
+- Testiran je frontend notification badge, notification center i navigacija preko action URL-a.
+- Testirana je pretraga dokumenata po nazivu i numeričkom ID-u.
+- Testirani su filteri po tipu, statusu, rasponu datuma i dodijeljenom korisniku.
+- Testirano je kombinovanje filtera i multi-tenant ograničenje rezultata.
+- Testirano je generisanje XML izlaza samo za odobrene dokumente.
+- Testirano je blokiranje XML generisanja kada extraction validacija nije zadovoljena.
+- Testirani su pohrana XML metapodataka, storage fajl, XML preview i download.
+- Testirano je regenerisanje XML izlaza i uklanjanje prethodnog fajla.
+- Testirano je escaping ponašanje za specijalne XML znakove.
+- Testirana je finalizacija dokumenta kroz status `COMPLETED`.
+- Testirani su audit log i status history zapisi `XML_GENERATED` i `DOCUMENT_COMPLETED`.
+- Testirano je brisanje dokumenta sa povezanim XML zapisom i storage fajlovima bez orphan zapisa.
+- Izvršeno je end-to-end testiranje kompletnog toka upload → extraction → review → confirm → approval → XML generate → download → complete.
+- Izvršeno je regresiono testiranje postojećih auth, upload, classification, extraction, workflow, task assignment, approval, comments, audit log i status history funkcionalnosti.
+- Izvršeno je lokalno i server deployment smoke testiranje novih tabela, enum constraint migracija, SMTP konfiguracije, notification remindera, XML storage-a i FE-BE komunikacije.
+- Svi evidentirani testovi za Sprint 10 imaju status `Pass`.
