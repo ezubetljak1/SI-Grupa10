@@ -1,4 +1,4 @@
-# Sprint Goal - Sprint 9
+# Sprint Goal - Sprint 10
 
 ## Sprint cilj
 
