@@ -17,7 +17,7 @@
 
 ---
 
-## User Stories za Sprint 9
+## User Stories za Sprint 10
 
 ### US-10.1 - Obavještenje o dokumentu koji čeka odobravanje
 
@@ -164,6 +164,43 @@ traženi dokument i lakše radio sa većim brojem zapisa.
 - Kada nema rezultata pretrage, tada korisnik treba dobiti odgovarajuću poruku.
 - Sistem ne smije vraćati dokumente iz drugih firmi.
 - Sistem mora ograničiti rezultate po stranici radi performansi.
+
+---
+
+### US-10.11 — Pregled dokumenata koji čekaju odobravanje
+
+**Opis** - Kao approver, želim vidjeti samo listu dokumenata sa statusom `READY_FOR_APPROVAL`, kako bih se mogao
+fokusirati na dokumente koji zahtijevaju moju odluku.
+
+**Acceptance Criteria**
+
+- Kada se approver prijavi u sistem i otvori listu dokumenata, tada sistem mora prikazati samo dokumente sa statusom
+  `READY_FOR_APPROVAL`.
+- Approver ne smije vidjeti dokumente u drugim statusima kroz listu dokumenata.
+- Sistem ne smije vraćati dokumente iz drugih firmi.
+- Kada nema dokumenata koji čekaju odobravanje, tada korisnik treba dobiti odgovarajuću poruku da trenutno nema
+  dokumenata za pregled.
+- Backend mora primijeniti ograničenje po statusu i roli, tako da se ponašanje ne oslanja isključivo na frontend
+  filtriranje.
+
+---
+
+### US-10.12 — Ograničeni prikaz detalja finaliziranog dokumenta
+
+**Opis** - Kao menadžer, želim pregledati detalje finaliziranog dokumenta bez operativnih sekcija koje više nisu
+relevantne, kako bih imao jasan read-only prikaz završene obrade.
+
+**Acceptance Criteria**
+
+- Kada menadžer otvori detalje dokumenta sa statusom `COMPLETED`, tada sistem mora prikazati osnovne metapodatke
+  dokumenta i informacije relevantne za završenu obradu.
+- Za dokument sa statusom `COMPLETED` sistem ne smije prikazati preview originalnog fajla.
+- Za dokument sa statusom `COMPLETED` sistem ne smije prikazati sekciju za task assignment.
+- Za dokument sa statusom `COMPLETED` sistem ne smije prikazati sekciju sa extracted fields.
+- Generisani XML izlaz mora ostati dostupan za pregled i preuzimanje.
+- Prikaz finaliziranog dokumenta mora biti read-only, bez akcija za izmjenu extraction polja, ponovno pokretanje
+  ekstrakcije, dodjelu taskova ili regenerisanje XML izlaza.
+
 
 ## Legenda za Product Backlog stavke
 
