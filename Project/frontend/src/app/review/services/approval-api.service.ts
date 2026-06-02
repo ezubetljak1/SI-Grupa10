@@ -11,7 +11,7 @@ import { DocflowDocument } from '../../documents/models/document.models';
 export class ApprovalApiService {
   private readonly http = inject(HttpClient);
 
-  getPendingApprovals(): Observable<ApiResponse<DocflowDocument[]>> {
-    return this.http.get<ApiResponse<DocflowDocument[]>>('/api/approvals/pending');
+  getCompletedForReview(): Observable<ApiResponse<DocflowDocument[]>> {
+    return this.http.get<ApiResponse<DocflowDocument[]>>('/api/approvals/completed');
   }
 }

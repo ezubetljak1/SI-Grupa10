@@ -59,6 +59,8 @@ class ApprovalWorkflowIntegrationTest {
     private static final Path UPLOAD_ROOT = createTempDirectory();
 
     private static final String APPROVER_USER = "kc-approval-test-approver";
+    private static final String MANAGER_USER = "kc-approval-test-manager";
+    private static final String ADMIN_USER = "kc-approval-test-admin";
     private static final String OPERATOR_USER = "kc-approval-test-operator";
 
     @Autowired private MockMvc mockMvc;
@@ -244,22 +246,125 @@ class ApprovalWorkflowIntegrationTest {
                 .andExpect(status().isForbidden());
     }
     @Test
-    void pendingApprovalsReturnsOnlyReadyForApprovalDocuments() throws Exception {
-        Long readyDoc = uploadAndSetReadyForApproval("Pending doc 1");
-        uploadPdf("Uploaded only doc");
+    void approverDocumentListShowsOnlyReadyForApprovalDocuments() throws Exception {
+        Long readyDoc = uploadPdf("Ready doc");
+        Long completedDoc = uploadPdf("Completed doc");
+        uploadPdf("Uploaded doc");
+
+        markDocumentStatus(readyDoc, "READY_FOR_APPROVAL");
+        markDocumentStatus(completedDoc, "COMPLETED");
+
         authenticateAs(APPROVER_USER);
 
-        MvcResult result = mockMvc.perform(get("/api/approvals/pending"))
+        MvcResult result = mockMvc.perform(get("/api/documents"))
                 .andExpect(status().isOk())
                 .andReturn();
 
-        JsonNode root = objectMapper.readTree(result.getResponse().getContentAsString());
-        JsonNode payload = root.path("payload");
+        JsonNode payload = objectMapper.readTree(result.getResponse().getContentAsString())
+                .path("payload");
 
         assertTrue(payload.isArray());
         assertEquals(1, payload.size());
         assertEquals(readyDoc, payload.get(0).path("id").asLong());
         assertEquals("READY_FOR_APPROVAL", payload.get(0).path("documentStatus").asText());
+    }
+
+    @Test
+    void managerCanSearchAndFilterDocumentsByMultipleCriteria() throws Exception {
+        Long targetDoc = uploadPdf("Target quarterly invoice");
+        Long otherDoc = uploadPdf("Other quarterly invoice");
+
+        markDocumentStatus(targetDoc, "READY_FOR_APPROVAL");
+        markDocumentStatus(otherDoc, "COMPLETED");
+        markDocumentUploadDate(targetDoc, LocalDateTime.of(2026, 5, 15, 10, 0));
+        markDocumentUploadDate(otherDoc, LocalDateTime.of(2026, 4, 15, 10, 0));
+        insertActiveTask(targetDoc, getUserId(APPROVER_USER));
+
+        authenticateAs(MANAGER_USER);
+
+        MvcResult filteredResult =
+                mockMvc.perform(
+                                get("/api/documents")
+                                        .param("search", "Target")
+                                        .param("documentStatus", "READY_FOR_APPROVAL")
+                                        .param("documentType", "INVOICE")
+                                        .param("createdFrom", "2026-05-01")
+                                        .param("createdTo", "2026-05-31")
+                                        .param(
+                                                "assignedUserId",
+                                                String.valueOf(getUserId(APPROVER_USER))))
+                        .andExpect(status().isOk())
+                        .andReturn();
+
+        JsonNode filteredPayload =
+                objectMapper.readTree(filteredResult.getResponse().getContentAsString())
+                        .path("payload");
+
+        assertTrue(filteredPayload.isArray());
+        assertEquals(1, filteredPayload.size());
+        assertEquals(targetDoc, filteredPayload.get(0).path("id").asLong());
+
+        MvcResult idSearchResult =
+                mockMvc.perform(get("/api/documents").param("search", targetDoc.toString()))
+                        .andExpect(status().isOk())
+                        .andReturn();
+
+        JsonNode idSearchPayload =
+                objectMapper.readTree(idSearchResult.getResponse().getContentAsString())
+                        .path("payload");
+
+        assertTrue(idSearchPayload.isArray());
+        assertEquals(1, idSearchPayload.size());
+        assertEquals(targetDoc, idSearchPayload.get(0).path("id").asLong());
+    }
+
+    @Test
+    void reviewEndpointReturnsOnlyCompletedDocumentsForManagerAndAdmin() throws Exception {
+        Long completedDoc = uploadPdf("Completed review doc");
+        Long readyDoc = uploadPdf("Ready review doc");
+
+        markDocumentStatus(completedDoc, "COMPLETED");
+        markDocumentStatus(readyDoc, "READY_FOR_APPROVAL");
+
+        authenticateAs(MANAGER_USER);
+
+        MvcResult managerResult =
+                mockMvc.perform(get("/api/approvals/completed"))
+                        .andExpect(status().isOk())
+                        .andReturn();
+
+        JsonNode managerPayload =
+                objectMapper.readTree(managerResult.getResponse().getContentAsString())
+                        .path("payload");
+
+        assertTrue(managerPayload.isArray());
+        assertEquals(1, managerPayload.size());
+        assertEquals(completedDoc, managerPayload.get(0).path("id").asLong());
+        assertEquals("COMPLETED", managerPayload.get(0).path("documentStatus").asText());
+
+        authenticateAs(ADMIN_USER);
+
+        MvcResult adminResult =
+                mockMvc.perform(get("/api/approvals/completed"))
+                        .andExpect(status().isOk())
+                        .andReturn();
+
+        JsonNode adminPayload =
+                objectMapper.readTree(adminResult.getResponse().getContentAsString())
+                        .path("payload");
+
+        assertTrue(adminPayload.isArray());
+        assertEquals(1, adminPayload.size());
+        assertEquals(completedDoc, adminPayload.get(0).path("id").asLong());
+        assertEquals("COMPLETED", adminPayload.get(0).path("documentStatus").asText());
+    }
+
+    @Test
+    void approverCannotAccessCompletedReviewEndpoint() throws Exception {
+        authenticateAs(APPROVER_USER);
+
+        mockMvc.perform(get("/api/approvals/completed"))
+                .andExpect(status().isForbidden());
     }
 
     private Long uploadPdf(String name) throws Exception {
@@ -324,6 +429,44 @@ class ApprovalWorkflowIntegrationTest {
         return documentId;
     }
 
+    private void markDocumentStatus(Long documentId, String status) {
+        jdbcTemplate.update("UPDATE document SET document_status = ? WHERE id = ?", status, documentId);
+    }
+
+    private void markDocumentUploadDate(Long documentId, LocalDateTime uploadDate) {
+        jdbcTemplate.update(
+                "UPDATE document SET upload_date = ? WHERE id = ?",
+                uploadDate,
+                documentId);
+    }
+
+    private void insertActiveTask(Long documentId, Long assignedUserId) {
+        Long assignedByUserId = getUserId(MANAGER_USER);
+
+        jdbcTemplate.update(
+                """
+                INSERT INTO workflow_task (
+                    document_id,
+                    assigned_user_id,
+                    assigned_by_user_id,
+                    task_type,
+                    status,
+                    due_date,
+                    created_at
+                ) VALUES (?, ?, ?, 'APPROVAL', 'OPEN', NULL, NOW())
+                """,
+                documentId,
+                assignedUserId,
+                assignedByUserId);
+    }
+
+    private Long getUserId(String keycloakUserId) {
+        return jdbcTemplate.queryForObject(
+                "SELECT id FROM app_user WHERE keycloak_user_id = ?",
+                Long.class,
+                keycloakUserId);
+    }
+
     private void setupTestTenant() {
         new TransactionTemplate(transactionManager)
                 .executeWithoutResult(
@@ -345,6 +488,24 @@ class ApprovalWorkflowIntegrationTest {
                             approver.setEmail("approver@test.ba");
                             approver.setAccountStatus(AccountStatus.ACTIVE);
                             userDAO.persist(approver);
+                            UserEntity manager = new UserEntity();
+                            manager.setCompanyId(companyId);
+                            manager.setRoleId(roleService.getByName(RoleName.MANAGER).getId());
+                            manager.setKeycloakUserId(MANAGER_USER);
+                            manager.setFirstName("Test");
+                            manager.setLastName("Manager");
+                            manager.setEmail("manager@test.ba");
+                            manager.setAccountStatus(AccountStatus.ACTIVE);
+                            userDAO.persist(manager);
+                            UserEntity admin = new UserEntity();
+                            admin.setCompanyId(companyId);
+                            admin.setRoleId(roleService.getByName(RoleName.ADMIN).getId());
+                            admin.setKeycloakUserId(ADMIN_USER);
+                            admin.setFirstName("Test");
+                            admin.setLastName("Admin");
+                            admin.setEmail("admin@test.ba");
+                            admin.setAccountStatus(AccountStatus.ACTIVE);
+                            userDAO.persist(admin);
                             UserEntity operator = new UserEntity();
                             operator.setCompanyId(companyId);
                             operator.setRoleId(roleService.getByName(RoleName.OPERATOR).getId());

@@ -93,6 +93,10 @@ public class DocumentServiceImpl implements DocumentService {
                 RoleName.ADMIN, RoleName.OPERATOR, RoleName.APPROVER, RoleName.MANAGER);
         request.setCompanyId(currentUserService.getCurrentCompanyId());
 
+        if (RoleName.APPROVER.name().equals(currentUserService.getCurrentRole())) {
+            request.setDocumentStatus(DocumentStatus.READY_FOR_APPROVAL.name());
+        }
+
         List<DocumentEntity> entities = documentDAO.findByFilter(request);
         long totalElements = documentDAO.countByFilter(request);
         int totalPages = (int) Math.ceil((double) totalElements / request.getSize());

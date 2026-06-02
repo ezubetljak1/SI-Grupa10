@@ -30,6 +30,116 @@
     </div>
   }
 
+  @if (canManageFilters) {
+    <app-ui-card
+      title="Search and filters"
+      subtitle="Find documents by title, ID, status, date, assignee, or type.">
+
+      <div class="filters-header">
+        <button
+          type="button"
+          class="btn btn-muted btn-reset"
+          (click)="resetFilters()"
+          [disabled]="!hasActiveFilters">
+          Reset filters
+        </button>
+      </div>
+
+      <div class="document-filters">
+        <div class="field">
+          <label for="documentSearch">Search</label>
+          <input
+            id="documentSearch"
+            class="input"
+            type="text"
+            name="documentSearch"
+            [(ngModel)]="search"
+            (ngModelChange)="applyFilters()"
+            placeholder="Search by document name">
+        </div>
+
+        <div class="field">
+          <label for="statusFilter">Status</label>
+          <select
+            id="statusFilter"
+            class="select"
+            name="statusFilter"
+            [(ngModel)]="statusFilter"
+            (ngModelChange)="applyFilters()">
+            <option value="">All statuses</option>
+            @for (option of documentStatusOptions; track option.value) {
+              <option [value]="option.value">{{ option.label }}</option>
+            }
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="documentTypeFilter">Document type</label>
+          <select
+            id="documentTypeFilter"
+            class="select"
+            name="documentTypeFilter"
+            [(ngModel)]="documentTypeFilter"
+            (ngModelChange)="applyFilters()">
+            <option value="">All types</option>
+            @for (type of documentTypeOptions; track type.value) {
+              <option [value]="type.value">{{ type.label }}</option>
+            }
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="assignedUserFilter">Assigned user</label>
+          <select
+            id="assignedUserFilter"
+            class="select"
+            name="assignedUserFilter"
+            [(ngModel)]="assignedUserIdFilter"
+            (ngModelChange)="applyFilters()">
+            <option [ngValue]="null">All assignees</option>
+            @for (user of assignedUserOptions; track user.id) {
+              <option [ngValue]="user.id">
+                {{ user.firstName }} {{ user.lastName }}
+              </option>
+            }
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="createdFromFilter">Created from</label>
+          <input
+            id="createdFromFilter"
+            class="input"
+            type="date"
+            name="createdFromFilter"
+            [(ngModel)]="createdFromFilter"
+            (ngModelChange)="applyFilters()">
+        </div>
+
+        <div class="field">
+          <label for="createdToFilter">Created to</label>
+          <input
+            id="createdToFilter"
+            class="input"
+            type="date"
+            name="createdToFilter"
+            [(ngModel)]="createdToFilter"
+            (ngModelChange)="applyFilters()">
+        </div>
+
+        <!--<div class="filters-actions">
+          <button
+            type="button"
+            class="btn btn-muted"
+            (click)="resetFilters()"
+            [disabled]="!hasActiveFilters">
+            Reset filters
+          </button>
+        </div>-->
+      </div>
+    </app-ui-card>
+  }
+
   <app-ui-card
     title="Stored documents"
     subtitle="Uploaded files sorted by newest document first."
@@ -42,13 +152,21 @@
         <app-empty-state
           icon="[]"
           title="No documents found"
-          description="Uploaded documents will appear here after they are saved.">
-          @if (canUploadDocuments) {
-          <div empty-actions>
-            <button type="button" routerLink="/documents/upload" class="btn btn-primary">
-              Upload document
-            </button>
-          </div>
+          [description]="hasActiveFilters ? 'No documents match the selected search and filter criteria.' : 'Uploaded documents will appear here after they are saved.'">
+          @if (canUploadDocuments || (canManageFilters && hasActiveFilters)) {
+            <div empty-actions>
+              @if (canUploadDocuments) {
+                <button type="button" routerLink="/documents/upload" class="btn btn-primary">
+                  Upload document
+                </button>
+              }
+
+              @if (canManageFilters && hasActiveFilters) {
+                <button type="button" class="btn btn-muted" (click)="resetFilters()">
+                  Clear filters
+                </button>
+              }
+            </div>
           }
         </app-empty-state>
       </div>
@@ -56,100 +174,100 @@
       <div class="table-wrapper">
         <table class="documents-table">
           <thead>
-            <tr>
-              <th>Document</th>
-              <th>Type</th>
-              <th>Status</th>
-              <th>Size</th>
-              <th class="actions-column">Actions</th>
-            </tr>
+          <tr>
+            <th>Document</th>
+            <th>Type</th>
+            <th>Status</th>
+            <th>Size</th>
+            <th class="actions-column">Actions</th>
+          </tr>
           </thead>
 
           <tbody>
-            <tr *ngFor="let document of documents">
-              <td>
-                <div class="document-cell">
-                  <app-file-type-icon
-                    [fileName]="document.name"
-                    [mimeType]="document.fileType">
-                  </app-file-type-icon>
+          <tr *ngFor="let document of documents">
+            <td>
+              <div class="document-cell">
+                <app-file-type-icon
+                  [fileName]="document.name"
+                  [mimeType]="document.fileType">
+                </app-file-type-icon>
 
-                  <div class="document-cell__content">
-                    <strong [title]="document.name">{{ document.name }}</strong>
-                    <span>{{ document.fileType }}</span>
-                  </div>
+                <div class="document-cell__content">
+                  <strong [title]="document.name">{{ document.name }}</strong>
+                  <span>{{ document.fileType }}</span>
                 </div>
-              </td>
+              </div>
+            </td>
 
-              <td>
-                <div class="document-type-cell">
+            <td>
+              <div class="document-type-cell">
                   <span class="document-type-cell__label">
                     {{ formatDocumentTypeLabel(document.documentType) }}
                   </span>
 
-                  @if (needsClassificationReview(document)) {
-                    <span class="review-hint">Review type</span>
-                  }
-                </div>
-              </td>
+                @if (needsClassificationReview(document)) {
+                  <span class="review-hint">Review type</span>
+                }
+              </div>
+            </td>
 
-              <td>
-                <app-status-badge [status]="document.documentStatus"></app-status-badge>
-              </td>
+            <td>
+              <app-status-badge [status]="document.documentStatus"></app-status-badge>
+            </td>
 
-              <td>{{ formatFileSize(document.fileSize) }}</td>
+            <td>{{ formatFileSize(document.fileSize) }}</td>
 
-              <td class="actions-cell">
-                <div class="table-actions" [class.table-actions--confirm]="confirmingDeleteId === document.id">
-                  <ng-container *ngIf="confirmingDeleteId !== document.id; else confirmDeleteTpl">
-                    <button
-                      type="button"
-                      class="table-action table-action--details"
-                      [routerLink]="['/documents', document.id]"
-                      title="View details"
-                      aria-label="View document details">
-                      <i class="fa-solid fa-file-lines"></i>
-                    </button>
+            <td class="actions-cell">
+              <div class="table-actions" [class.table-actions--confirm]="confirmingDeleteId === document.id">
+                <ng-container *ngIf="confirmingDeleteId !== document.id; else confirmDeleteTpl">
+                  <button
+                    type="button"
+                    class="table-action table-action--details"
+                    [routerLink]="['/documents', document.id]"
+                    title="View details"
+                    aria-label="View document details">
+                    <i class="fa-solid fa-file-lines"></i>
+                  </button>
 
-                    <button
-                      type="button"
-                      class="table-action table-action--download"
-                      (click)="downloadDocument(document)"
-                      title="Download"
-                      aria-label="Download document">
-                      <i class="fa-solid fa-download"></i>
-                    </button>
+                  <button
+                    type="button"
+                    class="table-action table-action--download"
+                    (click)="downloadDocument(document)"
+                    title="Download"
+                    aria-label="Download document">
+                    <i class="fa-solid fa-download"></i>
+                  </button>
 
-                    <button
-                      type="button"
-                      class="table-action table-action--delete"
-                      (click)="confirmingDeleteId = document.id"
-                      title="Delete"
-                      aria-label="Delete document">
-                      <i class="fa-solid fa-trash-can"></i>
-                    </button>
-                  </ng-container>
+                  <button
+                    type="button"
+                    class="table-action table-action--delete"
+                    (click)="confirmingDeleteId = document.id"
+                    title="Delete"
+                    aria-label="Delete document">
+                    <i class="fa-solid fa-trash-can"></i>
+                  </button>
+                </ng-container>
 
-                  <ng-template #confirmDeleteTpl>
-                    <span class="confirm-text">Delete?</span>
+                <ng-template #confirmDeleteTpl>
+                  <span class="confirm-text">Delete?</span>
 
-                    <button
-                      type="button"
-                      class="confirm-action confirm-action--danger"
-                      (click)="deleteDocumentConfirmed(document)">
-                      Yes
-                    </button>
+                  <button
+                    type="button"
+                    class="confirm-action confirm-action--danger"
+                    (click)="deleteDocumentConfirmed(document)">
+                    Yes
+                  </button>
 
-                    <button
-                      type="button"
-                      class="confirm-action"
-                      (click)="confirmingDeleteId = null">
-                      Cancel
-                    </button>
-                  </ng-template>
-                </div>
-              </td>
-            </tr>
+                  <button
+                    type="button"
+                    class="confirm-action"
+                    (click)="confirmingDeleteId = null">
+                    Cancel
+                  </button>
+                </ng-template>
+              </div>
+            </td>
+          </tr>
           </tbody>
         </table>
       </div>
