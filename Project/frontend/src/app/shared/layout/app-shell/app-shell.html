@@ -64,14 +64,14 @@
             </a>
           }
 
-          @if (hasRole(['ADMIN', 'MANAGER', 'APPROVER'])) {
+          @if (hasRole(['ADMIN', 'MANAGER'])) {
             <a
               routerLink="/review"
               routerLinkActive="active"
               class="nav-item"
             >
               <span class="nav-icon">✓</span>
-              <span>Review</span>
+              <span>Completed</span>
             </a>
           }
 

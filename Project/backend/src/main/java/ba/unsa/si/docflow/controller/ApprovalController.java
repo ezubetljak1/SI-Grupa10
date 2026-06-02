@@ -30,17 +30,17 @@ public class ApprovalController {
     private final CurrentUserService currentUserService;
 
     /**
-     * Returns all documents with status READY_FOR_APPROVAL for the current user's company.
-     * Accessible by ADMIN, MANAGER and APPROVER roles.
+     * Returns all completed documents for the current user's company.
+     * Accessible by ADMIN and MANAGER roles.
      */
-    @GetMapping("/pending")
-    public ApiResponse<List<Document>> getPendingApprovals() {
-        currentUserService.requireAnyRole(RoleName.ADMIN, RoleName.MANAGER, RoleName.APPROVER);
+    @GetMapping({"/pending", "/completed"})
+    public ApiResponse<List<Document>> getCompletedDocumentsForReview() {
+        currentUserService.requireAnyRole(RoleName.ADMIN, RoleName.MANAGER);
 
         Long companyId = currentUserService.getCurrentCompanyId();
 
         List<DocumentEntity> pendingDocuments =
-                documentDAO.findByStatusAndCompanyId(DocumentStatus.READY_FOR_APPROVAL, companyId);
+                documentDAO.findByStatusAndCompanyId(DocumentStatus.COMPLETED, companyId);
 
         List<Document> dtos = pendingDocuments.stream()
                 .map(documentMapper::entityToDto)

@@ -108,9 +108,13 @@ export interface ConfirmDocumentTypeRequest {
 }
 
 export interface DocumentFilterRequest {
+  search?: string;
   name?: string;
   documentType?: DocumentType;
   documentStatus?: DocumentStatus;
+  createdFrom?: string;
+  createdTo?: string;
+  assignedUserId?: number;
   companyId?: number;
   page?: number;
   size?: number;

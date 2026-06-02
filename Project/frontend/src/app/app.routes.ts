@@ -64,7 +64,7 @@ export const routes: Routes = [
         path: 'review',
         component: ApprovalPendingPageComponent,
         canActivate: [authGuard, roleGuard],
-        data: { roles: ['ADMIN', 'MANAGER', 'APPROVER'] }
+        data: { roles: ['ADMIN', 'MANAGER'] }
     },
     {
         path: 'company/users',

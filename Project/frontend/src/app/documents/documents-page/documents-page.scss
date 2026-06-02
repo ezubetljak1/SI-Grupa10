@@ -17,6 +17,49 @@
   padding-inline: 20px;
 }
 
+.document-filters {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  padding: 4px 2px 2px;
+}
+
+.document-filters .field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.document-filters .field label {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.filters-actions {
+  display: flex;
+  align-items: end;
+  justify-content: flex-end;
+}
+
+.filters-actions .btn {
+  min-height: 44px;
+}
+
+.filters-header {
+  display: flex;
+  justify-content: flex-end;
+  position: relative;
+  top: -65px;
+  margin-bottom: -40px;
+}
+
+.btn-reset {
+  color: #000;
+}
+
 .message-card {
   border: 1px solid var(--error-border);
   border-radius: 18px;
@@ -203,12 +246,11 @@
   font-size: 14px;
   cursor: pointer;
   box-shadow: 0 6px 16px rgba(15, 23, 42, 0.04);
-  transition:
-    background 0.18s ease,
-    border-color 0.18s ease,
-    color 0.18s ease,
-    transform 0.18s ease,
-    box-shadow 0.18s ease;
+  transition: background 0.18s ease,
+  border-color 0.18s ease,
+  color 0.18s ease,
+  transform 0.18s ease,
+  box-shadow 0.18s ease;
 }
 
 .table-action:hover {
@@ -314,11 +356,29 @@
 }
 
 @media (max-width: 1050px) {
+  .document-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .table-wrapper {
     overflow-x: auto;
   }
 
   .documents-table {
     min-width: 860px;
+  }
+}
+
+@media (max-width: 720px) {
+  .document-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .filters-actions {
+    justify-content: stretch;
+  }
+
+  .filters-actions .btn {
+    width: 100%;
   }
 }

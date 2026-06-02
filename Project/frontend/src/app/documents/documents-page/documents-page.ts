@@ -1,6 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, inject, OnInit } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 
 import { ValidationError } from '../../models/api.models';
@@ -13,14 +14,18 @@ import {
   UiCardComponent
 } from '../../shared/components';
 import { DocflowDocument, DOCUMENT_TYPE_OPTIONS } from '../models/document.models';
+import { DocumentStatus, DocumentType } from '../models/document.models';
 import { ToastrService } from 'ngx-toastr';
 import { AuthService } from '../../auth/services/auth.service';
+import { UserApiService } from '../../users/services/user-api.service';
+import { UserResponse } from '../../users/models/user.models';
 
 @Component({
   selector: 'app-documents-page',
   standalone: true,
   imports: [
     CommonModule,
+    FormsModule,
     RouterLink,
     EmptyStateComponent,
     FileTypeIconComponent,
@@ -35,17 +40,60 @@ export class DocumentsPageComponent implements OnInit {
   private readonly documentApiService = inject(DocumentApiService);
   private readonly toastr = inject(ToastrService);
   private readonly authService = inject(AuthService);
+  private readonly userApiService = inject(UserApiService);
 
   documents: DocflowDocument[] = [];
   errors: string[] = [];
   listLoading = false;
+  filterOptionsLoading = false;
 
   confirmingDeleteId: number | null = null;
 
   readonly documentTypeOptions = DOCUMENT_TYPE_OPTIONS;
+  readonly documentStatusOptions = [
+    { value: 'UPLOADED', label: 'Uploaded' },
+    { value: 'PROCESSING_FAILED', label: 'Processing failed' },
+    { value: 'EXTRACTED', label: 'Extracted' },
+    { value: 'UNDER_REVIEW', label: 'Under review' },
+    { value: 'NEEDS_CLASSIFICATION_REVIEW', label: 'Needs classification review' },
+    { value: 'READY_FOR_APPROVAL', label: 'Ready for approval' },
+    { value: 'NEEDS_CORRECTION', label: 'Needs correction' },
+    { value: 'APPROVED', label: 'Approved' },
+    { value: 'REJECTED', label: 'Rejected' },
+    { value: 'COMPLETED', label: 'Completed' },
+  ];
+
+  search = '';
+  statusFilter: DocumentStatus | '' = '';
+  createdFromFilter = '';
+  createdToFilter = '';
+  assignedUserIdFilter: number | null = null;
+  documentTypeFilter: DocumentType | '' = '';
+  assignableUsers: UserResponse[] = [];
 
   get canUploadDocuments(): boolean {
     return this.authService.hasRole(['ADMIN', 'OPERATOR']);
+  }
+
+  get canManageFilters(): boolean {
+    return this.authService.hasRole(['ADMIN', 'MANAGER']);
+  }
+
+  get hasActiveFilters(): boolean {
+    return Boolean(
+      this.search.trim() ||
+        this.statusFilter ||
+        this.createdFromFilter ||
+        this.createdToFilter ||
+        this.assignedUserIdFilter ||
+        this.documentTypeFilter
+    );
+  }
+
+  get assignedUserOptions(): UserResponse[] {
+    return [...this.assignableUsers].sort((left, right) =>
+      `${left.firstName} ${left.lastName}`.localeCompare(`${right.firstName} ${right.lastName}`)
+    );
   }
 
   formatDocumentTypeLabel(documentType: string | null | undefined): string {
@@ -64,6 +112,7 @@ export class DocumentsPageComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    this.loadFilterOptions();
     this.loadDocuments();
   }
 
@@ -72,6 +121,12 @@ export class DocumentsPageComponent implements OnInit {
 
     this.documentApiService
       .getAll({
+        search: this.search.trim() || undefined,
+        documentStatus: this.statusFilter || undefined,
+        createdFrom: this.createdFromFilter || undefined,
+        createdTo: this.createdToFilter || undefined,
+        assignedUserId: this.assignedUserIdFilter ?? undefined,
+        documentType: this.documentTypeFilter || undefined,
         page: 0,
         size: 20,
         sortBy: 'id',
@@ -87,6 +142,39 @@ export class DocumentsPageComponent implements OnInit {
           this.handleError(error);
         },
       });
+  }
+
+  loadFilterOptions(): void {
+    if (!this.canManageFilters) {
+      return;
+    }
+
+    this.filterOptionsLoading = true;
+
+    this.userApiService.list({ page: 0, size: 1000 }).subscribe({
+      next: (response) => {
+        this.filterOptionsLoading = false;
+        this.assignableUsers = response.payload ?? [];
+      },
+      error: () => {
+        this.filterOptionsLoading = false;
+        this.assignableUsers = [];
+      },
+    });
+  }
+
+  applyFilters(): void {
+    this.loadDocuments();
+  }
+
+  resetFilters(): void {
+    this.search = '';
+    this.statusFilter = '';
+    this.createdFromFilter = '';
+    this.createdToFilter = '';
+    this.assignedUserIdFilter = null;
+    this.documentTypeFilter = '';
+    this.loadDocuments();
   }
 
   loadDocumentById(id: number): void {

@@ -1,7 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, OnInit, inject } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 
 import {
   EmptyStateComponent,
@@ -9,6 +9,7 @@ import {
   StatusBadgeComponent,
   UiCardComponent,
 } from '../../../shared/components';
+import { AuthService } from '../../../auth/services/auth.service';
 import { ApprovalApiService } from '../../services/approval-api.service';
 import { DocflowDocument } from '../../../documents/models/document.models';
 
@@ -28,12 +29,19 @@ import { DocflowDocument } from '../../../documents/models/document.models';
 })
 export class ApprovalPendingPageComponent implements OnInit {
   private readonly approvalApi = inject(ApprovalApiService);
+  private readonly router = inject(Router);
+  private readonly authService = inject(AuthService);
 
   documents: DocflowDocument[] = [];
   loading = false;
   error: string | null = null;
 
   ngOnInit(): void {
+    if (!this.authService.hasRole(['ADMIN', 'MANAGER'])) {
+      void this.router.navigate(['/documents']);
+      return;
+    }
+
     this.loadPending();
   }
 
@@ -41,14 +49,14 @@ export class ApprovalPendingPageComponent implements OnInit {
     this.loading = true;
     this.error = null;
 
-    this.approvalApi.getPendingApprovals().subscribe({
+    this.approvalApi.getCompletedForReview().subscribe({
       next: (response) => {
         this.loading = false;
         this.documents = response.payload ?? [];
       },
       error: (err: HttpErrorResponse) => {
         this.loading = false;
-        this.error = this.extractErrorMessage(err.error) ?? 'Failed to load pending approvals.';
+        this.error = this.extractErrorMessage(err.error) ?? 'Failed to load completed documents.';
       },
     });
   }

@@ -198,6 +198,10 @@ export class DocumentDetailPageComponent implements OnInit {
     return this.authService.hasRole(['ADMIN', 'MANAGER']);
   }
 
+  get isCompletedDocument(): boolean {
+    return this.document?.documentStatus === 'COMPLETED';
+  }
+
     get canManageXmlOutput(): boolean {
     return this.authService.hasRole(['ADMIN', 'MANAGER']);
   }
@@ -380,30 +384,40 @@ export class DocumentDetailPageComponent implements OnInit {
         this.document = response.payload;
         this.syncAssignmentDefaultsForCurrentStatus();
         this.selectedManualDocumentType = this.resolveDefaultManualDocumentType(this.document);
-        // Fetch preview as a blob so Authorization header is included by interceptor
-        // then create an object URL for the iframe/img src. This avoids 401 on iframe
-        // navigations and X-Frame-Options issues.
         this.isPdf = this.document.fileType === 'application/pdf';
         this.isImage = this.document.fileType?.startsWith('image/');
 
-        // revoke previously created object URL if present
-        if (this.previewObjectUrl) {
-          try {
-            window.URL.revokeObjectURL(this.previewObjectUrl);
-          } catch {}
-          this.previewObjectUrl = undefined;
-        }
+        if (!this.isCompletedDocument) {
+          // Fetch preview as a blob so Authorization header is included by interceptor
+          // then create an object URL for the iframe/img src. This avoids 401 on iframe
+          // navigations and X-Frame-Options issues.
+          if (this.previewObjectUrl) {
+            try {
+              window.URL.revokeObjectURL(this.previewObjectUrl);
+            } catch {}
+            this.previewObjectUrl = undefined;
+          }
 
-        this.documentApiService.getPreview(this.document.id).subscribe({
-          next: (blob) => {
-            this.previewObjectUrl = window.URL.createObjectURL(blob);
-            this.fileUrl = this.sanitizer.bypassSecurityTrustResourceUrl(this.previewObjectUrl);
-          },
-          error: () => {
-            this.fileUrl = null;
-            this.toastr.error('Failed to load document preview.', 'Error');
-          },
-        });
+          this.documentApiService.getPreview(this.document.id).subscribe({
+            next: (blob) => {
+              this.previewObjectUrl = window.URL.createObjectURL(blob);
+              this.fileUrl = this.sanitizer.bypassSecurityTrustResourceUrl(this.previewObjectUrl);
+            },
+            error: () => {
+              this.fileUrl = null;
+              this.toastr.error('Failed to load document preview.', 'Error');
+            },
+          });
+        } else {
+          if (this.previewObjectUrl) {
+            try {
+              window.URL.revokeObjectURL(this.previewObjectUrl);
+            } catch {}
+            this.previewObjectUrl = undefined;
+          }
+
+          this.fileUrl = null;
+        }
         this.extractionError = null;
         this.extractionFields = [];
         if (this.shouldLoadExtractionForStatus(this.document.documentStatus)) {
@@ -1244,8 +1258,14 @@ export class DocumentDetailPageComponent implements OnInit {
     this.loadStatusHistory(documentId);
     this.loadComments(documentId);
     this.loadAuditLogs(documentId);
-    this.loadTasks(documentId);
-    this.loadAssignableUsers();
+
+    if (!this.isCompletedDocument) {
+      this.loadTasks(documentId);
+      this.loadAssignableUsers();
+    } else {
+      this.tasks = [];
+      this.assignableUsers = [];
+    }
   }
 
   loadStatusHistory(documentId: number): void {
@@ -2121,25 +2141,31 @@ private toTitleCase(value: string): string {
   }
 
   private shouldLoadExtractionForStatus(status: string | null | undefined): boolean {
+    if (status === 'COMPLETED') {
+      return false;
+    }
+
     return [
       'EXTRACTED',
       'READY_FOR_APPROVAL',
       'NEEDS_CORRECTION',
       'APPROVED',
       'REJECTED',
-      'COMPLETED',
     ].includes(status ?? '');
   }
 
 
   shouldShowExtractionFields(): boolean {
+    if (this.isCompletedDocument) {
+      return false;
+    }
+
     return [
       'EXTRACTED',
       'READY_FOR_APPROVAL',
       'NEEDS_CORRECTION',
       'APPROVED',
       'REJECTED',
-      'COMPLETED',
     ].includes(this.document?.documentStatus ?? '');
   }
 
