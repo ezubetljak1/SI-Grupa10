@@ -38,8 +38,63 @@ jobs:
       - name: Run backend tests
         run: ./mvnw clean verify
 
+      - name: Add backend test summary
+        if: ${{ !cancelled() }}
+        run: |
+          python3 - <<'PY'
+          import os
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+
+          reports = sorted(Path("target/surefire-reports").glob("TEST-*.xml"))
+          summary_file = os.environ["GITHUB_STEP_SUMMARY"]
+
+          if not reports:
+              with open(summary_file, "a", encoding="utf-8") as summary:
+                  summary.write("## Backend Test Report\n\n")
+                  summary.write("⚠️ No Surefire XML reports were generated.\n")
+              raise SystemExit(0)
+
+          total_tests = 0
+          total_failures = 0
+          total_errors = 0
+          total_skipped = 0
+          total_time = 0.0
+
+          for report in reports:
+              root = ET.parse(report).getroot()
+
+              total_tests += int(root.attrib.get("tests", 0))
+              total_failures += int(root.attrib.get("failures", 0))
+              total_errors += int(root.attrib.get("errors", 0))
+              total_skipped += int(root.attrib.get("skipped", 0))
+              total_time += float(root.attrib.get("time", 0))
+
+          passed = total_tests - total_failures - total_errors - total_skipped
+          successful = total_failures == 0 and total_errors == 0
+          icon = "✅" if successful else "❌"
+
+          with open(summary_file, "a", encoding="utf-8") as summary:
+              summary.write("## Backend Test Report\n\n")
+              summary.write("### Summary\n\n")
+              summary.write(f"- Test Suites: **{len(reports)} total**\n")
+              summary.write(
+                  f"- Test Results: {icon} **{passed} passed** · "
+                  f"**{total_tests} total**\n"
+              )
+              summary.write(f"- Failures: **{total_failures}**\n")
+              summary.write(f"- Errors: **{total_errors}**\n")
+              summary.write(f"- Skipped: **{total_skipped}**\n")
+              summary.write(f"- Duration: **{total_time:.2f} s**\n\n")
+              summary.write(
+                  "Detailed Surefire results are available in the "
+                  "`backend-test-reports` artifact.\n"
+              )
+          PY
+
       - name: Generate backend HTML test report
         if: ${{ !cancelled() }}
+        continue-on-error: true
         run: >
           ./mvnw
           org.apache.maven.plugins:maven-surefire-report-plugin:3.5.5:report-only
