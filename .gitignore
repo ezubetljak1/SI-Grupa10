@@ -81,3 +81,9 @@ google-document-ai.json
 Project/backups/
 *.sql
 *.dump
+
+/playwright-report/
+/playwright-auth-report/
+/test-results/
+/blob-report/
+/playwright/.auth/

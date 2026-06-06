@@ -1,44 +1,100 @@
 import { TestBed } from '@angular/core/testing';
-import { provideRouter, Router, UrlTree } from '@angular/router';
+import {
+  ActivatedRouteSnapshot,
+  RouterStateSnapshot,
+  UrlTree,
+  provideRouter,
+} from '@angular/router';
 import { of } from 'rxjs';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { RoleName } from '../models/auth.models';
 import { AuthService } from './auth.service';
 import { roleGuard } from './role.guard';
 
 describe('roleGuard', () => {
   const authServiceMock = {
-    init: vi.fn().mockResolvedValue(true),
+    init: vi.fn(),
     isAuthenticated: vi.fn(),
-    profile: null as null | { role: string },
-    fetchCurrentUser: vi.fn().mockReturnValue(of(null)),
-    hasRole: vi.fn(),
     login: vi.fn(),
+    fetchCurrentUser: vi.fn(),
+    hasRole: vi.fn(),
+    profile: {
+      id: 1,
+      role: 'ADMIN',
+    },
   };
 
-  beforeEach(async () => {
+  beforeEach(() => {
     vi.clearAllMocks();
 
-    await TestBed.configureTestingModule({
+    authServiceMock.init.mockResolvedValue(true);
+    authServiceMock.isAuthenticated.mockReturnValue(true);
+    authServiceMock.login.mockResolvedValue(undefined);
+    authServiceMock.fetchCurrentUser.mockReturnValue(of(authServiceMock.profile));
+    authServiceMock.hasRole.mockReturnValue(true);
+    authServiceMock.profile = {
+      id: 1,
+      role: 'ADMIN',
+    };
+
+    TestBed.configureTestingModule({
       providers: [
         provideRouter([]),
-        { provide: AuthService, useValue: authServiceMock },
+        {
+          provide: AuthService,
+          useValue: authServiceMock,
+        },
       ],
-    }).compileComponents();
+    });
   });
 
-  it('redirects approvers away from the review route', async () => {
-    const router = TestBed.inject(Router);
+  function runGuard(
+    roles: RoleName[],
+    url = '/dashboard'
+  ): Promise<boolean | UrlTree> {
+    return TestBed.runInInjectionContext(
+      () =>
+        roleGuard(
+          {
+            data: { roles },
+          } as unknown as ActivatedRouteSnapshot,
+          { url } as RouterStateSnapshot
+        ) as Promise<boolean | UrlTree>
+    );
+  }
 
-    authServiceMock.isAuthenticated.mockReturnValue(true);
+  it('allows users with an accepted role', async () => {
+    authServiceMock.hasRole.mockReturnValue(true);
+
+    await expect(runGuard(['ADMIN', 'MANAGER'])).resolves.toBe(true);
+  });
+
+  it('redirects users without an accepted role to documents', async () => {
     authServiceMock.hasRole.mockReturnValue(false);
 
-    const result = await TestBed.runInInjectionContext(() =>
-      roleGuard(
-        { data: { roles: ['ADMIN', 'MANAGER'] } } as never,
-        { url: '/review' } as never
-      )
-    );
+    const result = await runGuard(['ADMIN']);
 
-    expect(router.serializeUrl(result as UrlTree)).toBe('/documents');
+    expect(result).toBeInstanceOf(UrlTree);
+    expect((result as UrlTree).toString()).toBe('/documents');
+  });
+
+  it('loads the current profile when it is missing', async () => {
+    authServiceMock.profile = null as never;
+    authServiceMock.hasRole.mockReturnValue(true);
+
+    await expect(runGuard(['ADMIN'])).resolves.toBe(true);
+
+    expect(authServiceMock.fetchCurrentUser).toHaveBeenCalled();
+  });
+
+  it('allows public registration route', async () => {
+    authServiceMock.isAuthenticated.mockReturnValue(false);
+
+    await expect(
+      runGuard(['ADMIN'], '/register-company')
+    ).resolves.toBe(true);
+
+    expect(authServiceMock.login).not.toHaveBeenCalled();
   });
 });

@@ -1,4 +1,4 @@
-@if (initialized$ | async) {
+@if ((initialized$ | async) || canRenderWithoutAuthInitialization) {
   <div class="app-shell">
     <aside class="sidebar">
       <div class="logo">

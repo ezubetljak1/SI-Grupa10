@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   backend:
-    name: Backend build and tests
+    name: Backend build, tests and report
     runs-on: ubuntu-latest
 
     defaults:
@@ -35,11 +35,28 @@ jobs:
       - name: Make Maven wrapper executable
         run: chmod +x ./mvnw
 
-      - name: Build backend and run tests
-        run: ./mvnw clean install
+      - name: Run backend tests
+        run: ./mvnw clean verify
+
+      - name: Generate backend HTML test report
+        if: ${{ !cancelled() }}
+        run: >
+          ./mvnw
+          org.apache.maven.plugins:maven-surefire-report-plugin:3.5.5:report-only
+
+      - name: Upload backend test reports
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-reports
+          path: |
+            Project/backend/target/surefire-reports/
+            Project/backend/target/reports/
+          if-no-files-found: warn
+          retention-days: 14
 
   frontend:
-    name: Frontend build
+    name: Frontend unit tests and build
     runs-on: ubuntu-latest
 
     defaults:
@@ -60,5 +77,49 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
+      - name: Run frontend unit tests
+        run: npm run test:ci
+
       - name: Build frontend
         run: npm run build
+
+  frontend-ui-smoke:
+    name: Frontend Playwright UI smoke tests
+    runs-on: ubuntu-latest
+    needs: frontend
+    timeout-minutes: 15
+
+    defaults:
+      run:
+        working-directory: Project/frontend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: Project/frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Install Chromium and system dependencies
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Playwright public UI smoke tests
+        run: npm run e2e
+
+      - name: Upload Playwright report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            Project/frontend/playwright-report/
+            Project/frontend/test-results/
+          if-no-files-found: warn
+          retention-days: 14

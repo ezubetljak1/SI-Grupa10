@@ -87,7 +87,9 @@ describe('DocumentsPageComponent', () => {
     const compiled = renderWithRole('MANAGER');
 
     expect(compiled.textContent).toContain('Search and filters');
-    expect(compiled.textContent).toContain('Search by document name or ID');
+    expect(compiled.textContent).toContain(
+      'Find documents by title, ID, status, date, assignee, or type.'
+    );
     expect(compiled.textContent).toContain('Reset filters');
   });
 

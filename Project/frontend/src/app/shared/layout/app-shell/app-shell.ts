@@ -130,4 +130,14 @@ private refreshUnreadCountIfAuthenticated(): void {
 
     return email?.slice(0, 2).toUpperCase() ?? 'DF';
   }
+
+  get canRenderWithoutAuthInitialization(): boolean {
+    const path = this.router.url.split('?')[0].split('#')[0];
+
+    return (
+      path === '/register-company' ||
+      path === '/ui-preview' ||
+      path.startsWith('/auth/callback')
+    );
+  }
 }
