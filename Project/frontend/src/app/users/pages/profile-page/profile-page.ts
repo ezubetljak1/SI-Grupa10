@@ -13,7 +13,7 @@ import { UserApiService } from '../../services/user-api.service';
 import { Router } from '@angular/router';
 import { Notification } from '../../../notifications/models/notification.models';
 import { NotificationStoreService } from '../../../notifications/services/notification-store.service';
-
+import { computed, signal } from '@angular/core';
 
 @Component({
   selector: 'app-profile-page',
@@ -37,6 +37,20 @@ export class ProfilePageComponent implements OnInit {
   readonly notifications = this.notificationStore.notifications;
   readonly notificationLoading = this.notificationStore.loading;
   readonly unreadCount = this.notificationStore.unreadCount;
+
+  readonly readNotificationsExpanded = signal(false);
+
+  readonly unreadNotifications = computed(() =>
+    this.notifications().filter(notification => !notification.read)
+  );
+
+  readonly readNotifications = computed(() =>
+    this.notifications().filter(notification => notification.read)
+  );
+
+  toggleReadNotifications(): void {
+    this.readNotificationsExpanded.update(expanded => !expanded);
+  }
 
   ngOnInit(): void {
     this.loadProfile();

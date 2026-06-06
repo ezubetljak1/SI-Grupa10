@@ -53,7 +53,7 @@
             <span>Profile</span>
           </a>
 
-          @if (hasRole(['ADMIN', 'OPERATOR', 'APPROVER'])) {
+          @if (hasRole(['OPERATOR', 'APPROVER'])) {
             <a
               routerLink="/tasks/my"
               routerLinkActive="active"

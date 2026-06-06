@@ -74,10 +74,29 @@ export class MyTasksPageComponent implements OnInit {
     return formatApiDateTime(value);
   }
 
-  formatTaskType(value: string): string {
-    return value.replaceAll('_', ' ').toLowerCase();
+  formatTaskType(taskType: string | null | undefined): string {
+  return this.formatEnumLabel(taskType);
+}
+
+formatTaskStatus(status: string | null | undefined): string {
+  return this.formatEnumLabel(status);
+}
+
+formatDocumentStatus(status: string | null | undefined): string {
+  return this.formatEnumLabel(status);
+}
+
+private formatEnumLabel(value: string | null | undefined): string {
+  if (!value) {
+    return '—';
   }
 
+  return value
+    .toLowerCase()
+    .split('_')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
   statusClass(status: TaskStatus): string {
     return `task-status task-status--${status.toLowerCase()}`;
   }
