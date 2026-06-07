@@ -31,7 +31,7 @@ Prema posljednjem uspješnom CI izvršavanju tokom finalne provjere sistema, aut
 
 | Sloj testiranja                    | Broj testnih suite-ova ili fajlova | Broj testova | Rezultat                                            |
 | ---------------------------------- | ---------------------------------: | -----------: | --------------------------------------------------- |
-| Backend automatizovani testovi     |              `24` Surefire suite-a |        `259` | `259 passed`, `0 failures`, `0 errors`, `0 skipped` |
+| Backend automatizovani testovi     |              `22` Surefire suite-a |        `259` | `259 passed`, `0 failures`, `0 errors`, `0 skipped` |
 | Frontend unit i component testovi  |            `11` `.spec.ts` fajlova |         `35` | `35 passed`                                         |
 | Playwright UI smoke testovi        |                `1` `.spec.ts` fajl |          `4` | `4 passed`                                          |
 | **Ukupno automatizovanih testova** |                                  — |    **`298`** | **Svi testovi prolaze**                             |
