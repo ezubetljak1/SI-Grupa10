@@ -41,6 +41,7 @@ import {
   toDatetimeLocalValue,
 } from '../../shared/utils/datetime.utils';
 import { XmlOutputResponse } from '../models/xml-output.models';
+import { signal } from '@angular/core';
 
 interface EditState {
   fieldId: number;
@@ -155,6 +156,12 @@ export class DocumentDetailPageComponent implements OnInit {
   deletingFieldId: number | null = null;
 
   readonly customFieldOptionValue = CUSTOM_FIELD_OPTION_VALUE;
+
+  readonly xmlPreviewExpanded = signal(false);
+
+  toggleXmlPreview(): void {
+    this.xmlPreviewExpanded.update(expanded => !expanded);
+  }
 
   get canManageExtraction(): boolean {
     return this.authService.hasRole(['ADMIN', 'OPERATOR']);
@@ -1255,18 +1262,17 @@ export class DocumentDetailPageComponent implements OnInit {
   }
 
   loadWorkflowData(documentId: number): void {
-    this.loadStatusHistory(documentId);
-    this.loadComments(documentId);
-    this.loadAuditLogs(documentId);
-
-    if (!this.isCompletedDocument) {
-      this.loadTasks(documentId);
+      this.loadStatusHistory(documentId);
+      this.loadComments(documentId);
+      this.loadAuditLogs(documentId);
       this.loadAssignableUsers();
-    } else {
-      this.tasks = [];
-      this.assignableUsers = [];
+
+      if (!this.isCompletedDocument) {
+        this.loadTasks(documentId);
+      } else {
+        this.tasks = [];
+      }
     }
-  }
 
   loadStatusHistory(documentId: number): void {
     this.statusHistoryLoading = true;
@@ -1442,7 +1448,7 @@ export class DocumentDetailPageComponent implements OnInit {
   }
 
   formatTaskType(taskType: string): string {
-    return taskType.replaceAll('_', ' ').toLowerCase();
+    return this.formatTaskTypeTitle(taskType);
   }
 
   isTaskOverdue(task: TaskResponse): boolean {
@@ -1908,12 +1914,12 @@ formatAuditDetails(entry: AuditLog): string {
     );
 
     if (!user) {
-      return 'Unknown user';
+      return 'Not recorded';
     }
 
     const fullName = `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim();
 
-    return fullName || 'Unknown user';
+    return fullName || 'Not recorded';
   }
 
 private resolveAuditFieldLabel(parsed: Record<string, unknown>): string {
@@ -2080,14 +2086,15 @@ private toTitleCase(value: string): string {
   }
 
     private resetXmlOutputState(): void {
-    this.xmlOutput = null;
-    this.xmlOutputLoading = false;
-    this.xmlOutputGenerating = false;
-    this.xmlOutputDownloading = false;
-    this.xmlCompletionSubmitting = false;
-    this.xmlOutputError = null;
-        this.showCompleteProcessingModal = false;
-  }
+      this.xmlOutput = null;
+      this.xmlOutputLoading = false;
+      this.xmlOutputGenerating = false;
+      this.xmlOutputDownloading = false;
+      this.xmlCompletionSubmitting = false;
+      this.xmlOutputError = null;
+      this.showCompleteProcessingModal = false;
+      this.xmlPreviewExpanded.set(false);
+    }
 
   private syncDefaultAssignee(): void {
     if (this.eligibleAssignees.some((user) => user.id === this.assignTaskUserId)) {

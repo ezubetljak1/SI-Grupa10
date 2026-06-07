@@ -21,6 +21,7 @@ export type FieldValidationErrors = Record<string, string>;
 
 export type ApiErrorResponse =
   | ApiResponse<string>
+  | ValidationError
   | ValidationError[]
   | FieldValidationErrors;
 
@@ -34,6 +35,10 @@ export function extractApiErrorMessage(
 
   if (isValidationErrorArray(errorBody)) {
     return errorBody.map((error) => error.message).join('\n');
+  }
+
+  if (isValidationError(errorBody)) {
+    return errorBody.message || errorBody.code || fallback;
   }
 
   if (isApiResponseString(errorBody)) {
@@ -50,14 +55,14 @@ export function extractApiErrorMessage(
 }
 
 function isValidationErrorArray(value: unknown): value is ValidationError[] {
+  return Array.isArray(value) && value.every(isValidationError);
+}
+
+function isValidationError(value: unknown): value is ValidationError {
   return (
-    Array.isArray(value) &&
-    value.every(
-      (item) =>
-        isObject(item) &&
-        typeof item['code'] === 'string' &&
-        typeof item['message'] === 'string'
-    )
+    isObject(value) &&
+    typeof value['code'] === 'string' &&
+    typeof value['message'] === 'string'
   );
 }
 
