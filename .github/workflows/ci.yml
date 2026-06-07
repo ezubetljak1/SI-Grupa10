@@ -8,6 +8,12 @@ on:
   push:
     branches:
       - develop
+      - main
+    paths-ignore:
+      - '**/*.md'
+      - '**/*.pdf'
+      - '**/*.docx'
+      - 'Sprint*/**'
   workflow_dispatch:
 
 permissions:
