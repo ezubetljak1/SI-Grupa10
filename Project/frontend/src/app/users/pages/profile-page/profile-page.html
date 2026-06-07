@@ -58,46 +58,114 @@
               No workflow notifications yet.
             </div>
           } @else {
-            <div class="notification-list">
-              @for (notification of notifications(); track notification.id) {
-                <article
-                  class="notification-preview"
-                  [class.notification-preview--unread]="!notification.read"
-                  (click)="openNotification(notification)"
-                >
-                  <div class="notification-icon" aria-hidden="true">
-                    !
-                  </div>
-
-                  <div class="notification-content">
-                    <div class="notification-heading">
-                      <strong>{{ notification.title }}</strong>
-
+              <div class="notification-groups">
+                <section class="notification-group">
+                  <div class="notification-group__header">
+                    <div>
+                      <strong>Unread notifications</strong>
                       <span>
-                        {{ notification.read ? 'Read' : 'Unread' }}
+                        Updates that still require your attention.
                       </span>
                     </div>
 
-                    <p>{{ notification.text }}</p>
+                    <span class="notification-group__count">
+                      {{ unreadNotifications().length }}
+                    </span>
+                  </div>
 
-                    <div class="notification-meta">
-                      <span>{{ formatDate(notification.createdAt) }}</span>
+                  @if (unreadNotifications().length === 0) {
+                    <div class="notification-empty notification-empty--compact">
+                      You have no unread notifications.
+                    </div>
+                  } @else {
+                    <div class="notification-list">
+                      @for (notification of unreadNotifications(); track notification.id) {
+                        <article
+                          class="notification-preview notification-preview--unread"
+                          (click)="openNotification(notification)">
+                          <div class="notification-icon" aria-hidden="true">
+                            !
+                          </div>
 
-                      @if (!notification.read) {
-                        <button
-                          type="button"
-                          class="notification-read-button"
-                          (click)="markNotificationAsRead(notification.id, $event)"
-                        >
-                          Mark as read
-                        </button>
+                          <div class="notification-content">
+                            <div class="notification-heading">
+                              <strong>{{ notification.title }}</strong>
+                              <span>Unread</span>
+                            </div>
+
+                            <p>{{ notification.text }}</p>
+
+                            <div class="notification-meta">
+                              <span>{{ formatDate(notification.createdAt) }}</span>
+
+                              <button
+                                type="button"
+                                class="notification-read-button"
+                                (click)="markNotificationAsRead(notification.id, $event)">
+                                Mark as read
+                              </button>
+                            </div>
+                          </div>
+                        </article>
                       }
                     </div>
-                  </div>
-                </article>
-              }
-            </div>
-          }
+                  }
+                </section>
+
+                @if (readNotifications().length > 0) {
+                  <section class="notification-group notification-group--read">
+                    <button
+                      type="button"
+                      class="notification-group-toggle"
+                      [attr.aria-expanded]="readNotificationsExpanded()"
+                      (click)="toggleReadNotifications()">
+                      <span>
+                        <strong>Read notifications</strong>
+                        <small>
+                          Older updates that have already been reviewed.
+                        </small>
+                      </span>
+
+                      <span class="notification-group-toggle__right">
+                        <span class="notification-group__count">
+                          {{ readNotifications().length }}
+                        </span>
+
+                        <span class="notification-group-toggle__icon" aria-hidden="true">
+                          {{ readNotificationsExpanded() ? '−' : '+' }}
+                        </span>
+                      </span>
+                    </button>
+
+                    @if (readNotificationsExpanded()) {
+                      <div class="notification-list notification-list--read">
+                        @for (notification of readNotifications(); track notification.id) {
+                          <article
+                            class="notification-preview notification-preview--read"
+                            (click)="openNotification(notification)">
+                            <div class="notification-icon notification-icon--muted" aria-hidden="true">
+                              ✓
+                            </div>
+
+                            <div class="notification-content">
+                              <div class="notification-heading">
+                                <strong>{{ notification.title }}</strong>
+                              </div>
+
+                              <p>{{ notification.text }}</p>
+
+                              <div class="notification-meta">
+                                <span>{{ formatDate(notification.createdAt) }}</span>
+                              </div>
+                            </div>
+                          </article>
+                        }
+                      </div>
+                    }
+                  </section>
+                }
+              </div>
+            }
         </app-ui-card>
       </section>
 

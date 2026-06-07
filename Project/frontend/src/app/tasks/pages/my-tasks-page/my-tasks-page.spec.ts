@@ -57,9 +57,10 @@ describe('MyTasksPageComponent', () => {
     const compiled = fixture.nativeElement as HTMLElement;
 
     expect(compiled.textContent).toContain('Invoice 7');
-    expect(compiled.textContent).toContain('correction');
+    expect(compiled.textContent).toContain('Correction');
+    expect(compiled.textContent).toContain('Open');
     expect(compiled.textContent).toContain('Start');
-    expect(compiled.textContent).toContain('Complete in document');
+    expect(compiled.textContent).not.toContain('Complete in document');
   });
 
   it('starts an open task', () => {

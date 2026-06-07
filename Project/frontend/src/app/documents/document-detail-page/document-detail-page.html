@@ -2,7 +2,12 @@
   <app-page-header
     eyebrow="Documents"
     [title]="document ? document.name : 'Document Details'"
-    [description]="document ? 'Uploaded on ' + formatDate(document.uploadDate) : 'Loading document information...'">
+    [description]="
+      document
+        ? 'Uploaded on ' + formatDate(document.uploadDate)
+        : 'Loading document information...'
+    "
+  >
     <div page-actions class="detail-actions">
       <button type="button" routerLink="/documents" class="btn btn-muted">
         ← Back to documents
@@ -13,7 +18,8 @@
           type="button"
           class="btn btn-primary"
           (click)="downloadDocument()"
-          [disabled]="downloading">
+          [disabled]="downloading"
+        >
           {{ downloading ? 'Downloading...' : 'Download file' }}
         </button>
       }
@@ -31,11 +37,10 @@
     <div class="detail-layout">
       <app-ui-card
         title="Document information"
-        subtitle="Key details about this uploaded document.">
+        subtitle="Key details about this uploaded document."
+      >
         <div class="doc-header">
-          <app-file-type-icon
-            [fileName]="document.name"
-            [mimeType]="document.fileType">
+          <app-file-type-icon [fileName]="document.name" [mimeType]="document.fileType">
           </app-file-type-icon>
 
           <div class="doc-header__text">
@@ -51,12 +56,16 @@
         <div class="meta-grid">
           <div class="meta-item">
             <span class="meta-item__label">Status</span>
-            <strong class="meta-item__value">{{ document.documentStatus }}</strong>
+            <strong class="meta-item__value">{{
+              formatTaskStatusLabel(document.documentStatus)
+            }}</strong>
           </div>
 
           <div class="meta-item">
             <span class="meta-item__label">Document type</span>
-            <strong class="meta-item__value">{{ formatDocumentTypeLabel(document.documentType) }}</strong>
+            <strong class="meta-item__value">{{
+              formatDocumentTypeLabel(document.documentType)
+            }}</strong>
           </div>
 
           <div class="meta-item">
@@ -71,28 +80,28 @@
         </div>
 
         @if (tasksLoading) {
-          <div class="task-banner task-banner--muted">
-            Loading workflow tasks...
-          </div>
+          <div class="task-banner task-banner--muted">Loading workflow tasks...</div>
         } @else if (workflowBannerTask; as bannerTask) {
           <div
             class="task-banner"
             [class.task-banner--warning]="showAssignedToAnotherUserWarning"
-            [class.task-banner--overdue]="isTaskOverdue(bannerTask)">
+            [class.task-banner--overdue]="isTaskOverdue(bannerTask)"
+          >
             <div class="task-banner__content">
               <strong>
                 {{ showAssignedToAnotherUserWarning ? 'Assigned to another user' : 'Active task' }}
               </strong>
 
               <span>
-                  @if (showAssignedToAnotherUserWarning) {
-                    This document has an active {{ formatTaskTypeTitle(bannerTask.taskType) }} task assigned to
-                    {{ bannerTask.assignedUserName || ('user #' + bannerTask.assignedUserId) }}.
-                  } @else {
-                    {{ formatTaskTypeTitle(bannerTask.taskType) }} assigned to
-                    {{ bannerTask.assignedUserName || ('user #' + bannerTask.assignedUserId) }}.
-                  }
-                </span>
+                @if (showAssignedToAnotherUserWarning) {
+                  This document has an active {{ formatTaskTypeTitle(bannerTask.taskType) }} task
+                  assigned to
+                  {{ bannerTask.assignedUserName || 'user #' + bannerTask.assignedUserId }}.
+                } @else {
+                  {{ formatTaskTypeTitle(bannerTask.taskType) }} assigned to
+                  {{ bannerTask.assignedUserName || 'user #' + bannerTask.assignedUserId }}.
+                }
+              </span>
             </div>
 
             <div class="task-banner__meta">
@@ -100,7 +109,9 @@
                 <span class="task-status-pill task-status-pill--overdue">Overdue</span>
               }
 
-              <span class="task-status-pill task-status-pill--active">{{ formatTaskStatusLabel(bannerTask.status) }}</span>
+              <span class="task-status-pill task-status-pill--active">{{
+                formatTaskStatusLabel(bannerTask.status)
+              }}</span>
             </div>
           </div>
         } @else if (taskError) {
@@ -149,8 +160,8 @@
       @if (document && canAssignTasks && !isCompletedDocument) {
         <app-ui-card
           title="Task assignment"
-          subtitle="Assign document work to the right workflow role.">
-
+          subtitle="Assign document work to the right workflow role."
+        >
           @if (canAssignTaskForCurrentStatus) {
             <div class="task-assignment">
               <div class="field">
@@ -160,7 +171,8 @@
                   class="select"
                   name="taskType"
                   [(ngModel)]="assignTaskType"
-                  (ngModelChange)="onTaskTypeChange()">
+                  (ngModelChange)="onTaskTypeChange()"
+                >
                   @for (type of taskTypeOptions; track type.value) {
                     <option [value]="type.value">{{ type.label }}</option>
                   }
@@ -173,7 +185,8 @@
                   id="taskAssignee"
                   class="select"
                   name="taskAssignee"
-                  [(ngModel)]="assignTaskUserId">
+                  [(ngModel)]="assignTaskUserId"
+                >
                   @for (user of eligibleAssignees; track user.id) {
                     <option [ngValue]="user.id">
                       {{ user.firstName }} {{ user.lastName }} · {{ user.role }}
@@ -186,9 +199,7 @@
                 <div class="field-header">
                   <label for="taskDueDate">Due date</label>
 
-                  <small class="field-hint">
-                    Earliest allowed: {{ minDueDateHint }}.
-                  </small>
+                  <small class="field-hint"> Earliest allowed: {{ minDueDateHint }}. </small>
                 </div>
                 <input
                   id="taskDueDate"
@@ -197,15 +208,16 @@
                   name="taskDueDate"
                   lang="bs"
                   [placeholder]="europeanDatetimePlaceholder"
-                  [(ngModel)]="assignTaskDueDate"/>
-
+                  [(ngModel)]="assignTaskDueDate"
+                />
               </div>
 
               <button
                 type="button"
                 class="btn btn-primary"
                 [disabled]="assigningTask || !assignTaskUserId || !canAssignSelectedTaskType"
-                (click)="assignTask()">
+                (click)="assignTask()"
+              >
                 {{ assigningTask ? 'Assigning...' : 'Assign task' }}
               </button>
             </div>
@@ -222,13 +234,18 @@
                   <div>
                     <strong>{{ formatTaskType(task.taskType) }}</strong>
                     <span>
-                        {{ task.assignedUserName || ('user #' + task.assignedUserId) }} · {{ task.status }}
+                      {{ task.assignedUserName || 'user #' + task.assignedUserId }} ·
+                      {{ formatTaskStatusLabel(task.status) }}
                       @if (isTaskOverdue(task)) {
                         · Overdue
                       }
-                      </span>
+                    </span>
                   </div>
-                  <button type="button" class="btn btn-muted btn-compact" (click)="cancelTask(task)">
+                  <button
+                    type="button"
+                    class="btn btn-muted btn-compact"
+                    (click)="cancelTask(task)"
+                  >
                     Cancel
                   </button>
                 </div>
@@ -241,7 +258,8 @@
       @if (document && document.documentStatus === 'READY_FOR_APPROVAL' && canUseApprovalActions) {
         <app-ui-card
           title="Approval decision"
-          subtitle="Review the confirmed extraction and submit the final document decision.">
+          subtitle="Review the confirmed extraction and submit the final document decision."
+        >
           <div class="approval-panel">
             <label for="approvalComment">Decision comment</label>
             <textarea
@@ -251,28 +269,32 @@
               rows="3"
               [disabled]="approvalSubmitting || activeTaskAssignedToAnotherUser"
               [(ngModel)]="approvalComment"
-              placeholder="Add decision note"></textarea>
+              placeholder="Add decision note"
+            ></textarea>
 
             <div class="approval-actions">
               <button
                 type="button"
                 class="btn btn-primary"
                 [disabled]="approvalSubmitting || activeTaskAssignedToAnotherUser"
-                (click)="approveDocument()">
+                (click)="approveDocument()"
+              >
                 Approve
               </button>
               <button
                 type="button"
                 class="btn btn-muted"
                 [disabled]="approvalSubmitting || activeTaskAssignedToAnotherUser"
-                (click)="returnDocumentForCorrection()">
+                (click)="returnDocumentForCorrection()"
+              >
                 Return for correction
               </button>
               <button
                 type="button"
                 class="btn btn-danger"
                 [disabled]="approvalSubmitting || activeTaskAssignedToAnotherUser"
-                (click)="rejectDocument()">
+                (click)="rejectDocument()"
+              >
                 Reject
               </button>
             </div>
@@ -280,11 +302,11 @@
         </app-ui-card>
       }
 
-            @if (canShowXmlOutputSection) {
+      @if (canShowXmlOutputSection) {
         <app-ui-card
           title="XML output"
-          subtitle="Generate, review and download the structured XML output before completing document processing.">
-
+          subtitle="Generate, review and download the structured XML output before completing document processing."
+        >
           <div class="xml-output-panel">
             @if (document.documentStatus === 'COMPLETED') {
               <div class="message-card message-card--success xml-output-completed">
@@ -298,9 +320,7 @@
                 <span class="xml-output-toolbar__eyebrow">Structured output</span>
                 <h3>
                   {{
-                    xmlOutput
-                      ? 'Generated XML document'
-                      : 'XML output has not been generated yet'
+                    xmlOutput ? 'Generated XML document' : 'XML output has not been generated yet'
                   }}
                 </h3>
                 <p>
@@ -318,7 +338,8 @@
                     type="button"
                     class="btn btn-muted"
                     [disabled]="xmlOutputBusy"
-                    (click)="generateXmlOutput()">
+                    (click)="generateXmlOutput()"
+                  >
                     {{
                       xmlOutputGenerating
                         ? 'Generating...'
@@ -334,12 +355,9 @@
                     type="button"
                     class="btn btn-muted"
                     [disabled]="xmlOutputBusy"
-                    (click)="downloadXmlOutput()">
-                    {{
-                      xmlOutputDownloading
-                        ? 'Downloading...'
-                        : 'Download XML'
-                    }}
+                    (click)="downloadXmlOutput()"
+                  >
+                    {{ xmlOutputDownloading ? 'Downloading...' : 'Download XML' }}
                   </button>
                 }
 
@@ -348,12 +366,9 @@
                     type="button"
                     class="btn btn-primary"
                     [disabled]="xmlOutputBusy"
-                    (click)="openCompleteProcessingModal()">
-                    {{
-                      xmlCompletionSubmitting
-                        ? 'Completing...'
-                        : 'Complete processing'
-                    }}
+                    (click)="openCompleteProcessingModal()"
+                  >
+                    {{ xmlCompletionSubmitting ? 'Completing...' : 'Complete processing' }}
                   </button>
                 }
               </div>
@@ -374,9 +389,7 @@
 
                 <div>
                   <strong>No generated XML output</strong>
-                  <p>
-                    Generate XML after the document has been reviewed and approved.
-                  </p>
+                  <p>Generate XML after the document has been reviewed and approved.</p>
                 </div>
               </div>
             } @else {
@@ -397,18 +410,24 @@
                 </div>
               </div>
 
-              <div class="xml-preview">
-                <div class="xml-preview__header">
-                  <div>
-                    <span class="xml-preview__eyebrow">Preview</span>
-                    <strong>{{ xmlOutput.fileName }}</strong>
+              <button type="button" class="btn btn-muted btn-compact" (click)="toggleXmlPreview()">
+                {{ xmlPreviewExpanded() ? 'Hide XML preview' : 'Show XML preview' }}
+              </button>
+
+              @if (xmlPreviewExpanded()) {
+                <div class="xml-preview">
+                  <div class="xml-preview__header">
+                    <div>
+                      <span class="xml-preview__eyebrow">Preview</span>
+                      <strong>{{ xmlOutput.fileName }}</strong>
+                    </div>
+
+                    <span class="meta-chip meta-chip--ok">Valid XML</span>
                   </div>
 
-                  <span class="meta-chip meta-chip--ok">Valid XML</span>
+                  <pre><code>{{ xmlOutput.content }}</code></pre>
                 </div>
-
-                <pre><code>{{ xmlOutput.content }}</code></pre>
-              </div>
+              }
             }
           </div>
         </app-ui-card>
@@ -417,22 +436,18 @@
       @if (!isCompletedDocument) {
         <app-ui-card
           title="Document preview"
-          subtitle="Preview the uploaded file before downloading it.">
+          subtitle="Preview the uploaded file before downloading it."
+        >
           <div class="document-preview">
             @if (isPdf && fileUrl) {
-              <iframe
-                [src]="fileUrl"
-                width="100%"
-                height="600px"
-                style="border: none;">
-              </iframe>
+              <iframe [src]="fileUrl" width="100%" height="600px" style="border: none"> </iframe>
             }
 
             @if (isImage && fileUrl) {
               <img
                 [src]="fileUrl"
                 alt="Document preview"
-                style="max-width: 100%; border-radius: 8px;"
+                style="max-width: 100%; border-radius: 8px"
               />
             }
 
@@ -450,7 +465,8 @@
           title="Classification review required"
           subtitle="The document was uploaded as Other, but AI could not classify it with enough confidence."
           badgeText="Review required"
-          badgeVariant="warning">
+          badgeVariant="warning"
+        >
           <div class="classification-review">
             <div class="classification-review__summary">
               <div>
@@ -460,7 +476,9 @@
 
               <div>
                 <span class="meta-item__label">Confidence</span>
-                <strong>{{ formatClassificationConfidence(document.classificationConfidence) }}</strong>
+                <strong>{{
+                  formatClassificationConfidence(document.classificationConfidence)
+                }}</strong>
               </div>
             </div>
 
@@ -471,13 +489,15 @@
                   id="manualDocumentType"
                   class="select"
                   name="manualDocumentType"
-                  [(ngModel)]="selectedManualDocumentType">
+                  [(ngModel)]="selectedManualDocumentType"
+                >
                   @for (type of manualClassificationTypeOptions; track type.value) {
                     <option [value]="type.value">{{ type.label }}</option>
                   }
                 </select>
                 <span class="helper">
-                  After confirmation, the document returns to Uploaded and extraction can be run again.
+                  After confirmation, the document returns to Uploaded and extraction can be run
+                  again.
                 </span>
               </div>
 
@@ -485,7 +505,8 @@
                 type="button"
                 class="btn btn-primary"
                 [disabled]="confirmingDocumentType"
-                (click)="confirmDocumentType()">
+                (click)="confirmDocumentType()"
+              >
                 {{ confirmingDocumentType ? 'Confirming...' : 'Confirm document type' }}
               </button>
             </div>
@@ -496,335 +517,388 @@
       @if (!isCompletedDocument) {
         <app-ui-card
           title="Extracted fields"
-          subtitle="Automatically extracted fields from OCR/AI processing. Review flagged values before confirming.">
-        @if (document.documentStatus === 'NEEDS_CORRECTION' && correctionFeedback) {
-          <div class="message-card message-card--warning correction-banner">
-            <strong>Document returned for correction</strong>
-            <p>
-              {{ correctionFeedback.userName || ('User #' + correctionFeedback.userId) }}
-              · {{ formatCommentType(correctionFeedback.type) }}
-              · {{ formatDate(correctionFeedback.createdAt) }}
-            </p>
-            <p class="correction-banner__comment">{{ correctionFeedback.content }}</p>
-          </div>
-        }
+          subtitle="Automatically extracted fields from OCR/AI processing. Review flagged values before confirming."
+        >
+          @if (document.documentStatus === 'NEEDS_CORRECTION') {
+            <section class="correction-panel" aria-label="Correction request">
+              <div class="correction-panel__icon" aria-hidden="true">
+                ↩
+              </div>
 
-        <div class="extraction-actions">
-          @if (!canUseExtractionActions) {
-            @if (activeTaskAssignedToAnotherUser) {
-              This workflow step is assigned to another user. You can view the document, but you cannot perform this action.
-            } @else {
-              Your role can view extracted fields, but extraction actions are restricted.
-            }
-          } @else if (canConfirmCurrentExtraction()) {
-            <div class="extraction-actions__left">
-              <button
-                type="button"
-                class="btn btn-muted"
-                (click)="retryExtraction()"
-                [disabled]="extractionRunning || extractionLoading || confirmingExtraction">
-                {{ extractionRunning ? 'Retrying...' : 'Retry extraction' }}
-              </button>
+              <div class="correction-panel__body">
+                <div class="correction-panel__header">
+                  <div>
+                    <span class="correction-panel__eyebrow">
+                      Correction requested
+                    </span>
 
+                    <h3>Review the returned document</h3>
+                  </div>
+
+                  <span class="correction-panel__pill">
+                    Action required
+                  </span>
+                </div>
+
+                <p class="correction-panel__description">
+                  Update the extracted fields or add missing values, then reconfirm the extraction when ready.
+                </p>
+
+                @if (correctionFeedback) {
+                  <div class="correction-panel__feedback">
+                    <div class="correction-panel__meta">
+                      <strong>
+                        {{ correctionFeedback.userName || 'User #' + correctionFeedback.userId }}
+                      </strong>
+
+                      <span>{{ formatCommentType(correctionFeedback.type) }}</span>
+                      <span>{{ formatDate(correctionFeedback.createdAt) }}</span>
+                    </div>
+
+                    <p>{{ correctionFeedback.content }}</p>
+                  </div>
+                }
+              </div>
+            </section>
+          }
+
+          <div class="extraction-actions">
+            @if (!canUseExtractionActions) {
+              @if (activeTaskAssignedToAnotherUser) {
+                This workflow step is assigned to another user. You can view the document, but you
+                cannot perform this action.
+              } @else {
+                Your role can view extracted fields, but extraction actions are restricted.
+              }
+            } @else if (canConfirmCurrentExtraction()) {
+              <div class="extraction-actions__left">
+                <button
+                  type="button"
+                  class="btn btn-muted"
+                  (click)="retryExtraction()"
+                  [disabled]="extractionRunning || extractionLoading || confirmingExtraction"
+                >
+                  {{ extractionRunning ? 'Retrying...' : 'Retry extraction' }}
+                </button>
+
+                <button
+                  type="button"
+                  class="btn btn-muted"
+                  (click)="loadExtraction()"
+                  [disabled]="extractionLoading || extractionRunning || confirmingExtraction"
+                >
+                  {{ extractionLoading ? 'Refreshing...' : 'Refresh fields' }}
+                </button>
+              </div>
+
+              <div class="extraction-actions__right">
+                <button
+                  type="button"
+                  class="btn btn-muted"
+                  (click)="openAddFieldModal()"
+                  [disabled]="
+                    extractionRunning ||
+                    extractionLoading ||
+                    confirmingExtraction ||
+                    !!editState ||
+                    extractionId === null
+                  "
+                >
+                  Add field
+                </button>
+
+                <button
+                  type="button"
+                  class="btn btn-primary"
+                  (click)="confirmExtraction()"
+                  [disabled]="
+                    extractionRunning || extractionLoading || confirmingExtraction || !!editState
+                  "
+                >
+                  {{
+                    confirmingExtraction
+                      ? 'Confirming...'
+                      : document.documentStatus === 'NEEDS_CORRECTION'
+                        ? 'Reconfirm extraction'
+                        : 'Confirm extraction'
+                  }}
+                </button>
+              </div>
+            } @else if (document.documentStatus === 'READY_FOR_APPROVAL') {
               <button
                 type="button"
                 class="btn btn-muted"
                 (click)="loadExtraction()"
-                [disabled]="extractionLoading || extractionRunning || confirmingExtraction">
+                [disabled]="extractionLoading || extractionRunning || confirmingExtraction"
+              >
                 {{ extractionLoading ? 'Refreshing...' : 'Refresh fields' }}
               </button>
-            </div>
-
-            <div class="extraction-actions__right">
-              <button
-                type="button"
-                class="btn btn-muted"
-                (click)="openAddFieldModal()"
-                [disabled]="
-                  extractionRunning ||
-                  extractionLoading ||
-                  confirmingExtraction ||
-                  !!editState ||
-                  extractionId === null
-                ">
-                Add field
-              </button>
-
+            } @else if (document.documentStatus === 'NEEDS_CLASSIFICATION_REVIEW') {
+              <span class="classification-review-hint">
+                Confirm the document type before running extraction again.
+              </span>
+            } @else if (
+              document.documentStatus === 'APPROVED' ||
+              document.documentStatus === 'REJECTED' ||
+              document.documentStatus === 'COMPLETED'
+            ) {
+              <span class="classification-review-hint">
+                This document is finalized and extraction fields are view-only.
+              </span>
+            } @else {
               <button
                 type="button"
                 class="btn btn-primary"
-                (click)="confirmExtraction()"
-                [disabled]="extractionRunning || extractionLoading || confirmingExtraction || !!editState">
-                {{
-                  confirmingExtraction
-                    ? 'Confirming...'
-                    : document.documentStatus === 'NEEDS_CORRECTION'
-                      ? 'Reconfirm extraction'
-                      : 'Confirm extraction'
-                }}
+                [disabled]="extractionRunning"
+                (click)="runExtraction()"
+              >
+                {{ extractionRunning ? 'Running extraction...' : 'Run extraction' }}
               </button>
+            }
+          </div>
+
+          
+              @if (hasUnreviewedDateFields()) {
+                <div class="date-format-notice">
+                  <strong>Check extracted date fields:</strong>
+                  <span>
+                    Dates should be in European format: DD.MM.YYYY or DD/MM/YYYY. If OCR returns an
+                    ambiguous date, verify that the day and month are correct before confirming
+                    extraction.
+                  </span>
+                </div>
+              }
+
+          @if (document.documentStatus === 'READY_FOR_APPROVAL') {
+            <div class="message-card message-card--success">
+              <strong>Extraction confirmed.</strong>
+              This document is ready for approval.
             </div>
-
-            @if (document.documentStatus === 'NEEDS_CORRECTION') {
-              <div class="message-card message-card--warning">
-                <strong>Correction required.</strong>
-                Review the returned document, update extracted fields if needed, then reconfirm extraction.
-              </div>
-            }
-
-            @if (hasUnreviewedDateFields()) {
-              <div class="date-format-notice">
-                <strong>Check extracted date fields:</strong>
-                <span>
-                  Dates should be in European format: DD.MM.YYYY or DD/MM/YYYY.
-                  If OCR returns an ambiguous date, verify that the day and month are correct before confirming extraction.
-                </span>
-              </div>
-            }
-          } @else if (document.documentStatus === 'READY_FOR_APPROVAL') {
-            <button
-              type="button"
-              class="btn btn-muted"
-              (click)="loadExtraction()"
-              [disabled]="extractionLoading || extractionRunning || confirmingExtraction">
-              {{ extractionLoading ? 'Refreshing...' : 'Refresh fields' }}
-            </button>
-          } @else if (document.documentStatus === 'NEEDS_CLASSIFICATION_REVIEW') {
-            <span class="classification-review-hint">
-              Confirm the document type before running extraction again.
-            </span>
-          } @else if (document.documentStatus === 'APPROVED' || document.documentStatus === 'REJECTED' || document.documentStatus === 'COMPLETED') {
-            <span class="classification-review-hint">
-              This document is finalized and extraction fields are view-only.
-            </span>
-          } @else {
-            <button
-              type="button"
-              class="btn btn-primary"
-              [disabled]="extractionRunning"
-              (click)="runExtraction()">
-              {{ extractionRunning ? 'Running extraction...' : 'Run extraction' }}
-            </button>
           }
-        </div>
 
-        @if (document.documentStatus === 'READY_FOR_APPROVAL') {
-          <div class="message-card message-card--success">
-            <strong>Extraction confirmed.</strong>
-            This document is ready for approval.
-          </div>
-        }
+          @if (extractionError) {
+            <div class="message-card message-card--error">
+              <strong>Extraction error:</strong> {{ extractionError }}
+            </div>
+          }
 
-        @if (document.documentStatus === 'NEEDS_CORRECTION' && canManageExtraction) {
-          <div class="message-card message-card--warning">
-            <strong>Correction required.</strong>
-            Update the extracted fields or add missing values, then reconfirm extraction when ready.
-          </div>
-        }
+          @if (extractionLoading) {
+            <div class="loading-state">
+              <div class="loading-spinner"></div>
+              <span>Loading extracted fields...</span>
+            </div>
+          }
 
-        @if (extractionError) {
-          <div class="message-card message-card--error">
-            <strong>Extraction error:</strong> {{ extractionError }}
-          </div>
-        }
+          @if (!extractionLoading && extractionFields.length === 0) {
+            <div class="message-card">
+              <span>No extracted fields yet.</span>
+            </div>
+          }
 
-        @if (extractionLoading) {
-          <div class="loading-state">
-            <div class="loading-spinner"></div>
-            <span>Loading extracted fields...</span>
-          </div>
-        }
+          @if (!extractionLoading && extractionFields.length > 0) {
+            <div class="extraction-table-wrapper">
+              <table class="extraction-table">
+                <thead>
+                  <tr>
+                    <th>Field</th>
+                    <th>Value</th>
+                    <th>Confidence</th>
+                    <th>Review status</th>
 
-        @if (!extractionLoading && extractionFields.length === 0) {
-          <div class="message-card">
-            <span>No extracted fields yet.</span>
-          </div>
-        }
-
-        @if (!extractionLoading && extractionFields.length > 0) {
-          <div class="extraction-table-wrapper">
-            <table class="extraction-table">
-              <thead>
-              <tr>
-                <th>Field</th>
-                <th>Value</th>
-                <th>Confidence</th>
-                <th>Corrected</th>
-                <th>Review status</th>
-                <th>Actions</th>
-              </tr>
-              </thead>
-
-              <tbody>
-                @for (field of extractionFields; track field.id) {
-                  <tr
-                    [class.row--editing]="isEditing(field)"
-                    [class.row--placeholder]="isPlaceholderField(field)"
-                    [class.row--warning]="
-                      (isLowConfidenceField(field) || isDateFieldRequiringReview(field))
-                      && !field.corrected
-                      && !isPlaceholderField(field)
-                    ">
-                    <td class="field-cell">
-                      <div class="field-cell__content">
-                        <span>{{ formatFieldLabel(field) }}</span>
-                        <span class="mono field-cell__key">{{ field.fieldName }}</span>
-
-                        @if (isManualField(field)) {
-                          <span class="field-pill field-pill--manual">Manual</span>
-                        }
-
-                        @if (isPlaceholderField(field)) {
-                          <span class="field-pill field-pill--required">Required</span>
-                        }
-                      </div>
-                    </td>
-
-                    <td class="value-cell">
-                      @if (isEditing(field)) {
-                        <div class="edit-cell">
-                          <input
-                            class="input edit-input"
-                            type="text"
-                            [(ngModel)]="editState!.editValue"
-                            [disabled]="editState!.saving"
-                            (keydown.enter)="confirmEdit(field)"
-                            (keydown.escape)="cancelEdit()"
-                            autofocus
-                          />
-
-                          @if (isDateField(field)) {
-                            <span class="field-hint">{{ getDateFormatHint() }}</span>
-                          }
-
-                          @if (editState!.validationError) {
-                            <span class="validation-error">{{ editState!.validationError }}</span>
-                          }
-                        </div>
-                      } @else {
-                        <span [class.value--missing]="isPlaceholderField(field)">
-                          {{ displayFieldValue(field) }}
-                        </span>
-                      }
-                    </td>
-
-                    <td>
-                      <span [class.confidence--low]="isLowConfidenceField(field) && !isDateField(field)">
-                        {{ formatConfidence(field.confidence) }}
-                      </span>
-                    </td>
-
-                    <td>
-                      <span
-                        class="meta-chip"
-                        [class.meta-chip--ok]="field.corrected"
-                        [class.meta-chip--muted]="!field.corrected">
-                        {{ field.corrected ? 'Yes' : 'No' }}
-                      </span>
-                    </td>
-
-                    <td class="review-cell">
-                      <span class="review-badge" [ngClass]="getFieldReviewClass(field)">
-                        @if (isDateFieldRequiringReview(field) && !field.corrected) {
-                          Review needed
-                        } @else {
-                          {{ getFieldReviewLabel(field) }}
-                        }
-                      </span>
-                    </td>
-
-                                        <td class="actions-cell">
-                      @if (!canEditExtractionField()) {
-                        <span class="meta-chip meta-chip--muted">View only</span>
-                      } @else if (!isEditing(field)) {
-                        <div class="row-actions">
-                          <button
-                            type="button"
-                            class="icon-btn"
-                            title="Edit value"
-                            aria-label="Edit field value"
-                            [disabled]="
-                              editState !== null ||
-                              deletingFieldId !== null ||
-                              extractionRunning ||
-                              extractionLoading ||
-                              confirmingExtraction
-                            "
-                            (click)="startEdit(field)">
-                            ✎
-                          </button>
-
-                          <button
-                            type="button"
-                            class="icon-btn icon-btn--delete"
-                            [title]="
-                              isRequiredCanonicalField(field)
-                                ? 'Clear required field value'
-                                : 'Delete field'
-                            "
-                            [attr.aria-label]="
-                              isRequiredCanonicalField(field)
-                                ? 'Clear required field value'
-                                : 'Delete extraction field'
-                            "
-                            [disabled]="
-                              editState !== null ||
-                              deletingFieldId !== null ||
-                              extractionRunning ||
-                              extractionLoading ||
-                              confirmingExtraction
-                            "
-                            (click)="openDeleteFieldModal(field)">
-                            <svg
-                              aria-hidden="true"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              stroke-width="1.9"
-                              stroke-linecap="round"
-                              stroke-linejoin="round">
-                              <path d="M3 6h18"></path>
-                              <path d="M8 6V4h8v2"></path>
-                              <path d="M19 6l-1 14H6L5 6"></path>
-                              <path d="M10 11v5"></path>
-                              <path d="M14 11v5"></path>
-                            </svg>
-                          </button>
-                        </div>
-                      } @else {
-                        <div class="edit-actions">
-                          <button
-                            type="button"
-                            class="icon-btn icon-btn--confirm"
-                            title="Save change"
-                            [disabled]="editState!.saving"
-                            (click)="confirmEdit(field)">
-                            {{ editState!.saving ? '…' : '✓' }}
-                          </button>
-
-                          <button
-                            type="button"
-                            class="icon-btn icon-btn--cancel"
-                            title="Cancel edit"
-                            [disabled]="editState!.saving"
-                            (click)="cancelEdit()">
-                            ✕
-                          </button>
-                        </div>
-                      }
-                    </td>
+                    @if (canEditExtractionField()) {
+                      <th class="actions-cell">Actions</th>
+                    }
                   </tr>
-                }
-              </tbody>
-            </table>
-          </div>
-        }
+                </thead>
+
+                <tbody>
+                  @for (field of extractionFields; track field.id) {
+                    <tr
+                      [class.row--editing]="isEditing(field)"
+                      [class.row--placeholder]="isPlaceholderField(field)"
+                      [class.row--warning]="
+                        (isLowConfidenceField(field) || isDateFieldRequiringReview(field)) &&
+                        !field.corrected &&
+                        !isPlaceholderField(field)
+                      "
+                    >
+                      <td class="field-cell">
+                        <div class="field-cell__content">
+                          <strong class="field-cell__label">
+                            {{ formatFieldLabel(field) }}
+                          </strong>
+
+                          @if (isManualField(field) || isPlaceholderField(field)) {
+                            <div class="field-cell__badges">
+                              @if (isManualField(field)) {
+                                <span class="field-pill field-pill--manual"> Manual </span>
+                              }
+
+                              @if (isPlaceholderField(field)) {
+                                <span class="field-pill field-pill--required"> Required </span>
+                              }
+                            </div>
+                          }
+                        </div>
+                      </td>
+
+                      <td class="value-cell">
+                        @if (isEditing(field)) {
+                          <div class="edit-cell">
+                            <input
+                              class="input edit-input"
+                              type="text"
+                              [(ngModel)]="editState!.editValue"
+                              [disabled]="editState!.saving"
+                              (keydown.enter)="confirmEdit(field)"
+                              (keydown.escape)="cancelEdit()"
+                              autofocus
+                            />
+
+                            @if (isDateField(field)) {
+                              <span class="field-hint">
+                                {{ getDateFormatHint() }}
+                              </span>
+                            }
+
+                            @if (editState!.validationError) {
+                              <span class="validation-error">
+                                {{ editState!.validationError }}
+                              </span>
+                            }
+                          </div>
+                        } @else {
+                          <span [class.value--missing]="isPlaceholderField(field)">
+                            {{ displayFieldValue(field) }}
+                          </span>
+                        }
+                      </td>
+
+                      <td>
+                        <span
+                          class="confidence-value"
+                          [class.confidence--low]="
+                            isLowConfidenceField(field) && !isDateField(field)
+                          "
+                        >
+                          {{ formatConfidence(field.confidence) }}
+                        </span>
+                      </td>
+
+                      <td class="review-cell">
+                        <div class="review-stack">
+                          <span class="review-badge" [ngClass]="getFieldReviewClass(field)">
+                            @if (isDateFieldRequiringReview(field) && !field.corrected) {
+                              Review needed
+                            } @else {
+                              {{ getFieldReviewLabel(field) }}
+                            }
+                          </span>
+
+                          @if (field.corrected) {
+                            <small class="review-note"> Manually reviewed </small>
+                          }
+                        </div>
+                      </td>
+
+                      @if (canEditExtractionField()) {
+                        <td class="actions-cell">
+                          @if (!isEditing(field)) {
+                            <div class="row-actions">
+                              <button
+                                type="button"
+                                class="icon-btn"
+                                title="Edit value"
+                                aria-label="Edit field value"
+                                [disabled]="
+                                  editState !== null ||
+                                  deletingFieldId !== null ||
+                                  extractionRunning ||
+                                  extractionLoading ||
+                                  confirmingExtraction
+                                "
+                                (click)="startEdit(field)"
+                              >
+                                ✎
+                              </button>
+
+                              <button
+                                type="button"
+                                class="icon-btn icon-btn--delete"
+                                [title]="
+                                  isRequiredCanonicalField(field)
+                                    ? 'Clear required field value'
+                                    : 'Delete field'
+                                "
+                                [attr.aria-label]="
+                                  isRequiredCanonicalField(field)
+                                    ? 'Clear required field value'
+                                    : 'Delete extraction field'
+                                "
+                                [disabled]="
+                                  editState !== null ||
+                                  deletingFieldId !== null ||
+                                  extractionRunning ||
+                                  extractionLoading ||
+                                  confirmingExtraction
+                                "
+                                (click)="openDeleteFieldModal(field)"
+                              >
+                                <svg
+                                  aria-hidden="true"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  stroke-width="1.9"
+                                  stroke-linecap="round"
+                                  stroke-linejoin="round"
+                                >
+                                  <path d="M3 6h18"></path>
+                                  <path d="M8 6V4h8v2"></path>
+                                  <path d="M19 6l-1 14H6L5 6"></path>
+                                  <path d="M10 11v5"></path>
+                                  <path d="M14 11v5"></path>
+                                </svg>
+                              </button>
+                            </div>
+                          } @else {
+                            <div class="edit-actions">
+                              <button
+                                type="button"
+                                class="icon-btn icon-btn--confirm"
+                                title="Save change"
+                                [disabled]="editState!.saving"
+                                (click)="confirmEdit(field)"
+                              >
+                                {{ editState!.saving ? '…' : '✓' }}
+                              </button>
+
+                              <button
+                                type="button"
+                                class="icon-btn icon-btn--cancel"
+                                title="Cancel edit"
+                                [disabled]="editState!.saving"
+                                (click)="cancelEdit()"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          }
+                        </td>
+                      }
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
         </app-ui-card>
       }
 
       <app-ui-card
         title="Status history"
-        subtitle="Chronological record of document status changes.">
+        subtitle="Chronological record of document status changes."
+      >
         @if (statusHistoryLoading) {
           <div class="workflow-state">Loading status history...</div>
         } @else if (statusHistoryError) {
@@ -855,16 +929,16 @@
                     </div>
 
                     <span class="workflow-event__time">
-                        {{ formatDate(entry.changedAt) }}
-                      </span>
+                      {{ formatDate(entry.changedAt) }}
+                    </span>
                   </div>
 
                   <div class="workflow-event__meta">
                     <app-status-badge [status]="entry.newStatus"></app-status-badge>
 
                     <span class="meta-chip">
-                        {{ entry.changedByUserName || ('User #' + entry.changedByUserId) }}
-                      </span>
+                      {{ entry.changedByUserName || 'User #' + entry.changedByUserId }}
+                    </span>
                   </div>
 
                   @if (entry.commentContent) {
@@ -888,14 +962,17 @@
           <div class="section-header audit-log-header">
             <div>
               <h2>Audit log</h2>
-              <p>Audit trail of document actions. Expand only when detailed traceability is needed.</p>
+              <p>
+                Audit trail of document actions. Expand only when detailed traceability is needed.
+              </p>
             </div>
 
             @if (auditLogs.length > 0) {
               <button
                 type="button"
                 class="btn btn-muted btn-compact"
-                (click)="toggleAuditExpanded()">
+                (click)="toggleAuditExpanded()"
+              >
                 {{ auditExpanded ? 'Collapse audit log' : 'Show audit log' }}
               </button>
             }
@@ -906,9 +983,7 @@
           } @else if (auditError) {
             <div class="message-card message-card--error">{{ auditError }}</div>
           } @else if (auditLogs.length === 0) {
-            <div class="audit-empty">
-              No audit actions recorded yet.
-            </div>
+            <div class="audit-empty">No audit actions recorded yet.</div>
           } @else {
             <div class="audit-summary">
               <div>
@@ -939,15 +1014,15 @@
                           <h3>{{ formatAuditAction(entry.action) }}</h3>
 
                           <div class="audit-meta">
-                      <span class="audit-user">
-                        {{ entry.userFullName || 'Unknown user' }}
-                      </span>
+                            <span class="audit-user">
+                              {{ entry.userFullName || 'Unknown user' }}
+                            </span>
                           </div>
                         </div>
 
                         <span class="audit-date">
-                    {{ formatDate(entry.timestamp) }}
-                  </span>
+                          {{ formatDate(entry.timestamp) }}
+                        </span>
                       </div>
 
                       <p class="audit-details">
@@ -966,9 +1041,7 @@
         </section>
       }
 
-      <app-ui-card
-        title="Comments"
-        subtitle="Notes and decision comments linked to this document.">
+      <app-ui-card title="Comments" subtitle="Notes and decision comments linked to this document.">
         @if (commentsLoading) {
           <div class="workflow-state">Loading comments...</div>
         } @else if (commentsError) {
@@ -982,7 +1055,7 @@
                 <div class="comments-list__header">
                   <span class="meta-chip">{{ formatCommentType(comment.type) }}</span>
                   <span class="comments-list__meta">
-                    {{ comment.userName || ('User #' + comment.userId) }}
+                    {{ comment.userName || 'User #' + comment.userId }}
                     · {{ formatDate(comment.createdAt) }}
                   </span>
                 </div>
@@ -1001,12 +1074,14 @@
             [(ngModel)]="newCommentContent"
             name="newComment"
             placeholder="Write a comment for other reviewers or operators..."
-            [disabled]="submittingComment"></textarea>
+            [disabled]="submittingComment"
+          ></textarea>
           <div class="comment-form__actions">
             <button
               type="submit"
               class="btn btn-primary"
-              [disabled]="submittingComment || !newCommentContent.trim()">
+              [disabled]="submittingComment || !newCommentContent.trim()"
+            >
               {{ submittingComment ? 'Saving...' : 'Add comment' }}
             </button>
           </div>
@@ -1022,11 +1097,14 @@
         role="dialog"
         aria-modal="true"
         aria-labelledby="add-field-title"
-        (click)="$event.stopPropagation()">
+        (click)="$event.stopPropagation()"
+      >
         <div>
           <p class="modal-eyebrow modal-eyebrow--neutral">Manual field</p>
           <h2 id="add-field-title">Add extraction field</h2>
-          <p>Add a missing value that OCR did not capture. Custom fields require a display label.</p>
+          <p>
+            Add a missing value that OCR did not capture. Custom fields require a display label.
+          </p>
         </div>
 
         <form class="add-field-form" (ngSubmit)="submitAddField()">
@@ -1036,7 +1114,8 @@
             class="add-field-form__input"
             [(ngModel)]="selectedFieldOption"
             name="addFieldOption"
-            [disabled]="addFieldSaving">
+            [disabled]="addFieldSaving"
+          >
             @for (option of manualFieldOptions; track option.fieldName) {
               <option [value]="option.fieldName">{{ option.label }}</option>
             }
@@ -1052,7 +1131,8 @@
               [(ngModel)]="customFieldLabel"
               name="customFieldLabel"
               placeholder="e.g. Project code"
-              [disabled]="addFieldSaving" />
+              [disabled]="addFieldSaving"
+            />
           }
 
           <label class="add-field-form__label" for="addFieldValue">Value</label>
@@ -1063,7 +1143,8 @@
             [(ngModel)]="addFieldValue"
             name="addFieldValue"
             placeholder="Enter field value"
-            [disabled]="addFieldSaving" />
+            [disabled]="addFieldSaving"
+          />
 
           @if (addFieldError) {
             <p class="validation-error">{{ addFieldError }}</p>
@@ -1074,7 +1155,8 @@
               type="button"
               class="btn btn-muted"
               (click)="closeAddFieldModal()"
-              [disabled]="addFieldSaving">
+              [disabled]="addFieldSaving"
+            >
               Cancel
             </button>
             <button type="submit" class="btn btn-primary" [disabled]="addFieldSaving">
@@ -1086,28 +1168,22 @@
     </div>
   }
 
-    @if (fieldPendingDeletion; as field) {
-    <div
-      class="modal-backdrop"
-      role="presentation"
-      (click)="closeDeleteFieldModal()">
+  @if (fieldPendingDeletion; as field) {
+    <div class="modal-backdrop" role="presentation" (click)="closeDeleteFieldModal()">
       <section
         class="confirm-modal delete-field-modal"
         role="dialog"
         aria-modal="true"
         aria-labelledby="delete-field-title"
-        (click)="$event.stopPropagation()">
-
+        (click)="$event.stopPropagation()"
+      >
         <div>
           <p
             class="modal-eyebrow"
             [class.modal-eyebrow--warning]="isRequiredCanonicalField(field)"
-            [class.modal-eyebrow--danger]="!isRequiredCanonicalField(field)">
-            {{
-              isRequiredCanonicalField(field)
-                ? 'Required field'
-                : 'Delete field'
-            }}
+            [class.modal-eyebrow--danger]="!isRequiredCanonicalField(field)"
+          >
+            {{ isRequiredCanonicalField(field) ? 'Required field' : 'Delete field' }}
           </p>
 
           <h2 id="delete-field-title">
@@ -1120,14 +1196,13 @@
 
           @if (isRequiredCanonicalField(field)) {
             <p>
-              This field is required. Its current value will be removed, but the
-              field will remain visible as an empty placeholder. Enter a new
-              value before confirming the extraction.
+              This field is required. Its current value will be removed, but the field will remain
+              visible as an empty placeholder. Enter a new value before confirming the extraction.
             </p>
           } @else {
             <p>
-              This field will be permanently removed from the extraction.
-              This action cannot be undone.
+              This field will be permanently removed from the extraction. This action cannot be
+              undone.
             </p>
           }
         </div>
@@ -1149,7 +1224,8 @@
             type="button"
             class="btn btn-muted"
             [disabled]="deletingFieldId !== null"
-            (click)="closeDeleteFieldModal()">
+            (click)="closeDeleteFieldModal()"
+          >
             Cancel
           </button>
 
@@ -1157,19 +1233,12 @@
             type="button"
             class="btn btn-danger"
             [disabled]="deletingFieldId !== null"
-            (click)="confirmDeleteExtractionField()">
+            (click)="confirmDeleteExtractionField()"
+          >
             @if (deletingFieldId !== null) {
-              {{
-                isRequiredCanonicalField(field)
-                  ? 'Clearing...'
-                  : 'Deleting...'
-              }}
+              {{ isRequiredCanonicalField(field) ? 'Clearing...' : 'Deleting...' }}
             } @else {
-              {{
-                isRequiredCanonicalField(field)
-                  ? 'Clear value'
-                  : 'Delete field'
-              }}
+              {{ isRequiredCanonicalField(field) ? 'Clear value' : 'Delete field' }}
             }
           </button>
         </div>
@@ -1177,32 +1246,23 @@
     </div>
   }
 
-    @if (showCompleteProcessingModal) {
-    <div
-      class="modal-backdrop"
-      role="presentation"
-      (click)="closeCompleteProcessingModal()">
-
+  @if (showCompleteProcessingModal) {
+    <div class="modal-backdrop" role="presentation" (click)="closeCompleteProcessingModal()">
       <section
         class="confirm-modal complete-processing-modal"
         role="dialog"
         aria-modal="true"
         aria-labelledby="complete-processing-title"
-        (click)="$event.stopPropagation()">
-
+        (click)="$event.stopPropagation()"
+      >
         <div>
-          <p class="modal-eyebrow modal-eyebrow--success">
-            Finalize processing
-          </p>
+          <p class="modal-eyebrow modal-eyebrow--success">Finalize processing</p>
 
-          <h2 id="complete-processing-title">
-            Complete document processing?
-          </h2>
+          <h2 id="complete-processing-title">Complete document processing?</h2>
 
           <p>
-            The document will be marked as completed. The final XML output
-            will remain available for review and download, but no additional
-            workflow actions will be available.
+            The document will be marked as completed. The final XML output will remain available for
+            review and download, but no additional workflow actions will be available.
           </p>
         </div>
 
@@ -1217,7 +1277,8 @@
             type="button"
             class="btn btn-muted"
             [disabled]="xmlCompletionSubmitting"
-            (click)="closeCompleteProcessingModal()">
+            (click)="closeCompleteProcessingModal()"
+          >
             Cancel
           </button>
 
@@ -1225,16 +1286,12 @@
             type="button"
             class="btn btn-primary"
             [disabled]="xmlCompletionSubmitting"
-            (click)="completeDocumentProcessing()">
-            {{
-              xmlCompletionSubmitting
-                ? 'Completing...'
-                : 'Complete processing'
-            }}
+            (click)="completeDocumentProcessing()"
+          >
+            {{ xmlCompletionSubmitting ? 'Completing...' : 'Complete processing' }}
           </button>
         </div>
       </section>
     </div>
   }
-
 </section>

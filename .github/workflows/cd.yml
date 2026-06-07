@@ -1,0 +1,98 @@
+name: Docflow CD
+
+on:
+  workflow_run:
+    workflows:
+      - Docflow CI
+    types:
+      - completed
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docflow-production-deployment
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to DigitalOcean
+    if: >-
+      ${{
+        github.event_name == 'workflow_dispatch' ||
+        (
+          github.event.workflow_run.conclusion == 'success' &&
+          github.event.workflow_run.event == 'push' &&
+          github.event.workflow_run.head_branch == 'main'
+        )
+      }}
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 20
+
+    steps:
+      - name: Configure SSH
+        env:
+          DEPLOY_SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "${DEPLOY_SSH_PRIVATE_KEY}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "${DEPLOY_KNOWN_HOSTS}" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Deploy main branch
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+          DEPLOY_REPO_DIR: ${{ vars.DEPLOY_REPO_DIR }}
+        run: |
+          repo_dir="${DEPLOY_REPO_DIR:-/opt/docflow}"
+
+          ssh \
+            -i ~/.ssh/id_ed25519 \
+            -p "${DEPLOY_PORT:-22}" \
+            "${DEPLOY_USER}@${DEPLOY_HOST}" \
+            "cd '${repo_dir}' &&
+             git fetch --prune origin &&
+             git checkout main &&
+             git reset --hard origin/main &&
+             bash Project/scripts/deploy.sh"
+
+      - name: Verify public frontend
+        run: |
+          curl \
+            --fail \
+            --silent \
+            --show-error \
+            --retry 12 \
+            --retry-delay 5 \
+            https://docflow.page/ \
+            > /dev/null
+
+      - name: Verify public Keycloak realm
+        run: |
+          curl \
+            --fail \
+            --silent \
+            --show-error \
+            --retry 12 \
+            --retry-delay 5 \
+            https://auth.docflow.page/realms/docflow/.well-known/openid-configuration \
+            > /dev/null
+
+      - name: Add deployment summary
+        run: |
+          {
+            echo "## Docflow Production Deployment"
+            echo
+            echo "- Status: ✅ Deployment completed successfully"
+            echo "- Branch: \`main\`"
+            echo "- Frontend: https://docflow.page"
+            echo "- Authentication: https://auth.docflow.page"
+          } >> "${GITHUB_STEP_SUMMARY}"
