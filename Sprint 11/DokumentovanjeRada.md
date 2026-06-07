@@ -455,8 +455,7 @@ Uvođenje novog statusa `NEEDS_CORRECTION` uzrokovalo je greške jer PostgreSQL 
 `document_status` nije automatski ažuriran kroz Hibernate `ddl-auto=update` mehanizam.
 
 **Rješenje:** Tim je identificirao ovaj problem i uveo ručne SQL migracije za ažuriranje PostgreSQL check constraintova
-svaki put kada se uvodi novi enum status ili audit akcija. Ove SQL skripte su dokumentovane i moraju se pokrenuti pri
-deploymentu na postojeće baze.
+svaki put kada se uvodi novi enum status ili audit akcija.
 
 ### Problem 5: Neusklađenost frontend i backend validacije (Sprint 8)
 
