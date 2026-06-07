@@ -667,6 +667,21 @@ CI pipeline pokreće:
 6. Playwright UI smoke testove;
 7. čuvanje backend i Playwright reporta kao GitHub Actions artifacts.
 
+Pored automatskog pokretanja prilikom odgovarajućih `pull_request` i `push` događaja, CI workflow se može pokrenuti i ručno korištenjem opcije `workflow_dispatch`.
+
+Koraci za ručno pokretanje:
+
+```text
+GitHub repozitorij
+→ Actions
+→ Docflow CI
+→ Run workflow
+→ Odabrati željenu granu
+→ Run workflow
+```
+
+Ručno pokretanje je korisno kada je potrebno ponoviti provjeru builda i testova bez kreiranja novog commita ili pull requesta.
+
 ---
 
 # Dio III — Produkcijski deployment
