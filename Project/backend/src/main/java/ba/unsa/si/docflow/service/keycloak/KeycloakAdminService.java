@@ -153,12 +153,20 @@ public class KeycloakAdminService {
         }
 
         try {
-            UserRepresentation user = realm().users().get(keycloakUserId).toRepresentation();
-            user.setEnabled(enabled);
-            realm().users().get(keycloakUserId).update(user);
+            var userResource = realm().users().get(keycloakUserId);
 
             if (enabled) {
                 realm().attackDetection().clearBruteForceForUser(keycloakUserId);
+            }
+
+            UserRepresentation user = userResource.toRepresentation();
+            user.setEnabled(enabled);
+            userResource.update(user);
+
+            if (enabled) {
+                realm().attackDetection().clearBruteForceForUser(keycloakUserId);
+            } else {
+                userResource.logout();
             }
 
         } catch (Exception ex) {
