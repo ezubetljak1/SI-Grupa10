@@ -449,4 +449,3 @@ Dugme **"Mark all as read"** označava sve notifikacije kao pročitane.
 - Email isporuka (podsjetnici i poziv za postavljanje lozinke) zavisi od vanjskog SMTP providera.
 - Reset lozinke i prvo postavljanje lozinke odvijaju se preko Keycloak email linka.
 - Regenerisanje XML-a zamjenjuje prethodni aktivni XML; puna historija verzija nije podržana.
-- Pregled (preview) je dostupan za PDF i slike; za ostale tipove fajlova nije dostupan.
