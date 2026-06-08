@@ -156,6 +156,11 @@ public class KeycloakAdminService {
             UserRepresentation user = realm().users().get(keycloakUserId).toRepresentation();
             user.setEnabled(enabled);
             realm().users().get(keycloakUserId).update(user);
+
+            if (enabled) {
+                realm().attackDetection().clearBruteForceForUser(keycloakUserId);
+            }
+
         } catch (Exception ex) {
             throw new KeycloakIntegrationException("Failed to update user status in Keycloak.", ex);
         }
