@@ -202,7 +202,7 @@ Za odobren (**Approved**) dokument dostupna je sekcija **XML output**. Ovdje se 
 
 ### 5.8 My tasks (moji zadaci)
 
-Lista zadataka dodijeljenih prijavljenom korisniku, sa tabovima **Open**, **In progress**, **Completed** i **Cancelled**. Svaki red prikazuje dokument, tip zadatka (**Extraction**, **Correction**, **Approval**), status i rok. Dugme **Open** vodi na detalje dokumenta, a **Start** započinje zadatak.
+Lista zadataka dodijeljenih prijavljenom korisniku, sa tabovima **Open**, **Completed** i **Cancelled**. Svaki red prikazuje dokument, tip zadatka (**Extraction**, **Correction**, **Approval**), status i rok. Dugme **Open** vodi na detalje dokumenta, a **Start** započinje zadatak.
 
 ![Moji zadaci](Slike%20ekrana/09_my_tasks.png)
 ![Moji zadaci](Slike%20ekrana/09_my_tasks2.png)
