@@ -442,7 +442,7 @@ Dugme **"Mark all as read"** označava sve notifikacije kao pročitane.
 - Pristupiti stranicama za koje njihova uloga nema pravo (sistem provjerava pristup)
 - Izvršavati workflow akciju na zadatku koji je dodijeljen drugom korisniku
 
-### Tehnička ogranicenja
+### Tehnička ograničenja
 
 - Podržani formati za upload su **PDF, JPG, JPEG i PNG**; maksimalna veličina fajla je **10 MB**.
 - Tačnost OCR/ekstrakcije zavisi od kvaliteta dokumenta i vanjskog servisa (Google Document AI); izdvojena polja uvijek treba provjeriti prije potvrde.
