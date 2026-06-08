@@ -1,4 +1,4 @@
-# Korisnicko Uputstvo – Docflow
+# Korisničko Uputstvo – Docflow
 ### Sistem za obradu i odobravanje dokumenata | ETF Sarajevo 2025/26 | Grupa 10
 
 ---
@@ -49,7 +49,7 @@ Docflow koristi **Keycloak** za autentifikaciju. Ne postoji zasebna login forma 
 3. U polje **Email** unesite svoju email adresu, a u polje **Password** lozinku.
 4. Kliknite **"Sign in"**.
 
-**Očekivani rezultat:** Sistem vas vraća u aplikaciju i preusmjerava na listu dokumenata (**Documents**). U gornjem desnom uglu prikazuje se vase ime i vasa uloga.
+**Očekivani rezultat:** Sistem vas vraća u aplikaciju i preusmjerava na listu dokumenata (**Documents**). U gornjem desnom uglu prikazuje se vaše ime i vaša uloga.
 
 ![Keycloak stranica za prijavu](Slike%20ekrana/00_login.png)
 
@@ -176,7 +176,7 @@ Centralni ekran za rad sa jednim dokumentom. Sadržaj se mijenja ovisno o status
 
 ### 5.5 Extracted fields (izdvojena polja)
 
-Tabela automatski izdvojenih polja sa kolonama **Field**, **Value**, **Confidence** i **Review status**. Polja niske pouzdanosti i datumi koje treba provjeriti posebno su označeni (warning). Rucčno dodana polja imaju oznaku **Manual**, a obavezna prazna polja oznaku **Required**.
+Tabela automatski izdvojenih polja sa kolonama **Field**, **Value**, **Confidence** i **Review status**. Polja niske pouzdanosti i datumi koje treba provjeriti posebno su označeni (warning). Ručno dodana polja imaju oznaku **Manual**, a obavezna prazna polja oznaku **Required**.
 
 Operator moze urediti vrijednost (ikona olovke), obrisati polje (ikona kante), dodati novo polje (**Add field**) i potvrditi ekstrakciju (**Confirm extraction**).
 
@@ -202,7 +202,7 @@ Za odobren (**Approved**) dokument dostupna je sekcija **XML output**. Ovdje se 
 
 ### 5.8 My tasks (moji zadaci)
 
-Lista zadataka dodijeljenih prijavljenom korisniku, sa tabovima **Open**, **In progress**, **Completed** i **Cancelled**. Svaki red prikazuje dokument, tip zadatka (**Extraction**, **Correction**, **Approval**), status i rok. Dugme **Open** vodi na detalje dokumenta, a **Start** zapocinje zadatak.
+Lista zadataka dodijeljenih prijavljenom korisniku, sa tabovima **Open**, **In progress**, **Completed** i **Cancelled**. Svaki red prikazuje dokument, tip zadatka (**Extraction**, **Correction**, **Approval**), status i rok. Dugme **Open** vodi na detalje dokumenta, a **Start** započinje zadatak.
 
 ![Moji zadaci](Slike%20ekrana/09_my_tasks.png)
 ![Moji zadaci](Slike%20ekrana/09_my_tasks2.png)
@@ -211,7 +211,7 @@ Lista zadataka dodijeljenih prijavljenom korisniku, sa tabovima **Open**, **In p
 
 ### 5.9 Completed documents
 
-Stranica za **Admina** i **Managera** (link **Completed** u sidebaru). Prikazuje dokumente koji su prosli kroz workflow, sa dugmetom **Open** za pregled svakog zapisa.
+Stranica za **Admina** i **Managera** (link **Completed** u sidebaru). Prikazuje dokumente koji su prošli kroz workflow, sa dugmetom **Open** za pregled svakog zapisa.
 
 ![Zavrseni dokumenti](Slike%20ekrana/10_completed.png)
 
@@ -219,7 +219,7 @@ Stranica za **Admina** i **Managera** (link **Completed** u sidebaru). Prikazuje
 
 ### 5.10 Company Users (korisnici kompanije)
 
-Stranica za **Admina**. Prikazuje statistiku korisnika (Total users, Active, Pending setup, Admins), formu za kreiranje korisnika i direktorij korisnika sa pretragom. Admin moze mijenjati ulogu korisnika i aktivirati/deaktivirati nalog.
+Stranica za **Admina**. Prikazuje statistiku korisnika (Total users, Active, Pending setup, Admins), formu za kreiranje korisnika i direktorij korisnika sa pretragom. Admin može mijenjati ulogu korisnika i aktivirati/deaktivirati nalog.
 
 ![Korisnici kompanije](Slike%20ekrana/11_users.png)
 ![Korisnici kompanije](Slike%20ekrana/11_users2.png)
@@ -228,7 +228,7 @@ Stranica za **Admina**. Prikazuje statistiku korisnika (Total users, Active, Pen
 
 ### 5.11 Profile i notifikacije
 
-Stranica **Profile** prikazuje podatke o nalogu, dugme **Change password**, opis uloge i **Notification center** sa nepročitanim i pročitanim obavijestima. Notifikacije su dostupne i kroz **zvono** u topbaru.
+Stranica **Profile** prikazuje podatke o nalogu, dugme **Change password**, opis uloge i **Notification center** sa nepročitanim i pročitanim obavijestima. Notifikacije su dostupne i kroz **dugme s inicijalima korisnika** u topbaru.
 
 ![Profil i notifikacije](Slike%20ekrana/12_profile_notifications.png)
 
@@ -253,7 +253,7 @@ Stranica **Profile** prikazuje podatke o nalogu, dugme **Change password**, opis
 1. Otvorite dokument iz liste (**View details**).
 2. U sekciji **Extracted fields** kliknite **"Run extraction"**.
 
-**Očekivani rezultat:** Sistem pokrece OCR/AI obradu. Po završetku status postaje **Extracted** i prikazuje se tabela izdvojenih polja. Ako obrada ne uspije, status je **Processing Failed** (pokušajte ponovo dugmetom **"Retry extraction"**).
+**Očekivani rezultat:** Sistem pokreće OCR/AI obradu. Po završetku status postaje **Extracted** i prikazuje se tabela izdvojenih polja. Ako obrada ne uspije, status je **Processing Failed** (pokušajte ponovo dugmetom **"Retry extraction"**).
 
 > Ako je dokument uploadovan kao *Other* i AI ne moze pouzdano odrediti tip, status postaje **Needs Classification Review** (vidi 6.3).
 
@@ -340,7 +340,7 @@ Stranica **Profile** prikazuje podatke o nalogu, dugme **Change password**, opis
 3. Pogledajte sadržaj dugmetom **"Show XML preview"** i preuzmite ga dugmetom **"Download XML"**.
 4. Kada je sve u redu, kliknite **"Complete processing"** i potvrdite u dijalogu.
 
-**Očekivani rezultat:** Status dokumenta postaje **Completed**. XML ostaje dostupan za pregled i preuzimanje, ali daljnje workflow akcije vise nisu moguće.
+**Očekivani rezultat:** Status dokumenta postaje **Completed**. XML ostaje dostupan za pregled i preuzimanje, ali daljnje workflow akcije više nisu moguće.
 
 ---
 
@@ -450,26 +450,3 @@ Dugme **"Mark all as read"** označava sve notifikacije kao pročitane.
 - Reset lozinke i prvo postavljanje lozinke odvijaju se preko Keycloak email linka.
 - Regenerisanje XML-a zamjenjuje prethodni aktivni XML; puna historija verzija nije podržana.
 - Pregled (preview) je dostupan za PDF i slike; za ostale tipove fajlova nije dostupan.
-
----
-
-## 10. Lista screenshotova za dopuniti
-
-Snimite sljedece ekrane i smjestite ih u folder `Slike ekrana/` pod tacnim imenima:
-
-| Fajl | Ekran / sadrzaj |
-|---|---|
-| `01_layout_sidebar.png` | Glavni izgled sa sidebarom i topbarom (prijavljen korisnik) |
-| `02_dashboard.png` | Dashboard (Admin ili Manager) |
-| `03_upload.png` | Upload Document stranica sa odabranim fajlom |
-| `04_documents_list.png` | Lista dokumenata sa filterima |
-| `05_document_details.png` | Detalji dokumenta (gornji dio sa statusom i informacijama) |
-| `06_extracted_fields.png` | Tabela izdvojenih polja (po mogucnosti sa Manual/Required oznakama) |
-| `07_approval_decision.png` | Approval decision panel (status Ready for Approval) |
-| `08_xml_output.png` | XML output sekcija sa preview-om |
-| `09_my_tasks.png` | My tasks stranica |
-| `10_completed.png` | Completed documents stranica |
-| `11_users.png` | Company Users stranica |
-| `12_profile_notifications.png` | Profile sa Notification centrom |
-
-> Preporuka: snimajte ekrane na demo okruzenju sa nekoliko primjera dokumenata u razlicitim statusima, kako bi screenshotovi prikazali stvarne podatke.
