@@ -415,7 +415,7 @@ Notifikacije su dostupne na tri mjesta:
 
 Dugme **"Mark all as read"** označava sve notifikacije kao pročitane.
 
-> **Email podsjetnik:** Sistem automatski šalje email podsjetnik za nepročitane notifikacije starije od **24 sata**. Email je grupisani digest, a ne zamjena za in-app notifikacije.
+> **Email podsjetnik:** Sistem automatski šalje email podsjetnik za nepročitane notifikacije starije od **4 sata**. Email je grupisani digest, a ne zamjena za in-app notifikacije.
 
 ---
 
