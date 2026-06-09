@@ -18,7 +18,16 @@ Nema nezavršenih zadataka, sve planirane funkcionalnosti su implementirane i te
 
 # 4. Demonstrirane funkcionalnosti ili artefakti
 
+Product Owneru su demonstrirane sljedeće funkcionalnosti:
 
+- In-app notifikacije za dokumente koji čekaju odobravanje, odbijene ili vraćene dokumente
+- Notification centar sa pregledom obavještenja, unread badge-om i označavanjem pročitanih obavještenja
+- Email reminder sistem za nepročitana obavještenja
+- Ručno dodavanje OCR polja uz audit log evidenciju
+- XML mapping i generisanje XML izlaza
+- Pregled i download generisanog XML-a
+- Pohrana XML fajla uz dokument
+- Finalni status dokumenta nakon uspješne obrade
 
 # 5. Glavni problemi i blokeri
 
@@ -26,7 +35,6 @@ Tokom sprinta nije bilo značajnih blokera koji su utjecali na realizaciju plani
 
 Najveći tehnički izazovi odnosili su se na usklađivanje frontend i backend ponašanja prilikom brisanja obaveznih i
 opcionih extraction polja, kao i na konfiguraciju SMTP servisa za slanje email reminder poruka na deployment serveru.
-
 
 # 6. Ključne odluke donesene u sprintu
 
@@ -42,6 +50,10 @@ Detaljan opis ključnih odluka nalazi se u Decision Log dokumentu, počevši od 
 
 # 7. Povratna informacija Product Ownera
 
-
+Product Owner je izrazio zadovoljstvo realizacijom svih planiranih funkcionalnosti.
 
 # 8. Zaključak za naredni sprint
+
+U narednom sprintu tim može preći na stabilizaciju i finalizaciju sistema, fokusirajući se na dokumentovanje rada,
+pripremu deployment procedure, automatizaciju deploymenta, izradu korisničkog priručnika, završnu tehničku i procesnu
+dokumentaciju, ažuriranje backlog-a, završni pregled testiranja i evidentiranje poznatih ograničenja sistema.
