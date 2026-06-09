@@ -1,12 +1,12 @@
 # 10. Known Issues / Limitations
 
-Ovaj dokument navodi poznata ogranicenja finalne verzije Docflow sistema. Ogranicenja nisu skrivena niti predstavljena kao potpuno zavrsene funkcionalnosti. Dio ogranicenja je prihvatljiv za studentski projekat i MVP opseg, dok bi za produkcijsko okruzenje sa vecim brojem korisnika bila potrebna dodatna dorada, hardening i operativna automatizacija.
+Ovaj dokument navodi poznata ograničenja finalne verzije Docflow sistema. Ograničenja nisu skrivena niti predstavljena kao potpuno završene funkcionalnosti. Dio ograničenja je prihvatljiv za studentski projekat i MVP opseg, dok bi za produkcijsko okruženje sa većim brojem korisnika bila potrebna dodatna dorada, hardening i operativna automatizacija.
 
-## Ogranicenja koja se vec mogu navesti
+## Ograničenja koja se vec mogu navesti
 
-| Ogranicenje | Opis i posljedica |
+| Ograničenje | Opis i posljedica |
 | --- | --- |
-| Filesystem storage | Uploadovani dokumenti i XML izlazi cuvaju se na filesystemu servera. To je jednostavno za studentski projekat, ali ogranicava skaliranje na vise instanci i zahtijeva pazljiv backup server fajlova. |
+| Filesystem storage | Uploadovani dokumenti i XML izlazi čuvaju se na filesystemu servera. To je jednostavno za studentski projekat, ali ogranicava skaliranje na vise instanci i zahtijeva pazljiv backup server fajlova. |
 | Jedan DigitalOcean Droplet | Deployment je postavljen na jednu serversku instancu. To predstavlja single point of failure, bez load balancera, automatskog skaliranja i visoke dostupnosti. |
 | Keycloak start-dev rezim | Docker Compose koristi Keycloak `start-dev` i realm import. Za ozbiljnu produkciju potrebno je dodatno hardening podesavanje, strozi hostname/TLS setup, sigurnije tajne i produkcijski Keycloak rezim. |
 | Migracije nisu formalizovane | Aplikacija koristi Hibernate `ddl-auto=update` i pojedine rucne SQL korake za constraint promjene. Dugorocno treba uvesti Flyway ili Liquibase da se promjene baze verzionisu i izvrsavaju kontrolisano. |
@@ -42,9 +42,9 @@ Ovaj dokument navodi poznata ogranicenja finalne verzije Docflow sistema. Ograni
 | Monitoring i alerting | CI/CD i deployment postoje, ali napredan produkcijski monitoring, alerting, centralizovani logovi i health dashboard nisu dio finalnog scope-a. |
 | Performanse pod velikim opterecenjem | Sistem nije load-testiran za veliki broj firmi, korisnika i dokumenata. Paginacija i filteri pomazu, ali horizontalno skaliranje i objektni storage bi bili potrebni za veci produkcijski obim. |
 
-## Dopuniti nakon zavrsnog smoke testa
+## Poznati bugovi
 
-- Nema poznatih bugova.
+- U trenutku objave finalne verzije nisu evidentirani otvoreni reproducibilni bugovi koji značajno otežavaju ili onemogućavaju korištenje sistema.
 
 
 ## Zakljucak
