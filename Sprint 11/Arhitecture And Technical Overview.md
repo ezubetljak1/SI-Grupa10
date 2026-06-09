@@ -214,7 +214,6 @@ Aplikacija koristi jednu PostgreSQL bazu (`docflow-db`). `Hibernate ddl-auto=upd
 | SMTP i podsjetnici | SMTP host, port, korisnik, password, sender, `reminder.enabled`, prag i cron izraz |
 | Upload / Storage | Upload direktorij, `max-file-size`, Nginx `CLIENT_MAX_BODY_SIZE` |
 
-> _Sve produkcijske vrijednosti (lozinke, API ključevi, Google JSON) čuvaju se isključivo na serveru i ne unose se u repozitorij._
 
 ---
 
