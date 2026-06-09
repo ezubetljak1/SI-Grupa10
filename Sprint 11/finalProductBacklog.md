@@ -106,8 +106,8 @@
 | S78 | Korisnička dokumentacija | Izrada uputstva za korisnike sistema | D | P1 | M | DONE | 11 |
 | S79 | Tehnička dokumentacija | Dokumentacija arhitekture i implementacije | D | P1 | M | DONE | 11 |
 | S80 | Release Notes | Opis funkcionalnosti finalne verzije | D | P1 | S | DONE | 11 |
-| S81 | Testiranje sistema | End-to-end testiranje ključnih tokova | T | P1 | L | DONE | 12 |
-| S82 | Bug fixing | Ispravka identifikovanih grešaka | B | P1 | L | DONE | 12 |
-| S83 | Stabilizacija sistema | Refaktorisanje i optimizacija sistema | T | P1 | M | DONE | 12 |
-| S84 | Tehnički dug | Dokumentovanje ograničenja sistema | D | P3 | S | DONE | 12 |
-| S85 | Završna demonstracija | Priprema i prezentacija finalnog rješenja | D | P1 | M | DONE | 12 |
+| S81 | Testiranje sistema | End-to-end testiranje ključnih tokova | T | P1 | L | DONE | 11 |
+| S82 | Bug fixing | Ispravka identifikovanih grešaka | B | P1 | L | DONE | 11 |
+| S83 | Stabilizacija sistema | Refaktorisanje i optimizacija sistema | T | P1 | M | DONE | 11 |
+| S84 | Tehnički dug | Dokumentovanje ograničenja sistema | D | P3 | S | DONE | 11 |
+| S85 | Završna demonstracija | Priprema i prezentacija finalnog rješenja | D | P1 | M | DONE | 11 |
