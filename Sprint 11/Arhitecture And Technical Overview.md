@@ -241,5 +241,3 @@ Aplikacija koristi jednu PostgreSQL bazu (`docflow-db`). `Hibernate ddl-auto=upd
 | Swagger u produkciji | Treba ograničiti ili isključiti pristup Swagger UI-ju na produkciji. |
 
 ---
-
-_Interni radni dokument - SI-Grupa10 - Finalni sprint_
