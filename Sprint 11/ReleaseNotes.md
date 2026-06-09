@@ -145,6 +145,8 @@ Funkcionalni opseg planiranih inkremenata je zadržan i isporučen.
 
 * Sistem koristi unaprijed definisan workflow obrade dokumenata. Proizvoljno konfigurisanje novih workflow koraka, tipova taskova i pravila odobravanja nije omogućeno kroz korisnički interfejs.
 
+* Generisani XML izlaz predstavlja generički strukturirani prikaz obrađenih podataka i nije optimizovan za integraciju sa konkretnim eksternim informacionim sistemom. Za povezivanje sa specifičnim ERP, računovodstvenim ili drugim poslovnim sistemom mogu biti potrebne dodatne prilagodbe XML strukture i mapiranja polja.
+
 * Korisnički interfejs prvenstveno je prilagođen korištenju na desktop uređajima. Prikaz na mobilnim uređajima nije detaljno testiran, zbog čega su moguće manje nepravilnosti u rasporedu elemenata i korisničkom iskustvu na manjim ekranima.
 
 
