@@ -16,8 +16,6 @@ DocFlow je kontejnerizovana web aplikacija koja se pokreće kao Docker Compose s
 4. Backend komunicira sa: aplikacijskom PostgreSQL bazom, Keycloakom (JWT validacija i admin operacije), Google Document AI (OCR / klasifikacija), SMTP providerom i lokalnim Docker volumenom za fajlove
 5. Keycloak ima zasebnu PostgreSQL bazu i importuje realm pri pokretanju
 
-> _Napomena: Tačna konfiguracija host-level reverse proxyja, TLS certifikati i DNS zapisi trebaju biti dopunjeni podacima sa Dropleta._
-
 ### Docker Compose servisi
 
 | Servis | Image / Build | Namjena | Trajni podaci |
@@ -39,7 +37,7 @@ DocFlow je kontejnerizovana web aplikacija koja se pokreće kao Docker Compose s
 | PostgreSQL | 16 | Obje baze (aplikacijska + Keycloak) |
 | Keycloak | 26.6.1 | Autentifikacija i upravljanje identitetima |
 | Nginx | Alpine | SPA serving + `/api` proxy (unutar frontend kontejnera) |
-| Docker Compose | [dopuniti] | Orkestracija kontejnera |
+| Docker Compose | 29.3.0 | Orkestracija kontejnera |
 
 ---
 
