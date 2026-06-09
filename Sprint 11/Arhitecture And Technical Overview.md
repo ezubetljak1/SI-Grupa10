@@ -150,7 +150,6 @@ Aplikacija koristi jednu PostgreSQL bazu (`docflow-db`). `Hibernate ddl-auto=upd
 
 > Tip `UNKNOWN` se koristi interno dok klasifikacija nije potvrđena.
 
-> _Za finalni dokument nacrtati ER dijagram prema stvarnim JPA relacijama i provjeriti kardinalnosti._
 
 ---
 
