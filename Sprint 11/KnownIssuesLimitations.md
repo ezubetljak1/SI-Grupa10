@@ -44,12 +44,8 @@ Ovaj dokument navodi poznata ogranicenja finalne verzije Docflow sistema. Ograni
 
 ## Dopuniti nakon zavrsnog smoke testa
 
-- Poznate UI bugove koji se pojave samo u browseru ili na manjim ekranima.
-- Browser-specific probleme kod PDF/image preview prikaza.
-- Stavke koje su djelimicno zavrsene ili svjesno odgodjene.
-- Backup i restore ogranicenja nakon stvarne provjere server volume-a.
-- Rollback ogranicenja nakon testiranja neuspjelog deploymenta.
-- Sigurnosna ogranicenja koja ostanu otvorena nakon finalnog pregleda konfiguracije.
+- Nema poznatih bugova.
+
 
 ## Zakljucak
 
