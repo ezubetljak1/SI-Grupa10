@@ -28,15 +28,7 @@ Finalni AI Usage Summary konsoliduje postojece `AIUsageLog.md` zapise iz Sprinto
 | Testni scenariji | AI je pomagao u pisanju i prosirenju backend integration testova, frontend unit/component testova, Playwright smoke testova i dokumentovanih TestBook scenarija. | Testovi su prilagodjeni stvarnom kodu, auth helperima, statusima i negativnim scenarijima. Finalno stanje dokumentuje 259 backend testova, 35 frontend testova i 4 Playwright smoke testa. |
 | Tehnicka dokumentacija i debugging | AI je koristen za sazimanje implementacije, pisanje AIUsageLog dopuna, analizu CI gresaka, razjasnjavanje PR toka i pripremu zavrsnih dokumenata. | Dokumentacija je rucno pregledana i uskladjena sa stvarnim stanjem projekta: Release Notes, User Manual, Test Summary, Deployment Procedura i zavrsni AI/Known Issues artefakti. |
 
-## Obavezne kategorije sazetka
 
-| Kategorija | Sta navesti |
-| --- | --- |
-| Prihvaceno | Korisni AI prijedlozi koji su ugradjeni u sistem: upload/download endpointi, OCR provider sloj, extraction modeli, document detail UI, register company i user management UI, task assignment, approval flow, notification centar, XML output tok, testni skeletoni i dokumentacijski nacrti. |
-| Rucno izmijenjeno | AI prijedlozi su prilagodjeni postojecoj arhitekturi, helperima, `ApiResponse` formatu, DAO/service/controller slojevima, Angular komponentama, Keycloak konfiguraciji, tenant pravilima, role autorizaciji, statusnim tranzicijama, deployment okruzenju i CI zahtjevima. |
-| Odbaceno | Odbaceni su prijedlozi koji su bili previse genericki ili rizicni: paralelna validacijska logika, cuvanje osjetljivih Google/SMTP vrijednosti u repozitorij, fake OCR provider u produkcijskom toku, rucno zavrsavanje taska bez stvarne workflow akcije, frontend-only sigurnosna provjera, automatsko kompletiranje dokumenta bez XML pregleda i kompleksni formati izvan dogovorenog scope-a. |
-| Tipicne greske AI-ja | AI je povremeno pretpostavljao pogresne nazive endpointa ili modela, ignorisao postojece helper metode, generisao styling koji nije pratio globalni dizajn, predlagao validacije bez potpunog uskladjivanja sa backend pravilima, mijesao role i workflow odgovornosti, te predlagao rjesenja koja nisu prolazila lokalne testove bez rucnih korekcija. |
-| Dijelovi za odbranu | Tim treba znati objasniti OCR routing i Google Document AI konfiguraciju, classification review, validation pravila, Keycloak autentifikaciju, multi-tenant izolaciju, task i approval workflow, notification/email reminder logiku, XML generisanje, CI/CD pipeline, deployment konfiguraciju i testnu strategiju. |
 
 ## Kriticki osvrt na upotrebu AI alata
 
