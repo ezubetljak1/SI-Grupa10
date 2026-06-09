@@ -6,7 +6,7 @@
 
 ## Datum release-a
 
-**07.06.2026**
+**08.06.2026**
 
 ## Finalni Commit SHA
 
@@ -25,6 +25,22 @@ Keycloak: https://auth.docflow.page
 Docflow je platforma za obradu i upravljanje dokumentima koja omogućava kompanijama upload, klasifikaciju, ekstrakciju podataka, pregled, odobravanje i izvoz dokumenata kroz siguran workflow zasnovan na korisničkim ulogama.
 
 Ova verzija predstavlja finalnu isporučenu verziju sistema.
+
+---
+
+# Realizacija u odnosu na Initial Release Plan
+
+Početnim release planom u Sprintu 4 definisano je pet inkremenata sistema. Svi planirani inkrementi uključeni su u finalnu verziju.
+
+| Planirani inkrement | Status | Isporučeni sadržaj |
+| --- | --- | --- |
+| **Inkrement 1 – Upravljanje dokumentima** | Isporučeno | Upload i validacija dokumenata, pohrana datoteka i metapodataka, lista dokumenata, pregled detalja, preview i download originalnog dokumenta. |
+| **Inkrement 2 – OCR i AI ekstrakcija** | Isporučeno i prošireno | OCR/AI obrada putem Google Document AI servisa, izdvajanje strukturiranih podataka, klasifikacija dokumenata, podrška za invoice, receipt, bank statement i form procesore te ručni pregled klasifikacije kada automatska klasifikacija nije dovoljno pouzdana. |
+| **Inkrement 3 – Validacija i korekcija podataka** | Isporučeno | Pregled i ručna korekcija ekstrahovanih polja, validacija obaveznih vrijednosti, formata datuma i numeričkih iznosa, matematička validacija, upozorenja za low-confidence polja te dodavanje i brisanje polja. |
+| **Inkrement 4 – Organizacioni model pristupa sistemu** | Isporučeno i prošireno | Registracija kompanije, kreiranje korisnika, autentifikacija putem Keycloaka, upravljanje rolama, multi-tenant izolacija podataka, dodjela taskova, approval workflow, komentari, audit log i historija statusa. |
+| **Inkrement 5 – Efikasan rad i završna stabilizacija sistema** | Isporučeno | XML generisanje, preview i download XML izlaza, finalizacija obrade dokumenta, pretraga i filtriranje, dashboard, in-app notifikacije, email reminder scheduler, testiranje, CI/CD pipeline i produkcijski deployment. |
+
+Funkcionalni opseg planiranih inkremenata je zadržan i isporučen.
 
 ---
 
@@ -117,18 +133,37 @@ Ova verzija predstavlja finalnu isporučenu verziju sistema.
 
 # Poznata ograničenja
 
-* Tačnost OCR obrade zavisi od kvaliteta ulaznog dokumenta.
-* Dokumenti sa nestandardnim rasporedom elemenata mogu zahtijevati ručne korekcije.
-* Dostava email poruka zavisi od dostupnosti SMTP servisa.
-* Workflow je prilagođen trenutno podržanim poslovnim procesima.
+## Funkcionalna ograničenja
+
+* Tačnost OCR i AI ekstrakcije zavisi od kvaliteta skena, fotografije i strukture ulaznog dokumenta. Dokumenti slabijeg kvaliteta ili nestandardnog rasporeda mogu zahtijevati ručnu korekciju ekstrahovanih polja.
+
+* Automatska klasifikacija i ekstrakcija prilagođene su trenutno podržanim tipovima poslovnih dokumenata: fakturama, računima, bankovnim izvodima i obrascima. Ostali ili nedovoljno pouzdano klasifikovani dokumenti zahtijevaju ručnu potvrdu tipa dokumenta.
+
+* Podržan je upload dokumenata u PDF, JPG, JPEG i PNG formatima maksimalne veličine 10 MB.
+
+* Ekstrakcija podataka pokreće se ručnom akcijom korisnika nakon uploada dokumenta. Time se izbjegava nepotrebna OCR obrada pogrešno uploadovanih ili nerelevantnih dokumenata i omogućava racionalnije korištenje resursa Google Document AI servisa.
+
+* Sistem koristi unaprijed definisan workflow obrade dokumenata. Proizvoljno konfigurisanje novih workflow koraka, tipova taskova i pravila odobravanja nije omogućeno kroz korisnički interfejs.
+
+* Korisnički interfejs prvenstveno je prilagođen korištenju na desktop uređajima. Prikaz na mobilnim uređajima nije detaljno testiran, zbog čega su moguće manje nepravilnosti u rasporedu elemenata i korisničkom iskustvu na manjim ekranima.
+
+
+## Tehnička i operativna ograničenja
+
+* OCR obrada i automatska klasifikacija zavise od dostupnosti vanjskog Google Document AI servisa. Privremena nedostupnost servisa može onemogućiti ili odgoditi obradu dokumenata.
+
+* Dostava email podsjetnika zavisi od dostupnosti konfigurisanog SMTP servisa. U slučaju problema sa email dostavom, korisnici i dalje mogu pregledati notifikacije unutar aplikacije.
+
+* Uploadovani dokumenti i generisani XML fajlovi čuvaju se na filesystemu produkcijskog servera. Cloud object storage nije uveden u trenutnoj verziji.
+
+* Produkcijski deployment može izazvati kratak prekid dostupnosti sistema tokom ponovnog kreiranja kontejnera.
+
 
 ---
 
 # Poznati bugovi
 
-U trenutku release-a nisu poznati kritični bugovi koji onemogućavaju korištenje sistema.
-
-Moguće su manje vizuelne ili validacione nepravilnosti u specifičnim rubnim slučajevima koje ne utiču na osnovnu funkcionalnost sistema.
+U trenutku objave finalne verzije nisu evidentirani otvoreni reproducibilni bugovi koji značajno otežavaju ili onemogućavaju korištenje sistema.
 
 ---
 
