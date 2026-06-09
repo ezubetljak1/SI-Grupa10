@@ -8,7 +8,7 @@ DocFlow je kontejnerizovana web aplikacija koja se pokreće kao Docker Compose s
 
 **Tok zahtjeva kroz sistem:**
 
-1. Browser → HTTPS → host-level reverse proxy (Nginx / Caddy — dopuniti sa servera)
+1. Browser → HTTPS → host-level reverse proxy (Nginx / Caddy - dopuniti sa servera)
 2. Reverse proxy prosljeđuje promet na dva interna endpointa:
    - `docflow.page` → frontend Nginx kontejner (port 80)
    - `auth.docflow.page` → Keycloak kontejner (port 8080)
@@ -24,7 +24,7 @@ DocFlow je kontejnerizovana web aplikacija koja se pokreće kao Docker Compose s
 | `docflow-keycloak-db` | `postgres:16` | Posebna PostgreSQL baza za Keycloak | `docflow_keycloak_postgres_data` |
 | `docflow-keycloak` | `quay.io/keycloak/keycloak:26.6.1` | Identity provider, realm import pri startu | Keycloak konfiguracija |
 | `docflow-backend` | `build: ./backend` | Spring Boot REST API i poslovna logika | `docflow_uploads` |
-| `docflow-frontend` | `build: ./frontend` | Angular SPA serviran kroz Nginx | — (bez trajnih podataka) |
+| `docflow-frontend` | `build: ./frontend` | Angular SPA serviran kroz Nginx | - (bez trajnih podataka) |
 
 ### Tehnologije i verzije
 
@@ -43,7 +43,7 @@ DocFlow je kontejnerizovana web aplikacija koja se pokreće kao Docker Compose s
 
 ## 8.2 Frontend arhitektura
 
-Frontend je Angular SPA aplikacija poslužena kroz Nginx. Sva komunikacija sa backendom odvija se putem relativne `/api` putanje, koju Nginx prosljeđuje backend kontejneru — frontend nema direktan pristup backend URL-u.
+Frontend je Angular SPA aplikacija poslužena kroz Nginx. Sva komunikacija sa backendom odvija se putem relativne `/api` putanje, koju Nginx prosljeđuje backend kontejneru - frontend nema direktan pristup backend URL-u.
 
 ### Ključne rute
 
@@ -62,8 +62,8 @@ Frontend je Angular SPA aplikacija poslužena kroz Nginx. Sva komunikacija sa ba
 
 ### Sigurnost na frontendu
 
-- `authGuard` — sprječava pristup zaštićenim rutama bez aktivne Keycloak sesije
-- `roleGuard` — ograničava navigaciju prema ulozi korisnika
+- `authGuard` - sprječava pristup zaštićenim rutama bez aktivne Keycloak sesije
+- `roleGuard` - ograničava navigaciju prema ulozi korisnika
 - Guardovi poboljšavaju UX, ali **ne zamjenjuju** backend autorizaciju
 - Backend ostaje jedini autoritativan izvor sigurnosnih provjera
 
@@ -71,16 +71,16 @@ Frontend je Angular SPA aplikacija poslužena kroz Nginx. Sva komunikacija sa ba
 
 ## 8.3 Backend arhitektura
 
-Backend je Spring Boot modularni monolit sa slojevitom organizacijom unutar jednog deployable artifakta. Nije mikroservisna arhitektura — sve domenske cjeline dijele isti Spring context i istu bazu.
+Backend je Spring Boot modularni monolit sa slojevitom organizacijom unutar jednog deployable artifakta. Nije mikroservisna arhitektura - sve domenske cjeline dijele isti Spring context i istu bazu.
 
 ### Slojevita organizacija
 
 | Sloj / Paket | Namjena |
 |---|---|
-| `controller` | REST endpointi — prima HTTP zahtjeve, delegira servisnom sloju |
+| `controller` | REST endpointi - prima HTTP zahtjeve, delegira servisnom sloju |
 | `service` | Poslovna logika i domenske operacije |
 | `dao` | Pristup bazi (repozitoriji) |
-| `entity` | JPA modeli — mapiranje na bazu |
+| `entity` | JPA modeli - mapiranje na bazu |
 | `dto` | Request i response modeli za API |
 | `mapper` | Mapiranje između entiteta i DTO objekata |
 | `security` | Autentifikacija i autorizacija (JWT filteri, role provjere) |
@@ -161,13 +161,13 @@ Aplikacija koristi jednu PostgreSQL bazu (`docflow-db`). `Hibernate ddl-auto=upd
 | Keycloak 26.6.1 | Autentifikacija i upravljanje identitetima | Realm, frontend client, backend admin client, JWT, role mapping, password setup flow |
 | Google Document AI | OCR i automatska klasifikacija dokumenata | Classifier + invoice/receipt/bank statement/form parseri; fallback na ručni review |
 | SMTP provider | Email poruke i podsjetnici | Konfigurabilno: host, port, korisnik, password, sender, reminder cron |
-| Docker Volume (filesystem) | Trajni storage za uploadovane fajlove i XML izlaze | Lokalni filesystem — ograničava skaliranje na više instanci (poznato ograničenje) |
+| Docker Volume (filesystem) | Trajni storage za uploadovane fajlove i XML izlaze | Lokalni filesystem - ograničava skaliranje na više instanci (poznato ograničenje) |
 
-### Keycloak konfiguracija — pregled
+### Keycloak konfiguracija - pregled
 
 - Realm: `docflow` (importovan pri startu iz JSON fajla)
-- Frontend client — public client, redirect na `docflow.page`
-- Backend admin client — service account za admin operacije
+- Frontend client - public client, redirect na `docflow.page`
+- Backend admin client - service account za admin operacije
 - JWT validacija na backendu putem issuer URI i JWK URI
 - Role mapiranje: Keycloak role → Spring Security authorities
 - Password setup: novi korisnici dobijaju email za postavljanje passworda
@@ -190,7 +190,7 @@ Aplikacija koristi jednu PostgreSQL bazu (`docflow-db`). `Hibernate ddl-auto=upd
 
 | Odluka / Mjera | Opis |
 |---|---|
-| Keycloak autentifikacija | Sva autentifikacija delegirana Keycloaku — aplikacija ne čuva passworde |
+| Keycloak autentifikacija | Sva autentifikacija delegirana Keycloaku - aplikacija ne čuva passworde |
 | JWT validacija na backendu | Svaki API zahtjev validira JWT token (issuer + potpis + expiry) |
 | Role-based autorizacija | Backend provjerava ulogu za svaki endpoint; frontend guardovi su samo UX sloj |
 | Company isolation | Korisnici mogu pristupati samo podacima svoje kompanije; backend enforcea na servisnom nivou |
@@ -203,7 +203,7 @@ Aplikacija koristi jednu PostgreSQL bazu (`docflow-db`). `Hibernate ddl-auto=upd
 
 ---
 
-## Dodatak A — Kategorije environment varijabli
+## Dodatak A - Kategorije environment varijabli
 
 > Sve vrijednosti trebaju biti postavljene u `.env` fajlu koji se nikada ne commituje.
 
@@ -220,7 +220,7 @@ Aplikacija koristi jednu PostgreSQL bazu (`docflow-db`). `Hibernate ddl-auto=upd
 
 ---
 
-## Dodatak B — CI/CD pregled
+## Dodatak B - CI/CD pregled
 
 | Pipeline | Detalji |
 |---|---|
@@ -231,7 +231,7 @@ Aplikacija koristi jednu PostgreSQL bazu (`docflow-db`). `Hibernate ddl-auto=upd
 
 ---
 
-## Dodatak C — Arhitekturalna ograničenja
+## Dodatak C - Arhitekturalna ograničenja
 
 | Ograničenje | Opis i posljedica |
 |---|---|
@@ -245,4 +245,4 @@ Aplikacija koristi jednu PostgreSQL bazu (`docflow-db`). `Hibernate ddl-auto=upd
 
 ---
 
-_Interni radni dokument — SI-Grupa10 — Finalni sprint_
+_Interni radni dokument - SI-Grupa10 - Finalni sprint_
