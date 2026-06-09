@@ -8,7 +8,7 @@ DocFlow je kontejnerizovana web aplikacija koja se pokreće kao Docker Compose s
 
 **Tok zahtjeva kroz sistem:**
 
-1. Browser → HTTPS → host-level reverse proxy (Nginx / Caddy - dopuniti sa servera)
+1. Browser → HTTPS → host-level reverse proxy (Nginx)
 2. Reverse proxy prosljeđuje promet na dva interna endpointa:
    - `docflow.page` → frontend Nginx kontejner (port 80)
    - `auth.docflow.page` → Keycloak kontejner (port 8080)
@@ -37,7 +37,7 @@ DocFlow je kontejnerizovana web aplikacija koja se pokreće kao Docker Compose s
 | PostgreSQL | 16 | Obje baze (aplikacijska + Keycloak) |
 | Keycloak | 26.6.1 | Autentifikacija i upravljanje identitetima |
 | Nginx | Alpine | SPA serving + `/api` proxy (unutar frontend kontejnera) |
-| Docker Compose | 29.3.0 | Orkestracija kontejnera |
+| Docker Compose | Compose plugin | Orkestracija kontejnera |
 
 ---
 
@@ -56,7 +56,7 @@ Frontend je Angular SPA aplikacija poslužena kroz Nginx. Sva komunikacija sa ba
 | `/documents` | Svi prijavljeni korisnici |
 | `/documents/:id` | Svi prijavljeni korisnici |
 | `/tasks/my` | ADMIN, OPERATOR, APPROVER |
-| `/review` | Prema finalnoj implementaciji |
+| `/review` | ADMIN, MANAGER |
 | `/company/users` | ADMIN |
 | `/profile` | Svi prijavljeni korisnici |
 
@@ -110,7 +110,7 @@ Backend je Spring Boot modularni monolit sa slojevitom organizacijom unutar jedn
 
 ## 8.5 Model podataka
 
-Aplikacija koristi jednu PostgreSQL bazu (`docflow-db`). `Hibernate ddl-auto=update` upravlja šemom; tokom razvoja bile su potrebne ručne SQL korekcije check constrainta za nove tipove i statuse.
+Poslovni podaci aplikacije čuvaju se u PostgreSQL bazi `docflow-db`, dok autentifikacijski servis Keycloak koristi zasebnu PostgreSQL bazu `docflow-keycloak-db`. `Hibernate ddl-auto=update` upravlja šemom; tokom razvoja bile su potrebne ručne SQL korekcije check constrainta za nove tipove i statuse.
 
 ### Ključni entiteti
 
@@ -221,8 +221,8 @@ Aplikacija koristi jednu PostgreSQL bazu (`docflow-db`). `Hibernate ddl-auto=upd
 
 | Pipeline | Detalji |
 |---|---|
-| CI (`.github/workflows/ci.yml`) | Pokreće se na push i PR na `develop` granu + ručno (`workflow_dispatch`). Backend: Java 17, `./mvnw clean install`. Frontend: Node.js 22, `npm ci`, `npm run build`. |
-| CD (`.github/workflows/cd.yml`) | Ručni trigger (`workflow_dispatch`) za produkcijski deploy. Koraci: SSH na Droplet → `deploy.sh` → Docker Compose build i up → health check → smoke provjera URL-ova. |
+| CI (`.github/workflows/ci.yml`) | Pokreće se na push i PR na `develop` i `main` grane + ručno (`workflow_dispatch`). Backend: Java 17, `./mvnw clean install`. Frontend: Node.js 22, `npm ci`, `npm run build`. |
+| CD (`.github/workflows/cd.yml`) | Automatski se pokreće nakon uspješnog CI izvršavanja za push na `main`, a posjeduje i ručni trigger (`workflow_dispatch`) za produkcijski deploy. Koraci: SSH na Droplet → `deploy.sh` → Docker Compose build i up → health check → smoke provjera URL-ova. |
 | GitHub Secrets | `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_PORT`, `DEPLOY_SSH_PRIVATE_KEY`, `DEPLOY_KNOWN_HOSTS` |
 | Aplikacijski secrets | Ostaju na serveru u `.env` fajlu; ne unose se direktno u GitHub Secrets |
 
@@ -236,7 +236,7 @@ Aplikacija koristi jednu PostgreSQL bazu (`docflow-db`). `Hibernate ddl-auto=upd
 | Single Droplet | Nema load balancera ni automatskog failovera. Single point of failure. |
 | Keycloak `start-dev` | Compose koristi `start-dev --import-realm`. Za produkciju potrebno hardening podešavanje. |
 | `Hibernate ddl-auto=update` | Šema baze se ažurira automatski. Flyway ili Liquibase preporučeni kao buduće unapređenje. |
-| Vanjski OCR | Google Document AI može biti nedostupan ili imati cijenu. Sistem ima fallback na ručni review. |
+| Vanjski OCR | OCR obrada i automatska klasifikacija zavise od dostupnosti Google Document AI servisa. Nedovoljno pouzdana klasifikacija zahtijeva ručni pregled, dok privremena nedostupnost servisa može onemogućiti ili odgoditi obradu dokumenta. |
 | XML bez XSD-a | Generički format dovoljan za projekat; integracija sa vanjskim sistemima zahtijevala bi formalni XSD. |
 | Swagger u produkciji | Treba ograničiti ili isključiti pristup Swagger UI-ju na produkciji. |
 
