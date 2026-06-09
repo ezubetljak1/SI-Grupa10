@@ -148,7 +148,6 @@ Aplikacija koristi jednu PostgreSQL bazu (`docflow-db`). `Hibernate ddl-auto=upd
 
 `INVOICE`, `RECEIPT`, `BANK_STATEMENT`, `FORM`, `OTHER`
 
-> Tip `UNKNOWN` se koristi interno dok klasifikacija nije potvrđena.
 
 
 ---
