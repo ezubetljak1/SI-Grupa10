@@ -1,4 +1,4 @@
-# DocFlow — Architecture / Technical Overview
+# Architecture / Technical Overview
 
 ---
 
